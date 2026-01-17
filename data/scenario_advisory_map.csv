@@ -1,0 +1,181 @@
+archetype,scenario_key,template
+CUSTOM,BETWEEN_BOUNDS,"**Scenario overview:** This is a custom structure, so the key takeaway is how P&L changes as price moves."
+CUSTOM,UNLIMITED_RISK,**High‑risk zone:** This structure can keep losing money if the stock keeps moving further against you.
+STOCK_LONG,BELOW_LOWER_BOUND,**Down move:** Your shares lose value as the stock falls.
+STOCK_LONG,BETWEEN_BOUNDS,**Near current level:** Your result is driven mainly by normal day‑to‑day stock movement.
+STOCK_LONG,ABOVE_UPPER_BOUND,**Up move:** Your shares gain value as the stock rises.
+STOCK_SHORT,BELOW_LOWER_BOUND,**Down move:** A stock decline benefits a short‑stock position (profits grow as price falls).
+STOCK_SHORT,BETWEEN_BOUNDS,**Near current level:** Your result is driven mainly by normal day‑to‑day stock movement (in the opposite direction).
+STOCK_SHORT,ABOVE_UPPER_BOUND,**Up move (risk):** A stock rally works against a short‑stock position and losses can grow as price rises.
+LONG_CALL,BELOW_LOWER_BOUND,"**Premium‑at‑risk:** The stock is below your call strike ({PrimaryStrikeFmt}), so the option’s value is limited unless the stock rebounds."
+LONG_CALL,BETWEEN_BOUNDS,"**Decision zone:** Near your call strike ({PrimaryStrikeFmt}), small moves can change the option’s value quickly."
+LONG_CALL,ABOVE_UPPER_BOUND,"**Participation zone:** Above your call strike ({PrimaryStrikeFmt}), gains tend to increase as the stock rises."
+SHORT_CALL,BELOW_LOWER_BOUND,"**Income zone:** Below your call strike ({PrimaryStrikeFmt}), the call is more likely to expire with limited value."
+SHORT_CALL,BETWEEN_BOUNDS,"**Watch zone:** Near/above your call strike ({PrimaryStrikeFmt}), upside gains can be partially offset and risk increases."
+SHORT_CALL,UNLIMITED_RISK,"**High‑risk zone:** Above the call strike ({PrimaryStrikeFmt}), losses can continue to grow if the stock keeps rising."
+LONG_PUT,ABOVE_UPPER_BOUND,"**Premium‑at‑risk:** The stock is above your put strike ({PrimaryStrikeFmt}), so the option’s value is limited unless the stock falls."
+LONG_PUT,BETWEEN_BOUNDS,"**Decision zone:** Near your put strike ({PrimaryStrikeFmt}), downside moves can increase protection quickly."
+LONG_PUT,BELOW_LOWER_BOUND,"**Protection working:** Below your put strike ({PrimaryStrikeFmt}), the put is designed to gain value as the stock falls."
+SHORT_PUT,ABOVE_UPPER_BOUND,"**Income zone:** Above your put strike ({PrimaryStrikeFmt}), the put is more likely to expire with limited value."
+SHORT_PUT,BETWEEN_BOUNDS,"**Watch zone:** Near your put strike ({PrimaryStrikeFmt}), you are closer to being obligated to buy shares at that level."
+SHORT_PUT,BELOW_LOWER_BOUND,"**Assignment zone:** Below the put strike ({PrimaryStrikeFmt}), the position behaves more like buying shares at that strike (downside continues below it)."
+COVERED_CALL,BELOW_LOWER_BOUND,"**Down move:** The option premium can soften losses, but a large sell‑off still reduces the value of the position."
+COVERED_CALL,BETWEEN_BOUNDS,"**Income zone:** If the stock stays below your call strike ({CapStrikeFmt}), premium income can help support returns."
+COVERED_CALL,ABOVE_UPPER_BOUND,"**Upside limited:** Above your call strike ({CapStrikeFmt}), further upside is typically capped because shares may be called away."
+COVERED_PUT,BELOW_LOWER_BOUND,"**Down move (favorable):** A decline can help this structure, but outcomes depend on where the stock settles versus the put strike ({PrimaryStrikeFmt})."
+COVERED_PUT,BETWEEN_BOUNDS,"**Income zone:** Near the put strike ({PrimaryStrikeFmt}), premium helps, but be aware of potential share delivery obligations."
+COVERED_PUT,ABOVE_UPPER_BOUND,"**Up move (risk):** If the stock rises above the put strike ({PrimaryStrikeFmt}), the stock leg can drive losses; premium may only partially offset it."
+PROTECTIVE_CALL,BELOW_LOWER_BOUND,**Down move (favorable):** A decline benefits the short‑stock leg; the call hedge may not be needed in this zone.
+PROTECTIVE_CALL,BETWEEN_BOUNDS,"**Hedge carrying:** Near the call strike ({PrimaryStrikeFmt}), the hedge can reduce upside risk, but it also has a carrying cost."
+PROTECTIVE_CALL,ABOVE_UPPER_BOUND,"**Protection working:** Above the call strike ({PrimaryStrikeFmt}), the long call is designed to limit further losses from a rising stock."
+PROTECTIVE_PUT,ABOVE_UPPER_BOUND,"**Insurance cost:** Above the put strike ({FloorStrikeFmt}), protection may not be needed and the put’s cost can reduce returns."
+PROTECTIVE_PUT,BETWEEN_BOUNDS,"**Buffered exposure:** Between current levels and the protection strike ({FloorStrikeFmt}), you still participate in moves, with downside protection further below."
+PROTECTIVE_PUT,BELOW_LOWER_BOUND,"**Protection working:** Below the put strike ({FloorStrikeFmt}), the hedge is designed to limit further downside on the combined position."
+COLLAR,ABOVE_UPPER_BOUND,"**Upside limited:** Above your call strike ({CapStrikeFmt}), further upside is typically capped because shares may be called away."
+COLLAR,BETWEEN_BOUNDS,"**Stability zone:** Between the protection level ({FloorStrikeFmt}) and the call strike ({CapStrikeFmt}), the goal is steadier outcomes versus holding stock alone."
+COLLAR,BELOW_LOWER_BOUND,"**Protection working:** Below the put strike ({FloorStrikeFmt}), the hedge is designed to limit further downside."
+BULL_CALL_DEBIT,BELOW_LOWER_BOUND,"**Limited downside:** Below the lower strike ({LowerStrikeFmt}), this spread is typically near its worst‑case value (loss limited)."
+BULL_CALL_DEBIT,BETWEEN_BOUNDS,"**Upside building:** Between {LowerStrikeFmt} and {UpperStrikeFmt}, gains typically increase as the stock rises through the spread."
+BULL_CALL_DEBIT,ABOVE_UPPER_BOUND,"**Near max value:** Above the upper strike ({UpperStrikeFmt}), the spread is typically near its best‑case value (additional upside adds little)."
+BULL_PUT_CREDIT,ABOVE_UPPER_BOUND,"**Income zone:** Above the short put strike area, the goal is to retain premium if the stock holds up."
+BULL_PUT_CREDIT,BETWEEN_BOUNDS,"**Watch zone:** Between {LowerStrikeFmt} and {UpperStrikeFmt}, downside pressure can reduce the position’s value as the stock falls."
+BULL_PUT_CREDIT,BELOW_LOWER_BOUND,"**Defined downside:** Below the lower strike ({LowerStrikeFmt}), losses are typically near their maximum and are limited by the long put."
+BEAR_PUT_DEBIT,ABOVE_UPPER_BOUND,"**Premium‑at‑risk:** Above the upper strike ({UpperStrikeFmt}), this bearish spread can lose value as the stock rises."
+BEAR_PUT_DEBIT,BETWEEN_BOUNDS,"**Downside building:** Between {LowerStrikeFmt} and {UpperStrikeFmt}, gains typically increase as the stock falls through the spread."
+BEAR_PUT_DEBIT,BELOW_LOWER_BOUND,"**Near max value:** Below the lower strike ({LowerStrikeFmt}), the spread is typically near its best‑case value (additional downside adds little)."
+BEAR_CALL_CREDIT,BELOW_LOWER_BOUND,"**Income zone:** Below the short call strike area, the goal is to retain premium if the stock stays contained."
+BEAR_CALL_CREDIT,BETWEEN_BOUNDS,"**Watch zone:** Between {LowerStrikeFmt} and {UpperStrikeFmt}, upside pressure can reduce the position’s value as the stock rises."
+BEAR_CALL_CREDIT,ABOVE_UPPER_BOUND,"**Defined upside risk:** Above the upper strike ({UpperStrikeFmt}), losses are typically near their maximum and are limited by the long call."
+CALL_RATIO_BACKSPREAD,BELOW_LOWER_BOUND,"**Carry zone:** Below the lower strike ({LowerStrikeFmt}), this position may have limited benefit unless a larger move develops."
+CALL_RATIO_BACKSPREAD,BETWEEN_BOUNDS,"**Transition zone:** Between {LowerStrikeFmt} and {UpperStrikeFmt}, the position is moving toward its “big‑move” payoff profile."
+CALL_RATIO_BACKSPREAD,UNLIMITED_UPSIDE,"**Breakout opportunity:** Above the upper strike ({UpperStrikeFmt}), a large rally can accelerate gains because you own extra upside exposure."
+PUT_RATIO_BACKSPREAD,ABOVE_UPPER_BOUND,"**Carry zone:** Above the upper strike ({UpperStrikeFmt}), this position may have limited benefit unless a larger move develops."
+PUT_RATIO_BACKSPREAD,BETWEEN_BOUNDS,"**Transition zone:** Between {LowerStrikeFmt} and {UpperStrikeFmt}, the position is moving toward its “big‑move” payoff profile."
+PUT_RATIO_BACKSPREAD,UNLIMITED_UPSIDE,"**Breakout opportunity:** Below the lower strike ({LowerStrikeFmt}), a large sell‑off can accelerate gains because you own extra downside exposure."
+CALL_RATIO_SPREAD,BELOW_LOWER_BOUND,"**Contained zone:** Below the lower strike ({LowerStrikeFmt}), outcomes are typically more controlled."
+CALL_RATIO_SPREAD,BETWEEN_BOUNDS,"**Managed zone:** Between {LowerStrikeFmt} and {UpperStrikeFmt}, the position is intended to behave in a more measured way."
+CALL_RATIO_SPREAD,UNLIMITED_RISK,"**High‑risk zone:** Above the upper strike ({UpperStrikeFmt}), losses can accelerate because the position remains net short upside exposure."
+PUT_RATIO_SPREAD,ABOVE_UPPER_BOUND,"**Contained zone:** Above the upper strike ({UpperStrikeFmt}), outcomes are typically more controlled."
+PUT_RATIO_SPREAD,BETWEEN_BOUNDS,"**Managed zone:** Between {LowerStrikeFmt} and {UpperStrikeFmt}, the position is intended to behave in a more measured way."
+PUT_RATIO_SPREAD,UNLIMITED_RISK,"**High‑risk zone:** Below the lower strike ({LowerStrikeFmt}), losses can accelerate because the position remains net short downside exposure."
+BULL_CALL_LADDER,BELOW_LOWER_BOUND,"**Limited benefit zone:** Below the lower strike ({LowerStrikeFmt}), gains are typically limited and the structure may lag expectations."
+BULL_CALL_LADDER,BETWEEN_BOUNDS,"**Step‑up zone:** Between {LowerStrikeFmt} and {UpperStrikeFmt}, the payoff can improve in stages as the stock rises."
+BULL_CALL_LADDER,UNLIMITED_RISK,"**High‑risk zone:** Above the upper strike ({UpperStrikeFmt}), losses can grow if the structure leaves you net short calls."
+BEAR_PUT_LADDER,ABOVE_UPPER_BOUND,"**Limited benefit zone:** Above the upper strike ({UpperStrikeFmt}), gains are typically limited and the structure may lag expectations."
+BEAR_PUT_LADDER,BETWEEN_BOUNDS,"**Step‑down zone:** Between {LowerStrikeFmt} and {UpperStrikeFmt}, the payoff can improve in stages as the stock falls."
+BEAR_PUT_LADDER,UNLIMITED_RISK,"**High‑risk zone:** Below the lower strike ({LowerStrikeFmt}), losses can grow if the structure leaves you net short puts."
+BEAR_CALL_LADDER,BELOW_LOWER_BOUND,"**Favorable zone:** Below the lower strike ({LowerStrikeFmt}), this structure typically benefits from weakness in the stock."
+BEAR_CALL_LADDER,BETWEEN_BOUNDS,"**Transition zone:** Between {LowerStrikeFmt} and {UpperStrikeFmt}, the payoff changes as the stock moves through the ladder strikes."
+BEAR_CALL_LADDER,ABOVE_UPPER_BOUND,"**Adverse zone:** Above the upper strike ({UpperStrikeFmt}), upside can work against the structure."
+BULL_PUT_LADDER,ABOVE_UPPER_BOUND,"**Favorable zone:** Above the upper strike ({UpperStrikeFmt}), this structure typically benefits from strength in the stock."
+BULL_PUT_LADDER,BETWEEN_BOUNDS,"**Transition zone:** Between {LowerStrikeFmt} and {UpperStrikeFmt}, the payoff changes as the stock moves through the ladder strikes."
+BULL_PUT_LADDER,BELOW_LOWER_BOUND,"**Adverse zone:** Below the lower strike ({LowerStrikeFmt}), downside can work against the structure."
+CALL_BUTTERFLY_LONG,PEAK_PROFIT_ZONE,"**Best‑case zone:** Near the center strike ({CenterStrikeFmt}), this position is designed to be worth the most."
+CALL_BUTTERFLY_LONG,BETWEEN_BOUNDS,"**Target range:** Inside the outer strikes ({LowerStrikeFmt}–{UpperStrikeFmt}), value depends heavily on where the stock finishes."
+CALL_BUTTERFLY_LONG,OUTSIDE_RANGE,"**Outside target range:** Outside the outer strikes ({LowerStrikeFmt}–{UpperStrikeFmt}), the position’s value is typically limited."
+PUT_BUTTERFLY_LONG,PEAK_PROFIT_ZONE,"**Best‑case zone:** Near the center strike ({CenterStrikeFmt}), this position is designed to be worth the most."
+PUT_BUTTERFLY_LONG,BETWEEN_BOUNDS,"**Target range:** Inside the outer strikes ({LowerStrikeFmt}–{UpperStrikeFmt}), value depends heavily on where the stock finishes."
+PUT_BUTTERFLY_LONG,OUTSIDE_RANGE,"**Outside target range:** Outside the outer strikes ({LowerStrikeFmt}–{UpperStrikeFmt}), the position’s value is typically limited."
+IRON_BUTTERFLY_SHORT,PEAK_PROFIT_ZONE,"**Best‑case zone:** Near the center strike ({CenterStrikeFmt}), this position is designed to keep the most premium."
+IRON_BUTTERFLY_SHORT,BETWEEN_BOUNDS,"**Comfort zone:** Inside the outer strikes ({LowerStrikeFmt}–{UpperStrikeFmt}), outcomes are typically more stable than outside the range."
+IRON_BUTTERFLY_SHORT,OUTSIDE_RANGE,"**Stress zone:** Outside the outer strikes ({LowerStrikeFmt}–{UpperStrikeFmt}), losses can grow (though the wings help limit the maximum option loss)."
+CALL_CONDOR_LONG,PEAK_PROFIT_ZONE,"**Best‑case zone:** Near the center of the structure ({CenterStrikeFmt}), this position is designed to perform best."
+CALL_CONDOR_LONG,BETWEEN_BOUNDS,"**Target range:** Inside the outer strikes ({LowerStrikeFmt}–{UpperStrikeFmt}), outcomes are typically strongest if the stock stays in range."
+CALL_CONDOR_LONG,OUTSIDE_RANGE,"**Outside target range:** Outside the outer strikes ({LowerStrikeFmt}–{UpperStrikeFmt}), the position’s value is typically weaker."
+PUT_CONDOR_LONG,PEAK_PROFIT_ZONE,"**Best‑case zone:** Near the center of the structure ({CenterStrikeFmt}), this position is designed to perform best."
+PUT_CONDOR_LONG,BETWEEN_BOUNDS,"**Target range:** Inside the outer strikes ({LowerStrikeFmt}–{UpperStrikeFmt}), outcomes are typically strongest if the stock stays in range."
+PUT_CONDOR_LONG,OUTSIDE_RANGE,"**Outside target range:** Outside the outer strikes ({LowerStrikeFmt}–{UpperStrikeFmt}), the position’s value is typically weaker."
+IRON_CONDOR_SHORT,BELOW_LOWER_BOUND,"**Downside stress (options):** Below the lower short strike ({LowerStrikeFmt}), the option overlay can lose value, but the long put helps limit the maximum option loss."
+IRON_CONDOR_SHORT,BETWEEN_BOUNDS,"**Income zone:** Between {LowerStrikeFmt} and {UpperStrikeFmt}, the goal is to retain premium if the stock stays contained."
+IRON_CONDOR_SHORT,ABOVE_UPPER_BOUND,"**Upside stress (options):** Above the upper short strike ({UpperStrikeFmt}), the option overlay can lose value, but the long call helps limit the maximum option loss."
+CALL_BUTTERFLY_SHORT,PEAK_PROFIT_ZONE,"**Highest risk point:** Near the center strike ({CenterStrikeFmt}), this short structure is typically closest to its worst‑case outcome."
+CALL_BUTTERFLY_SHORT,BETWEEN_BOUNDS,**Improving zone:** Moving away from the center within ({LowerStrikeFmt}–{UpperStrikeFmt}) can improve outcomes versus the peak‑risk point.
+CALL_BUTTERFLY_SHORT,OUTSIDE_RANGE,"**Recovery zone:** Outside the outer strikes ({LowerStrikeFmt}–{UpperStrikeFmt}), the position can recover as the stock moves away from the center."
+PUT_BUTTERFLY_SHORT,PEAK_PROFIT_ZONE,"**Highest risk point:** Near the center strike ({CenterStrikeFmt}), this short structure is typically closest to its worst‑case outcome."
+PUT_BUTTERFLY_SHORT,BETWEEN_BOUNDS,**Improving zone:** Moving away from the center within ({LowerStrikeFmt}–{UpperStrikeFmt}) can improve outcomes versus the peak‑risk point.
+PUT_BUTTERFLY_SHORT,OUTSIDE_RANGE,"**Recovery zone:** Outside the outer strikes ({LowerStrikeFmt}–{UpperStrikeFmt}), the position can recover as the stock moves away from the center."
+IRON_BUTTERFLY_LONG,PEAK_PROFIT_ZONE,"**Highest risk point:** Near the center strike ({CenterStrikeFmt}), this long structure is typically closest to its worst‑case outcome (premium paid)."
+IRON_BUTTERFLY_LONG,BETWEEN_BOUNDS,"**Premium‑decay zone:** If the stock stays near the center, the position can lose value over time."
+IRON_BUTTERFLY_LONG,OUTSIDE_RANGE,**Big‑move zone:** A larger move outside ({LowerStrikeFmt}–{UpperStrikeFmt}) is typically what this structure needs to improve.
+CALL_CONDOR_SHORT,PEAK_PROFIT_ZONE,"**Best‑case zone:** Near the middle of the range ({CenterStrikeFmt}), this short structure is designed to retain the most premium."
+CALL_CONDOR_SHORT,BETWEEN_BOUNDS,"**Income zone:** Inside ({LowerStrikeFmt}–{UpperStrikeFmt}), the goal is to keep premium if the stock stays contained."
+CALL_CONDOR_SHORT,OUTSIDE_RANGE,"**Stress zone:** Outside ({LowerStrikeFmt}–{UpperStrikeFmt}), losses can grow (typically limited by the outer long options)."
+PUT_CONDOR_SHORT,PEAK_PROFIT_ZONE,"**Best‑case zone:** Near the middle of the range ({CenterStrikeFmt}), this short structure is designed to retain the most premium."
+PUT_CONDOR_SHORT,BETWEEN_BOUNDS,"**Income zone:** Inside ({LowerStrikeFmt}–{UpperStrikeFmt}), the goal is to keep premium if the stock stays contained."
+PUT_CONDOR_SHORT,OUTSIDE_RANGE,"**Stress zone:** Outside ({LowerStrikeFmt}–{UpperStrikeFmt}), losses can grow (typically limited by the outer long options)."
+IRON_CONDOR_LONG,PEAK_PROFIT_ZONE,"**Premium‑at‑risk:** Near the center of the range ({CenterStrikeFmt}), this long structure is typically closest to its worst‑case outcome (premium paid)."
+IRON_CONDOR_LONG,BETWEEN_BOUNDS,"**Premium‑decay zone:** If the stock stays inside the central range, the position can lose value over time."
+IRON_CONDOR_LONG,OUTSIDE_RANGE,**Big‑move zone:** A larger move outside ({LowerStrikeFmt}–{UpperStrikeFmt}) is typically what this structure needs to improve.
+STRADDLE_LONG,BETWEEN_BOUNDS,"**Needs movement:** If the stock stays near the strike ({CenterStrikeFmt}), the options can lose value over time."
+STRADDLE_LONG,OUTSIDE_RANGE,**Big‑move zone:** A larger move away from the strike ({CenterStrikeFmt}) is typically what this position needs to improve.
+STRADDLE_SHORT,BETWEEN_BOUNDS,"**Income zone:** If the stock stays near the strike ({CenterStrikeFmt}), this position is designed to keep more of the premium."
+STRADDLE_SHORT,OUTSIDE_RANGE,**Stress zone:** A large move away from the strike ({CenterStrikeFmt}) can create losses that grow as the move extends.
+STRADDLE_SHORT,UNLIMITED_RISK,"**High‑risk zone:** With a continued large move, losses can keep growing (risk is not naturally capped)."
+STRANGLE_LONG,BETWEEN_BOUNDS,"**Needs movement:** If the stock stays between {LowerStrikeFmt} and {UpperStrikeFmt}, the options can lose value over time."
+STRANGLE_LONG,OUTSIDE_RANGE,**Big‑move zone:** A move outside ({LowerStrikeFmt}–{UpperStrikeFmt}) is typically what this position needs to improve.
+STRANGLE_SHORT,BETWEEN_BOUNDS,"**Income zone:** If the stock stays between {LowerStrikeFmt} and {UpperStrikeFmt}, this position is designed to keep more of the premium."
+STRANGLE_SHORT,OUTSIDE_RANGE,**Stress zone:** A move outside ({LowerStrikeFmt}–{UpperStrikeFmt}) can create losses that grow as the move extends.
+STRANGLE_SHORT,UNLIMITED_RISK,"**High‑risk zone:** With a continued large move, losses can keep growing (risk is not naturally capped)."
+GUTS_LONG,BETWEEN_BOUNDS,"**Needs movement:** If the stock stays inside the guts range, the options can lose value over time."
+GUTS_LONG,OUTSIDE_RANGE,**Big‑move zone:** A move outside the guts range is typically what this position needs to improve.
+GUTS_SHORT,BETWEEN_BOUNDS,"**Income zone:** If the stock stays inside the guts range, this position is designed to keep more premium."
+GUTS_SHORT,OUTSIDE_RANGE,**Stress zone:** A move outside the guts range can create losses that grow as the move extends.
+GUTS_SHORT,UNLIMITED_RISK,"**High‑risk zone:** With a continued large move, losses can keep growing (risk is not naturally capped)."
+STRIP,BETWEEN_BOUNDS,"**Needs movement (downside‑tilted):** If the stock stays near the strike, the options can lose value over time; downside moves matter more here."
+STRIP,OUTSIDE_RANGE,**Big‑move zone:** A larger move (especially down) can improve results for this structure.
+STRAP,BETWEEN_BOUNDS,"**Needs movement (upside‑tilted):** If the stock stays near the strike, the options can lose value over time; upside moves matter more here."
+STRAP,OUTSIDE_RANGE,**Big‑move zone:** A larger move (especially up) can improve results for this structure.
+COVERED_STRADDLE_SHORT,BETWEEN_BOUNDS,"**Income overlay:** Premium income can help if the stock stays near the strike area, but large moves change the profile quickly."
+COVERED_STRADDLE_SHORT,OUTSIDE_RANGE,**Stress zone:** A large move can overwhelm the premium collected and increase risk.
+COVERED_STRADDLE_SHORT,UNLIMITED_RISK,"**High‑risk zone:** With a continued strong move, losses can keep growing despite the overlay."
+COVERED_STRANGLE_SHORT,BETWEEN_BOUNDS,"**Income overlay:** Premium income can help if the stock stays within {LowerStrikeFmt}–{UpperStrikeFmt}, but a breakout changes the profile quickly."
+COVERED_STRANGLE_SHORT,OUTSIDE_RANGE,**Stress zone:** A move outside {LowerStrikeFmt}–{UpperStrikeFmt} can overwhelm the premium collected and increase risk.
+COVERED_STRANGLE_SHORT,UNLIMITED_RISK,"**High‑risk zone:** With a continued strong move, losses can keep growing despite the overlay."
+BOX_LONG,BETWEEN_BOUNDS,**Fixed‑outcome profile:** This is designed to behave like a mostly fixed payoff; results depend more on carrying cost and early close than stock direction.
+BOX_SHORT,BETWEEN_BOUNDS,**Fixed‑outcome profile:** This is designed to behave like a mostly fixed payoff; results depend more on carrying cost and early close than stock direction.
+SYNTH_LONG_STOCK,BELOW_LOWER_BOUND,**Stock‑like downside:** This position behaves similarly to owning shares when the stock falls.
+SYNTH_LONG_STOCK,BETWEEN_BOUNDS,**Stock‑like exposure:** This position is designed to track the stock’s movement around the strike ({PrimaryStrikeFmt}).
+SYNTH_LONG_STOCK,ABOVE_UPPER_BOUND,**Stock‑like upside:** This position behaves similarly to owning shares when the stock rises.
+SYNTH_SHORT_STOCK,BELOW_LOWER_BOUND,**Stock‑like gain:** This position behaves similarly to being short shares when the stock falls.
+SYNTH_SHORT_STOCK,BETWEEN_BOUNDS,**Stock‑like exposure:** This position is designed to track the inverse of the stock’s movement around the strike ({PrimaryStrikeFmt}).
+SYNTH_SHORT_STOCK,ABOVE_UPPER_BOUND,**Stock‑like risk:** This position behaves similarly to being short shares when the stock rises (risk increases with further upside).
+COMBO_LONG,BETWEEN_BOUNDS,"**Directional tilt:** This structure is bullish, but downside below the put strike remains the key risk."
+COMBO_LONG,ABOVE_UPPER_BOUND,"**Bullish zone:** Above the call strike, gains typically increase with further upside."
+COMBO_LONG,UNLIMITED_RISK,"**Downside risk zone:** Below the put strike, losses can grow similarly to stock ownership."
+COMBO_SHORT,BETWEEN_BOUNDS,"**Directional tilt:** This structure is bearish, but upside above the call strike remains the key risk."
+COMBO_SHORT,BELOW_LOWER_BOUND,"**Bearish zone:** Below the put strike, gains typically increase with further downside."
+COMBO_SHORT,UNLIMITED_RISK,"**Upside risk zone:** Above the call strike, losses can keep growing if the stock continues higher."
+SYN_CALL_STRADDLE_LONG,BETWEEN_BOUNDS,"**Needs movement:** If the stock stays near the strike ({CenterStrikeFmt}), the options can lose value over time."
+SYN_CALL_STRADDLE_LONG,OUTSIDE_RANGE,**Big‑move zone:** A larger move away from ({CenterStrikeFmt}) is typically what this structure needs to improve.
+SYN_PUT_STRADDLE_LONG,BETWEEN_BOUNDS,"**Needs movement:** If the stock stays near the strike ({CenterStrikeFmt}), the options can lose value over time."
+SYN_PUT_STRADDLE_LONG,OUTSIDE_RANGE,**Big‑move zone:** A larger move away from ({CenterStrikeFmt}) is typically what this structure needs to improve.
+SYN_CALL_STRADDLE_SHORT,BETWEEN_BOUNDS,"**Income zone:** If the stock stays near the strike ({CenterStrikeFmt}), premium retention is typically strongest."
+SYN_CALL_STRADDLE_SHORT,OUTSIDE_RANGE,**Stress zone:** A large move can increase losses as the move extends.
+SYN_CALL_STRADDLE_SHORT,UNLIMITED_RISK,"**High‑risk zone:** With continued upside, losses can keep growing because risk is not fully capped."
+SYN_PUT_STRADDLE_SHORT,BETWEEN_BOUNDS,"**Income zone:** If the stock stays near the strike ({CenterStrikeFmt}), premium retention is typically strongest."
+SYN_PUT_STRADDLE_SHORT,OUTSIDE_RANGE,**Stress zone:** A large move can increase losses as the move extends.
+SYN_PUT_STRADDLE_SHORT,UNLIMITED_RISK,"**High‑risk zone:** With continued downside, losses can keep growing because risk is not fully capped."
+SYN_CALL_STRANGLE_LONG,BETWEEN_BOUNDS,"**Needs movement:** If the stock stays between {LowerStrikeFmt} and {UpperStrikeFmt}, the options can lose value over time."
+SYN_CALL_STRANGLE_LONG,OUTSIDE_RANGE,**Big‑move zone:** A move outside ({LowerStrikeFmt}–{UpperStrikeFmt}) is typically what this structure needs to improve.
+SYN_PUT_STRANGLE_LONG,BETWEEN_BOUNDS,"**Needs movement:** If the stock stays between {LowerStrikeFmt} and {UpperStrikeFmt}, the options can lose value over time."
+SYN_PUT_STRANGLE_LONG,OUTSIDE_RANGE,**Big‑move zone:** A move outside ({LowerStrikeFmt}–{UpperStrikeFmt}) is typically what this structure needs to improve.
+SYN_CALL_STRANGLE_SHORT,BETWEEN_BOUNDS,"**Income zone:** If the stock stays between {LowerStrikeFmt} and {UpperStrikeFmt}, premium retention is typically strongest."
+SYN_CALL_STRANGLE_SHORT,OUTSIDE_RANGE,**Stress zone:** A move outside ({LowerStrikeFmt}–{UpperStrikeFmt}) can increase losses as the move extends.
+SYN_CALL_STRANGLE_SHORT,UNLIMITED_RISK,"**High‑risk zone:** With continued upside, losses can keep growing because risk is not fully capped."
+SYN_PUT_STRANGLE_SHORT,BETWEEN_BOUNDS,"**Income zone:** If the stock stays between {LowerStrikeFmt} and {UpperStrikeFmt}, premium retention is typically strongest."
+SYN_PUT_STRANGLE_SHORT,OUTSIDE_RANGE,**Stress zone:** A move outside ({LowerStrikeFmt}–{UpperStrikeFmt}) can increase losses as the move extends.
+SYN_PUT_STRANGLE_SHORT,UNLIMITED_RISK,"**High‑risk zone:** With continued downside, losses can keep growing because risk is not fully capped."
+SYN_COVERED_CALL,BETWEEN_BOUNDS,**Income‑focused:** This structure benefits if the stock holds above the strike area; downside remains the primary risk.
+SYN_COVERED_CALL,ABOVE_UPPER_BOUND,"**Upside limited:** Above the strike area, gains are typically limited to premium retained."
+SYN_COVERED_CALL,BELOW_LOWER_BOUND,"**Downside risk zone:** As the stock falls below the strike area, losses can grow similarly to stock ownership."
+SYN_COVERED_PUT,BETWEEN_BOUNDS,**Income‑focused:** This structure benefits if the stock stays contained; a strong rally is the primary risk.
+SYN_COVERED_PUT,BELOW_LOWER_BOUND,"**Favorable zone:** If the stock declines, the position can benefit up to a point (premium retained)."
+SYN_COVERED_PUT,UNLIMITED_RISK,"**High‑risk zone:** If the stock rises strongly, losses can continue to grow because upside risk is not capped."
+CONVERSION,BETWEEN_BOUNDS,**Stabilized payoff:** This structure is designed to produce a mostly fixed outcome versus the stock; results depend more on carry and early close than direction.
+GENERIC,BETWEEN_BOUNDS,**Scenario overview:** Review P&L sensitivity around this level.
+GENERIC,BELOW_LOWER_BOUND,**Lower-price scenario:** Downside payoff mechanics dominate here.
+GENERIC,ABOVE_UPPER_BOUND,**Higher-price scenario:** Upside payoff mechanics dominate here.
+GENERIC,OUTSIDE_RANGE,**Outside range:** The payoff transitions materially outside the core strike region.
+GENERIC,UNLIMITED_RISK,**High‑risk zone:** Losses may continue to grow if the move extends.
+CUSTOM,BELOW_LOWER_BOUND,**Custom downside scenario:** Review how the structure behaves below key strikes.
+CUSTOM,ABOVE_UPPER_BOUND,**Custom upside scenario:** Review how the structure behaves above key strikes.

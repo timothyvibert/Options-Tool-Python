@@ -175,3 +175,30 @@ def export_strategy_map(xlsm_path: str, out_path: str) -> None:
     out_file = Path(out_path)
     out_file.parent.mkdir(parents=True, exist_ok=True)
     strategy_map.to_csv(out_file, index=False)
+
+
+def export_scenario_advisory_map(xlsm_path: str, out_path: str) -> None:
+    raw_df = pd.read_excel(xlsm_path, sheet_name="ScenarioAdvisoryMap")
+    records: List[Dict[str, Any]] = []
+
+    for _, row in raw_df.iterrows():
+        archetype = _normalize_text(row["Archetype"])
+        scenario_key = _normalize_text(row["ScenarioKey"])
+        template = _normalize_text(row["Template"])
+        if archetype is None or scenario_key is None or template is None:
+            continue
+        records.append(
+            {
+                "archetype": archetype.upper(),
+                "scenario_key": scenario_key.upper(),
+                "template": template,
+            }
+        )
+
+    advisory_map = pd.DataFrame.from_records(
+        records, columns=["archetype", "scenario_key", "template"]
+    )
+
+    out_file = Path(out_path)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    advisory_map.to_csv(out_file, index=False)

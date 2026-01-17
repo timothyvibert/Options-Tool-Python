@@ -14,6 +14,7 @@ import streamlit as st
 
 from core.models import OptionLeg, StrategyInput
 from core.payoff import compute_payoff
+from core.scenarios import build_scenario_points, compute_scenario_table
 from core.strategy_map import get_strategy, list_groups, list_strategies, list_subgroups
 
 
@@ -226,6 +227,31 @@ if template_kind != "STOCK_ONLY":
                 )
             )
 
+st.subheader("Scenario settings")
+scenario_mode = st.selectbox(
+    "Scenario mode",
+    options=["STANDARD", "INFINITY"],
+    key="scenario_mode",
+)
+if scenario_mode == "STANDARD":
+    downside_tgt = st.number_input(
+        "Downside target (x spot)",
+        min_value=0.0,
+        value=0.8,
+        step=0.05,
+        key="downside_tgt",
+    )
+    upside_tgt = st.number_input(
+        "Upside target (x spot)",
+        min_value=0.0,
+        value=1.2,
+        step=0.05,
+        key="upside_tgt",
+    )
+else:
+    downside_tgt = 0.8
+    upside_tgt = 1.2
+
 run = st.button("Run Analysis", type="primary")
 if run:
     strategy = StrategyInput(
@@ -250,3 +276,17 @@ if run:
         height=500,
     )
     st.plotly_chart(fig, use_container_width=True)
+
+    scenario_points = build_scenario_points(
+        strategy,
+        results,
+        mode=scenario_mode,
+        downside_tgt=downside_tgt,
+        upside_tgt=upside_tgt,
+    )
+    scenario_table = compute_scenario_table(strategy, scenario_points)
+
+    st.subheader("Scenario table")
+    st.dataframe(scenario_table.head(10), use_container_width=True)
+    with st.expander("Show full scenario table"):
+        st.dataframe(scenario_table, use_container_width=True)

@@ -51,5 +51,6 @@ def test_scenario_table_columns_and_rows():
         "margin_requirement",
         "option_roi",
         "net_roi",
+        "commentary",
     ]
     assert len(table) == len(points)

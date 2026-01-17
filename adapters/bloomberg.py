@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from datetime import date
 from typing import Dict, Iterable, Optional
 
 import pandas as pd
@@ -19,6 +20,7 @@ FIELDS = [
     "OPT_STRIKE_PX",
     "OPT_PUT_CALL",
 ]
+MARKET_SECTOR_KEYWORDS = {"EQUITY", "INDEX", "CURNCY", "COMDTY"}
 
 
 @contextmanager
@@ -113,6 +115,173 @@ def fetch_option_snapshot(option_tickers: list[str]) -> pd.DataFrame:
             "OPT_PUT_CALL",
         ]
     ]
+
+
+def _normalize_put_call(value: object) -> Optional[str]:
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except TypeError:
+        pass
+    text = str(value).strip().upper()
+    if text in {"C", "CALL"}:
+        return "CALL"
+    if text in {"P", "PUT"}:
+        return "PUT"
+    return None
+
+
+def _has_market_sector(ticker: str) -> bool:
+    parts = ticker.strip().split()
+    if not parts:
+        return False
+    return parts[-1].upper() in MARKET_SECTOR_KEYWORDS
+
+
+def resolve_security(user_ticker: str) -> str:
+    if _has_market_sector(user_ticker):
+        return user_ticker
+
+    with with_session() as query:
+        raw = query.bsrch(user_ticker)
+    df = _ensure_security_column(_to_pandas(raw))
+    if df.empty or "security" not in df.columns:
+        return user_ticker
+    first = df["security"].dropna()
+    if first.empty:
+        return user_ticker
+    return str(first.iloc[0])
+
+
+def _chain_column_map(df: pd.DataFrame) -> pd.DataFrame:
+    mapping = {
+        "OPTION_TICKER": "option_ticker",
+        "SECURITY": "option_ticker",
+        "OPT_STRIKE_PX": "strike",
+        "STRIKE": "strike",
+        "OPT_PUT_CALL": "put_call",
+        "PUT_CALL": "put_call",
+        "OPT_EXPIRATION_DATE": "expiry",
+        "EXPIRY": "expiry",
+        "EXPIRATION": "expiry",
+    }
+    rename = {}
+    for column in df.columns:
+        key = column.upper()
+        if key in mapping:
+            rename[column] = mapping[key]
+    df = df.rename(columns=rename)
+    if "option_ticker" not in df.columns and "security" in df.columns:
+        df = df.rename(columns={"security": "option_ticker"})
+    return df
+
+
+def _normalize_expiry(value: object) -> Optional[str]:
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except TypeError:
+        pass
+    if isinstance(value, date):
+        return value.isoformat()
+    text = str(value).strip()
+    if text == "":
+        return None
+    parsed = pd.to_datetime(text, errors="coerce")
+    if pd.isna(parsed):
+        return None
+    return parsed.date().isoformat()
+
+
+def fetch_option_chain(
+    underlying: str, expiry: str, spot: float, pct_window: float
+) -> pd.DataFrame:
+    lower = spot * (1.0 - pct_window)
+    upper = spot * (1.0 + pct_window)
+    expiry_key = pd.to_datetime(expiry).date().isoformat()
+    bql_query = (
+        "get(OPT_CHAIN('{underlying}'),"
+        " 'OPTION_TICKER','OPT_STRIKE_PX','OPT_PUT_CALL','OPT_EXPIRATION_DATE') "
+        "for(filter(OPT_CHAIN('{underlying}'),"
+        " OPT_EXPIRATION_DATE='{expiry}'"
+        " and OPT_STRIKE_PX>={lower}"
+        " and OPT_STRIKE_PX<={upper}))"
+    ).format(
+        underlying=underlying,
+        expiry=expiry_key,
+        lower=lower,
+        upper=upper,
+    )
+
+    with with_session() as query:
+        raw = query.bql(bql_query)
+    df = _ensure_security_column(_to_pandas(raw))
+    df = _chain_column_map(df)
+
+    required = {"option_ticker", "strike", "put_call", "expiry"}
+    missing = required - set(df.columns)
+    if missing:
+        raise RuntimeError(
+            f"Option chain response missing columns: {sorted(missing)}"
+        )
+
+    df["expiry"] = df["expiry"].apply(_normalize_expiry)
+    df["strike"] = pd.to_numeric(df["strike"], errors="coerce")
+    df["put_call"] = df["put_call"].apply(_normalize_put_call)
+    df = df.dropna(subset=["option_ticker", "strike", "put_call", "expiry"])
+    df = df[df["expiry"] == expiry_key]
+    df = df[(df["strike"] >= lower) & (df["strike"] <= upper)]
+
+    if df.empty:
+        raise RuntimeError("Option chain query returned no rows.")
+
+    return df[["option_ticker", "strike", "put_call", "expiry"]].copy()
+
+
+def chain_strikes(chain_df: pd.DataFrame, put_call: str) -> list[float]:
+    if chain_df is None or chain_df.empty:
+        return []
+    side = _normalize_put_call(put_call)
+    if side is None:
+        return []
+    strikes = []
+    for value, row_side in zip(chain_df["strike"], chain_df["put_call"]):
+        if _normalize_put_call(row_side) != side:
+            continue
+        strike = _value_or_none(value)
+        if strike is None:
+            continue
+        strikes.append(float(strike))
+    return sorted(set(strikes))
+
+
+def select_chain_ticker(
+    chain_df: pd.DataFrame, put_call: str, strike: float
+) -> Optional[str]:
+    if chain_df is None or chain_df.empty:
+        return None
+    side = _normalize_put_call(put_call)
+    if side is None:
+        return None
+    target = float(strike)
+    candidates = chain_df[
+        chain_df["put_call"].apply(_normalize_put_call) == side
+    ]
+    if candidates.empty:
+        return None
+    candidates = candidates.copy()
+    candidates["strike"] = pd.to_numeric(candidates["strike"], errors="coerce")
+    candidates = candidates.dropna(subset=["strike"])
+    matches = candidates[
+        (candidates["strike"] - target).abs() < 1e-6
+    ]
+    if matches.empty:
+        return None
+    return str(matches.iloc[0]["option_ticker"])
 
 
 def _value_or_none(value: object) -> Optional[float]:

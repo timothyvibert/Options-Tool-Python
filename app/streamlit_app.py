@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Optional, Tuple
 
 import pandas as pd
@@ -20,8 +21,12 @@ from core.eligibility import (
 )
 from adapters.bloomberg import (
     build_leg_price_updates,
+    chain_strikes,
     fetch_option_snapshot,
     fetch_spot,
+    fetch_option_chain,
+    resolve_security,
+    select_chain_ticker,
 )
 from core.payoff import compute_payoff
 from core.pricing import DEALABLE, MID
@@ -120,12 +125,31 @@ with col1:
     spot = st.number_input(
         "Spot price", min_value=0.01, value=100.0, step=1.0, key="spot"
     )
-    spot_ticker = st.text_input("Spot ticker (Bloomberg)", key="spot_ticker")
+    underlying_input = st.text_input(
+        "Underlying ticker", key="underlying_ticker"
+    )
+    resolve_underlying = st.button("Resolve Ticker", key="resolve_ticker")
+    if resolve_underlying:
+        if underlying_input.strip():
+            try:
+                resolved = resolve_security(underlying_input.strip())
+                st.session_state["resolved_underlying"] = resolved
+            except Exception as exc:
+                st.error(f"Resolve failed: {exc}")
+        else:
+            st.warning("Enter an underlying ticker to resolve.")
+    resolved_underlying = st.session_state.get("resolved_underlying", "")
+    st.text_input(
+        "Resolved Underlying",
+        value=resolved_underlying,
+        disabled=True,
+    )
     refresh_spot = st.button("Bloomberg: Refresh Spot", key="refresh_spot")
     if refresh_spot:
-        if spot_ticker.strip():
+        base_ticker = resolved_underlying or underlying_input.strip()
+        if base_ticker:
             try:
-                new_spot = fetch_spot(spot_ticker.strip())
+                new_spot = fetch_spot(base_ticker)
                 if pd.isna(new_spot):
                     st.warning("Spot refresh failed; no price returned.")
                 else:
@@ -133,7 +157,7 @@ with col1:
             except Exception as exc:
                 st.error(f"Spot refresh failed: {exc}")
         else:
-            st.warning("Enter a spot ticker before refreshing.")
+            st.warning("Enter an underlying ticker before refreshing.")
 with col2:
     stock_position = st.number_input("Stock position (shares)", value=0.0, step=1.0)
 avg_cost = st.number_input("Stock average cost", min_value=0.0, value=spot, step=1.0)
@@ -198,11 +222,53 @@ template_kind = (
     else None
 )
 
+st.subheader("Option chain")
+chain_expiry = st.date_input(
+    "Expiry",
+    value=st.session_state.get("chain_expiry", date.today()),
+    key="chain_expiry",
+)
+chain_window = st.slider(
+    "Chain window (+/- % spot)",
+    min_value=0.01,
+    max_value=0.5,
+    value=st.session_state.get("chain_window", 0.10),
+    step=0.01,
+    key="chain_window",
+)
+fetch_chain = st.button("Fetch Option Chain", key="fetch_chain")
+if fetch_chain:
+    base_ticker = resolved_underlying or underlying_input.strip()
+    if not base_ticker:
+        st.warning("Enter an underlying ticker before fetching the chain.")
+    else:
+        try:
+            resolved = resolve_security(base_ticker)
+            st.session_state["resolved_underlying"] = resolved
+            new_spot = fetch_spot(resolved)
+            if pd.isna(new_spot):
+                st.warning("Spot refresh failed; using current spot value.")
+                spot_value = float(st.session_state.get("spot", spot))
+            else:
+                st.session_state["spot"] = float(new_spot)
+                spot_value = float(new_spot)
+            chain_df = fetch_option_chain(
+                resolved,
+                chain_expiry.isoformat(),
+                spot_value,
+                chain_window,
+            )
+            st.session_state["option_chain_df"] = chain_df
+            st.success(f"Loaded {len(chain_df)} option(s).")
+        except Exception as exc:
+            st.error(f"Option chain fetch failed: {exc}")
+
 if template_kind == "STOCK_ONLY":
     st.info("Stock-only template; use Stock Position inputs")
 else:
     st.subheader("Option legs (up to 4)")
 legs = []
+chain_df = st.session_state.get("option_chain_df")
 if template_kind != "STOCK_ONLY":
     for idx in range(4):
         with st.expander(f"Leg {idx + 1}", expanded=idx == 0):
@@ -231,13 +297,39 @@ if template_kind != "STOCK_ONLY":
                 "Strike tag",
                 key=f"strike_tag_{idx}",
             )
-            strike = st.number_input(
-                "Strike",
-                min_value=0.01,
-                value=spot,
-                step=1.0,
-                key=f"strike_{idx}",
+            put_call = "CALL" if kind == "Call" else "PUT"
+            available_strikes = (
+                chain_strikes(chain_df, put_call) if chain_df is not None else []
             )
+            if available_strikes:
+                current_strike = st.session_state.get(
+                    f"strike_{idx}", available_strikes[0]
+                )
+                if current_strike not in available_strikes:
+                    current_strike = available_strikes[0]
+                strike_index = available_strikes.index(current_strike)
+                strike = st.selectbox(
+                    "Strike",
+                    options=available_strikes,
+                    index=strike_index,
+                    key=f"strike_{idx}",
+                )
+                selected_ticker = select_chain_ticker(
+                    chain_df, put_call, strike
+                )
+                if selected_ticker:
+                    if st.session_state.get(f"chain_strike_{idx}") != strike:
+                        st.session_state[f"bbg_ticker_{idx}"] = selected_ticker
+                        st.session_state[f"chain_strike_{idx}"] = strike
+            else:
+                strike = st.number_input(
+                    "Strike",
+                    min_value=0.01,
+                    value=spot,
+                    step=1.0,
+                    key=f"strike_{idx}",
+                )
+                st.session_state[f"chain_strike_{idx}"] = None
             option_ticker = st.text_input(
                 "Option ticker (Bloomberg)",
                 key=f"bbg_ticker_{idx}",

@@ -295,6 +295,7 @@ if run:
         scenario_points,
         payoff_result=results,
         roi_policy=roi_policy,
+        strategy_row=selected_strategy_row,
     )
 
     st.subheader("Scenario table")

@@ -13,6 +13,11 @@ if str(REPO_ROOT) not in sys.path:
 import streamlit as st
 
 from core.models import OptionLeg, StrategyInput
+from core.eligibility import (
+    determine_strategy_code,
+    get_account_eligibility,
+    load_account_map,
+)
 from core.payoff import compute_payoff
 from core.roi import CASH_SECURED, MARGIN_PROXY, NET_PREMIUM, RISK_MAX_LOSS
 from core.scenarios import build_scenario_points, compute_scenario_table
@@ -257,6 +262,47 @@ if scenario_mode == "STANDARD":
 else:
     downside_tgt = 0.8
     upside_tgt = 1.2
+
+st.subheader("Account eligibility")
+account_map = load_account_map()
+if account_map.empty:
+    st.warning("No account eligibility data available.")
+    account_type = None
+    eligibility_table = pd.DataFrame()
+    strategy_code = ""
+else:
+    account_types = sorted(
+        account_map["account_type"].dropna().unique().tolist()
+    )
+    if st.session_state.get("account_type") not in account_types:
+        st.session_state["account_type"] = account_types[0]
+    account_type = st.selectbox(
+        "Account Type",
+        options=account_types,
+        key="account_type",
+    )
+    eligibility_input = StrategyInput(
+        spot=spot,
+        stock_position=stock_position,
+        avg_cost=avg_cost,
+        legs=legs,
+    )
+    strategy_code = determine_strategy_code(eligibility_input, roi_policy)
+    eligibility_table = get_account_eligibility(strategy_code)
+
+    code_col, eligibility_col = st.columns(2)
+    code_col.metric("Strategy Code", strategy_code)
+    selected_row = eligibility_table[
+        eligibility_table["account_type"] == account_type
+    ]
+    if selected_row.empty:
+        eligibility_value = "Unavailable"
+    else:
+        eligibility_value = selected_row["eligibility"].iloc[0]
+    eligibility_col.metric("Eligibility", eligibility_value)
+
+    with st.expander("Show eligibility table"):
+        st.dataframe(eligibility_table, use_container_width=True)
 
 run = st.button("Run Analysis", type="primary")
 if run:

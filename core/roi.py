@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from core.margin import compute_margin_proxy
 from core.models import StrategyInput
 from core.payoff import _compute_pnl_for_price
 
@@ -72,9 +73,7 @@ def capital_basis(
         return abs(min(option_pnl))
 
     if policy_key == MARGIN_PROXY:
-        # TODO: replace placeholder with margin engine.
-        net_premium = compute_net_premium(input)
-        return max(1.0, abs(net_premium) * _multiplier(input))
+        return compute_margin_proxy(input, payoff_result)
 
     raise ValueError(f"Unknown ROI policy: {policy}")
 

@@ -4,6 +4,7 @@ import math
 
 import pandas as pd
 
+from core.margin import compute_margin_proxy
 from core.models import StrategyInput
 from core.payoff import _compute_pnl_for_price
 from core.roi import combined_capital_basis, capital_basis, NET_PREMIUM
@@ -56,6 +57,7 @@ def compute_scenario_table(
     )
     option_basis = capital_basis(input, payoff_result, roi_policy)
     total_basis = combined_capital_basis(input, option_basis)
+    margin_requirement = compute_margin_proxy(input, payoff_result)
 
     rows = []
     for price in points:
@@ -68,6 +70,7 @@ def compute_scenario_table(
                 "option_pnl": option_pnl,
                 "stock_pnl": stock_pnl,
                 "combined_pnl": combined_pnl,
+                "margin_requirement": margin_requirement,
                 "option_roi": option_pnl / option_basis,
                 "net_roi": combined_pnl / total_basis,
             }

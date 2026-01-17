@@ -48,6 +48,7 @@ def test_scenario_table_columns_and_rows():
         "option_pnl",
         "stock_pnl",
         "combined_pnl",
+        "margin_requirement",
         "option_roi",
         "net_roi",
     ]

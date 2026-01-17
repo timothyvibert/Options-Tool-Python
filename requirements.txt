@@ -4,3 +4,4 @@ polars
 plotly
 scipy
 pytest
+polars-bloomberg

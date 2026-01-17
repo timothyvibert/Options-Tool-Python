@@ -18,6 +18,11 @@ from core.eligibility import (
     get_account_eligibility,
     load_account_map,
 )
+from adapters.bloomberg import (
+    build_leg_price_updates,
+    fetch_option_snapshot,
+    fetch_spot,
+)
 from core.payoff import compute_payoff
 from core.pricing import DEALABLE, MID
 from core.roi import CASH_SECURED, MARGIN_PROXY, NET_PREMIUM, RISK_MAX_LOSS
@@ -112,7 +117,23 @@ def _apply_strategy_defaults(strategy_row: pd.Series, spot: float) -> None:
 
 col1, col2 = st.columns(2)
 with col1:
-    spot = st.number_input("Spot price", min_value=0.01, value=100.0, step=1.0)
+    spot = st.number_input(
+        "Spot price", min_value=0.01, value=100.0, step=1.0, key="spot"
+    )
+    spot_ticker = st.text_input("Spot ticker (Bloomberg)", key="spot_ticker")
+    refresh_spot = st.button("Bloomberg: Refresh Spot", key="refresh_spot")
+    if refresh_spot:
+        if spot_ticker.strip():
+            try:
+                new_spot = fetch_spot(spot_ticker.strip())
+                if pd.isna(new_spot):
+                    st.warning("Spot refresh failed; no price returned.")
+                else:
+                    st.session_state["spot"] = float(new_spot)
+            except Exception as exc:
+                st.error(f"Spot refresh failed: {exc}")
+        else:
+            st.warning("Enter a spot ticker before refreshing.")
 with col2:
     stock_position = st.number_input("Stock position (shares)", value=0.0, step=1.0)
 avg_cost = st.number_input("Stock average cost", min_value=0.0, value=spot, step=1.0)
@@ -217,6 +238,10 @@ if template_kind != "STOCK_ONLY":
                 step=1.0,
                 key=f"strike_{idx}",
             )
+            option_ticker = st.text_input(
+                "Option ticker (Bloomberg)",
+                key=f"bbg_ticker_{idx}",
+            )
             manual_override = st.checkbox(
                 "Manual override price",
                 key=f"manual_prem_{idx}",
@@ -278,6 +303,51 @@ if scenario_mode == "STANDARD":
 else:
     downside_tgt = 0.8
     upside_tgt = 1.2
+
+st.subheader("Bloomberg pricing")
+fill_leg_prices = st.button("Bloomberg: Fill Leg Prices", key="fill_leg_prices")
+if fill_leg_prices:
+    leg_requests = []
+    tickers = []
+    for idx in range(4):
+        if not st.session_state.get(f"include_{idx}", False):
+            continue
+        ticker = st.session_state.get(f"bbg_ticker_{idx}", "").strip()
+        if not ticker:
+            continue
+        manual_override = st.session_state.get(f"manual_prem_{idx}", False)
+        position_label = st.session_state.get(f"pos_{idx}", "Long")
+        ratio = st.session_state.get(f"ratio_{idx}", 1)
+        position = float(ratio) if position_label == "Long" else -float(ratio)
+        leg_requests.append(
+            {
+                "index": idx,
+                "ticker": ticker,
+                "position": position,
+                "manual_override": manual_override,
+            }
+        )
+        if not manual_override:
+            tickers.append(ticker)
+    unique_tickers = sorted(set(tickers))
+    if not unique_tickers:
+        st.info("No eligible leg tickers to refresh.")
+    else:
+        try:
+            snapshot = fetch_option_snapshot(unique_tickers)
+            updates = build_leg_price_updates(
+                leg_requests,
+                snapshot,
+                pricing_mode,
+            )
+            for idx, premium in updates.items():
+                st.session_state[f"prem_{idx}"] = premium
+            if updates:
+                st.success(f"Updated {len(updates)} leg price(s).")
+            else:
+                st.info("No prices updated from Bloomberg data.")
+        except Exception as exc:
+            st.error(f"Price refresh failed: {exc}")
 
 st.subheader("Account eligibility")
 account_map = load_account_map()

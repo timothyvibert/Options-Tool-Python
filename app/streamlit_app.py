@@ -14,6 +14,7 @@ import streamlit as st
 
 from core.models import OptionLeg, StrategyInput
 from core.payoff import compute_payoff
+from core.roi import CASH_SECURED, MARGIN_PROXY, NET_PREMIUM, RISK_MAX_LOSS
 from core.scenarios import build_scenario_points, compute_scenario_table
 from core.strategy_map import get_strategy, list_groups, list_strategies, list_subgroups
 
@@ -233,6 +234,11 @@ scenario_mode = st.selectbox(
     options=["STANDARD", "INFINITY"],
     key="scenario_mode",
 )
+roi_policy = st.selectbox(
+    "ROI policy",
+    options=[NET_PREMIUM, RISK_MAX_LOSS, CASH_SECURED, MARGIN_PROXY],
+    key="roi_policy",
+)
 if scenario_mode == "STANDARD":
     downside_tgt = st.number_input(
         "Downside target (x spot)",
@@ -284,7 +290,12 @@ if run:
         downside_tgt=downside_tgt,
         upside_tgt=upside_tgt,
     )
-    scenario_table = compute_scenario_table(strategy, scenario_points)
+    scenario_table = compute_scenario_table(
+        strategy,
+        scenario_points,
+        payoff_result=results,
+        roi_policy=roi_policy,
+    )
 
     st.subheader("Scenario table")
     st.dataframe(scenario_table.head(10), use_container_width=True)

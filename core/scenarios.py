@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import math
-from typing import List
 
 import pandas as pd
 
 from core.models import StrategyInput
 from core.payoff import _compute_pnl_for_price
+from core.roi import combined_capital_basis, capital_basis, NET_PREMIUM
 
 
 def build_scenario_points(
@@ -42,18 +42,11 @@ def build_scenario_points(
     return sorted(points)
 
 
-def _option_capital_basis(strategy: StrategyInput) -> float:
-    if not strategy.legs:
-        return 1.0
-    # Deterministic placeholder for ROI sizing until a full policy is defined.
-    net_premium = sum(leg.position * leg.premium for leg in strategy.legs)
-    multiplier = strategy.legs[0].multiplier
-    basis = abs(net_premium * multiplier)
-    return max(1.0, float(basis))
-
-
 def compute_scenario_table(
-    input: StrategyInput, points: list[float]
+    input: StrategyInput,
+    points: list[float],
+    payoff_result: dict,
+    roi_policy: str = NET_PREMIUM,
 ) -> pd.DataFrame:
     option_only = StrategyInput(
         spot=input.spot,
@@ -61,9 +54,8 @@ def compute_scenario_table(
         avg_cost=0.0,
         legs=input.legs,
     )
-    option_basis = _option_capital_basis(input)
-    stock_basis = abs(input.stock_position * input.avg_cost)
-    total_basis = option_basis + stock_basis if input.stock_position != 0 else option_basis
+    option_basis = capital_basis(input, payoff_result, roi_policy)
+    total_basis = combined_capital_basis(input, option_basis)
 
     rows = []
     for price in points:

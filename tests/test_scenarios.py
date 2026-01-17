@@ -1,5 +1,6 @@
 from core.models import OptionLeg, StrategyInput
 from core.payoff import compute_payoff
+from core.roi import NET_PREMIUM
 from core.scenarios import build_scenario_points, compute_scenario_table
 
 
@@ -35,7 +36,13 @@ def test_scenario_points_infinity_mode_bounds():
 def test_scenario_table_columns_and_rows():
     strategy = _make_strategy()
     points = [80.0, 100.0, 120.0]
-    table = compute_scenario_table(strategy, points)
+    payoff = compute_payoff(strategy)
+    table = compute_scenario_table(
+        strategy,
+        points,
+        payoff_result=payoff,
+        roi_policy=NET_PREMIUM,
+    )
     assert list(table.columns) == [
         "price",
         "option_pnl",

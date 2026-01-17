@@ -19,6 +19,7 @@ from core.eligibility import (
     load_account_map,
 )
 from core.payoff import compute_payoff
+from core.pricing import DEALABLE, MID
 from core.roi import CASH_SECURED, MARGIN_PROXY, NET_PREMIUM, RISK_MAX_LOSS
 from core.scenarios import build_scenario_points, compute_scenario_table
 from core.strategy_map import get_strategy, list_groups, list_strategies, list_subgroups
@@ -216,12 +217,21 @@ if template_kind != "STOCK_ONLY":
                 step=1.0,
                 key=f"strike_{idx}",
             )
+            manual_override = st.checkbox(
+                "Manual override price",
+                key=f"manual_prem_{idx}",
+            )
             premium = st.number_input(
                 "Premium (positive)",
                 min_value=0.0,
                 value=1.0,
                 step=0.1,
                 key=f"prem_{idx}",
+                help=(
+                    "Manual override enabled; this value will be used."
+                    if manual_override
+                    else "Market data can overwrite this value when available."
+                ),
             )
             position = float(ratio) if position_label == "Long" else -float(ratio)
             legs.append(
@@ -238,6 +248,12 @@ scenario_mode = st.selectbox(
     "Scenario mode",
     options=["STANDARD", "INFINITY"],
     key="scenario_mode",
+)
+pricing_mode = st.radio(
+    "Pricing Mode: MID vs BID/ASK (dealable)",
+    options=[MID, DEALABLE],
+    key="pricing_mode",
+    format_func=lambda value: "MID" if value == MID else "BID/ASK (dealable)",
 )
 roi_policy = st.selectbox(
     "ROI policy",

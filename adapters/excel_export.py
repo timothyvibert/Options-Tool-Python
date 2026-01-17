@@ -202,3 +202,47 @@ def export_scenario_advisory_map(xlsm_path: str, out_path: str) -> None:
     out_file = Path(out_path)
     out_file.parent.mkdir(parents=True, exist_ok=True)
     advisory_map.to_csv(out_file, index=False)
+
+
+def _normalize_eligibility(value: Any) -> Optional[str]:
+    text = _normalize_text(value)
+    if text is None:
+        return None
+    key = text.upper()
+    mapping = {
+        "ALLOWED": "ALLOWED",
+        "ALLOWED (CONDITIONAL)": "RESTRICTED",
+        "NOT ALLOWED": "NOT_ALLOWED",
+    }
+    if key in mapping:
+        return mapping[key]
+    normalized = key.replace(" ", "_")
+    LOGGER.warning("Unknown eligibility %r; normalized to %s.", text, normalized)
+    return normalized
+
+
+def export_account_map(xlsm_path: str, out_path: str) -> None:
+    raw_df = pd.read_excel(xlsm_path, sheet_name="AccountMap")
+    records: List[Dict[str, Any]] = []
+
+    for _, row in raw_df.iterrows():
+        strategy_code = _normalize_text(row["StrategyCode"])
+        account_type = _normalize_text(row["AccountType"])
+        eligibility = _normalize_eligibility(row["SummaryEligibility"])
+        if strategy_code is None or account_type is None or eligibility is None:
+            continue
+        records.append(
+            {
+                "strategy_code": strategy_code.upper(),
+                "account_type": account_type.upper(),
+                "eligibility": eligibility.upper(),
+            }
+        )
+
+    account_map = pd.DataFrame.from_records(
+        records, columns=["strategy_code", "account_type", "eligibility"]
+    )
+
+    out_file = Path(out_path)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    account_map.to_csv(out_file, index=False)

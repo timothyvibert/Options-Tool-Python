@@ -198,6 +198,9 @@ def render_dashboard():
             )
             return
         _set_spot_state(new_spot)
+        st.session_state["last_spot_refresh"] = datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
         st.session_state.pop("spot_notice", None)
 
     if st.session_state.pop("pending_refresh_spot", False):
@@ -453,6 +456,10 @@ def render_dashboard():
         else:
             try:
                 snapshot = fetch_option_snapshot(unique_tickers)
+                st.session_state["bbg_snapshot_df"] = snapshot.copy()
+                st.session_state["bbg_snapshot_time"] = datetime.now().strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
                 updates = build_leg_price_updates(
                     leg_requests,
                     snapshot,
@@ -1016,7 +1023,113 @@ def render_dashboard():
             )
 
 def render_bloomberg_data():
-    st.info("Bloomberg data view coming next")
+    st.title("Bloomberg Data")
+
+    st.caption("Underlying Snapshot")
+    underlying_rows = [
+        {"Field": "Underlying", "Value": st.session_state.get("underlying_ticker", "")}
+    ]
+    resolved = st.session_state.get("resolved_underlying", "")
+    if resolved:
+        underlying_rows.append({"Field": "Resolved", "Value": resolved})
+    underlying_rows.append(
+        {
+            "Field": "Spot",
+            "Value": st.session_state.get("spot_value", ""),
+        }
+    )
+    underlying_rows.append(
+        {
+            "Field": "Last Spot Refresh",
+            "Value": st.session_state.get("last_spot_refresh", "Never"),
+        }
+    )
+    st.table(pd.DataFrame(underlying_rows))
+
+    st.caption("Option Legs Snapshot")
+    snapshot = st.session_state.get("bbg_snapshot_df")
+    if not isinstance(snapshot, pd.DataFrame) or snapshot.empty:
+        st.info("No snapshot data. Use Fill Leg Prices on Dashboard first.")
+    else:
+        snapshot_df = snapshot.copy()
+        if "security" not in snapshot_df.columns:
+            snapshot_df = snapshot_df.rename(columns={"Security": "security"})
+        ticker_map = {}
+        for _, row in snapshot_df.iterrows():
+            security = str(row.get("security", "")).strip().upper()
+            if security:
+                ticker_map[security] = row
+
+        leg_rows = []
+        pricing_mode = st.session_state.get("pricing_mode", "")
+        expiry_value = st.session_state.get("chain_expiry")
+        expiry_text = (
+            expiry_value.isoformat()
+            if isinstance(expiry_value, date)
+            else str(expiry_value)
+            if expiry_value
+            else ""
+        )
+        for idx in range(4):
+            if not st.session_state.get(f"include_{idx}", False):
+                continue
+            ticker = st.session_state.get(f"bbg_ticker_{idx}", "").strip()
+            row = ticker_map.get(ticker.upper()) if ticker else None
+            put_call = row.get("OPT_PUT_CALL") if row is not None else None
+            strike = row.get("OPT_STRIKE_PX") if row is not None else None
+            expiry = row.get("OPT_EXPIRATION_DATE") if row is not None else None
+            dte = row.get("DAYS_TO_EXPIRATION") if row is not None else None
+            bid = row.get("BID") if row is not None else None
+            ask = row.get("ASK") if row is not None else None
+            mid = None
+            if row is not None:
+                mid = row.get("PX_MID")
+                if pd.isna(mid):
+                    mid = row.get("MID")
+            iv = row.get("IVOL_MID") if row is not None else None
+            override = st.session_state.get(f"manual_prem_{idx}", False)
+            selected_premium = (
+                st.session_state.get(f"prem_{idx}") if not override else None
+            )
+
+            if put_call is None:
+                kind = st.session_state.get(f"kind_{idx}", "")
+                put_call = "CALL" if kind == "Call" else "PUT" if kind else None
+            if pd.isna(strike):
+                strike = st.session_state.get(f"strike_{idx}")
+            expiry_display = expiry if expiry is not None else expiry_text
+
+            leg_rows.append(
+                {
+                    "Leg": idx + 1,
+                    "Option Ticker": ticker,
+                    "Put/Call": put_call,
+                    "Strike": strike,
+                    "Expiry": expiry_display,
+                    "DTE": dte,
+                    "Bid": bid,
+                    "Mid": mid,
+                    "Ask": ask,
+                    "Selected Premium": selected_premium,
+                    "Pricing Mode": pricing_mode,
+                    "Override": override,
+                    "IV": iv,
+                }
+            )
+        if leg_rows:
+            st.dataframe(
+                pd.DataFrame(leg_rows),
+                use_container_width=True,
+                height=260,
+            )
+        else:
+            st.info("No active legs to display.")
+
+    with st.expander("Raw Bloomberg payload"):
+        if isinstance(snapshot, pd.DataFrame) and not snapshot.empty:
+            st.dataframe(snapshot, use_container_width=True, height=240)
+        else:
+            st.info("No raw snapshot payload available.")
 
 def render_client_report():
     st.info("Client report preview coming next")

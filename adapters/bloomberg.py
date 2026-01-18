@@ -38,7 +38,17 @@ UNDERLYING_FIELDS = [
     "52WK_LOW",
     "DVD_YLD",
     "EQY_DVD_YLD_IND",
+    "DVD_EX_DT",
+    "EQY_DVD_EX_DT",
+    "DVD_EX_DATE",
+    "EQY_DVD_EX_DATE",
     "EARNINGS_ANNOUNCEMENT_DATE",
+]
+DIVIDEND_FIELDS = [
+    "DVD_EX_DT",
+    "EQY_DVD_EX_DT",
+    "DVD_EX_DATE",
+    "EQY_DVD_EX_DATE",
 ]
 
 
@@ -104,7 +114,10 @@ def fetch_underlying_snapshot(ticker: str) -> pd.Series:
     row = df.loc[df["security"] == ticker]
     if row.empty:
         row = df.iloc[[0]]
-    return row.iloc[0]
+    record = row.iloc[0].copy()
+    ex_div_date = get_next_dividend_date(ticker, snapshot=record.to_dict())
+    record["ex_div_date"] = ex_div_date
+    return record
 
 
 def fetch_option_snapshot(option_tickers: list[str]) -> pd.DataFrame:
@@ -273,6 +286,56 @@ def normalize_iso_date(value: object) -> Optional[str]:
     if pd.isna(parsed):
         return None
     return parsed.date().isoformat()
+
+
+def _normalize_dividend_date(value: object) -> Optional[date]:
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except TypeError:
+        pass
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, pd.Timestamp):
+        return value.date()
+    parsed = pd.to_datetime(value, errors="coerce")
+    if pd.isna(parsed):
+        return None
+    return parsed.date()
+
+
+def get_next_dividend_date(
+    ticker: str, snapshot: Optional[Dict[str, object]] = None
+) -> Optional[date]:
+    if snapshot:
+        for field in DIVIDEND_FIELDS:
+            value = snapshot.get(field)
+            parsed = _normalize_dividend_date(value)
+            if parsed is not None:
+                return parsed
+
+    if not ticker:
+        return None
+
+    with with_session() as query:
+        raw = query.bdp([ticker], DIVIDEND_FIELDS)
+    df = _ensure_security_column(_to_pandas(raw))
+    df = _ensure_columns(df, DIVIDEND_FIELDS)
+    if df.empty:
+        return None
+    row = df.loc[df["security"] == ticker]
+    if row.empty:
+        row = df.iloc[[0]]
+    record = row.iloc[0]
+    for field in DIVIDEND_FIELDS:
+        parsed = _normalize_dividend_date(record.get(field))
+        if parsed is not None:
+            return parsed
+    return None
 
 
 def format_bbg_expiry(expiry: object) -> str:

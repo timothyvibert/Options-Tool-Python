@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from typing import Iterable, List, Optional
 
+import pandas as pd
 from scipy.stats import norm
 
 from core.models import OptionLeg, StrategyInput
@@ -186,3 +187,43 @@ def strategy_pop(
     if total_prob <= 0.0:
         return 0.0
     return max(0.0, min(1.0, positive_prob / total_prob))
+
+
+def build_probability_details(
+    S0: float,
+    r: float,
+    q: float,
+    sigma: float,
+    t: float,
+    breakevens: List[float],
+    z_min: float = -5.0,
+    z_max: float = 5.0,
+    steps: int = 200,
+) -> pd.DataFrame:
+    if t <= 0.0 or sigma <= 0.0:
+        df = pd.DataFrame(
+            {"terminal_price": [S0], "cum_prob": [1.0], "breakeven": [False]}
+        )
+        return df
+
+    step = (z_max - z_min) / (steps - 1)
+    drift = (r - q - 0.5 * sigma * sigma) * t
+    vol_term = sigma * math.sqrt(t)
+
+    rows = []
+    cum_prob = 0.0
+    for i in range(steps):
+        z = z_min + step * i
+        prob = _norm_pdf(z) * step
+        terminal = S0 * math.exp(drift + vol_term * z)
+        cum_prob += prob
+        rows.append({"terminal_price": terminal, "cum_prob": cum_prob})
+
+    df = pd.DataFrame(rows)
+    df["breakeven"] = False
+    if breakevens:
+        prices = df["terminal_price"].to_numpy()
+        for breakeven in breakevens:
+            idx = (abs(prices - breakeven)).argmin()
+            df.at[idx, "breakeven"] = True
+    return df

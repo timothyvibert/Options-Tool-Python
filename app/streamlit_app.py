@@ -31,14 +31,20 @@ from adapters.bloomberg import (
 from reporting.report_pdf import build_report_pdf
 from core.payoff import _compute_pnl_for_price, compute_payoff
 from core.roi import capital_basis, combined_capital_basis
-from core.margin import compute_margin_proxy
+from core.margin import classify_strategy, compute_margin_proxy
 from core.probability import (
     build_probability_details,
     effective_sigma,
     strategy_pop,
 )
 from core.pricing import DEALABLE, MID
-from core.roi import CASH_SECURED, MARGIN_PROXY, NET_PREMIUM, RISK_MAX_LOSS
+from core.roi import (
+    CASH_SECURED,
+    MARGIN_PROXY,
+    NET_PREMIUM,
+    RISK_MAX_LOSS,
+    compute_net_premium,
+)
 from core.scenarios import build_scenario_points, compute_scenario_table
 from core.strategy_map import get_strategy, list_groups, list_strategies, list_subgroups
 from ui_state import reset_leg_state_on_context_change
@@ -482,23 +488,19 @@ def render_dashboard():
         else:
             st.caption("Option legs")
             header_cols = st.columns(
-                [0.6, 1.0, 1.0, 0.8, 1.0, 1.0, 1.6, 0.9, 1.0, 0.9]
+                [0.5, 1.0, 1.0, 0.9, 1.0, 1.0, 0.9, 1.6]
             )
-            header_cols[0].caption("Leg")
+            header_cols[0].caption("")
             header_cols[1].caption("Type")
             header_cols[2].caption("Side")
-            header_cols[3].caption("Ratio")
-            header_cols[4].caption("Tag")
-            header_cols[5].caption("Strike")
-            header_cols[6].caption("Ticker")
-            header_cols[7].caption("Manual")
-            header_cols[8].caption("Premium")
-            header_cols[9].caption("Resolve")
-
-            base_underlying = _current_underlying()
+            header_cols[3].caption("Qty")
+            header_cols[4].caption("Strike")
+            header_cols[5].caption("Premium")
+            header_cols[6].caption("Override")
+            header_cols[7].caption("Option Ticker")
             for idx in range(4):
                 row_cols = st.columns(
-                    [0.6, 1.0, 1.0, 0.8, 1.0, 1.0, 1.6, 0.9, 1.0, 0.9]
+                    [0.5, 1.0, 1.0, 0.9, 1.0, 1.0, 0.9, 1.6]
                 )
                 include = row_cols[0].checkbox(
                     f"Leg {idx + 1}",
@@ -521,7 +523,7 @@ def render_dashboard():
                     disabled=disabled,
                 )
                 ratio = row_cols[3].number_input(
-                    "Ratio",
+                    "Qty",
                     min_value=1,
                     step=1,
                     value=1,
@@ -529,13 +531,7 @@ def render_dashboard():
                     label_visibility="collapsed",
                     disabled=disabled,
                 )
-                strike_tag = row_cols[4].text_input(
-                    "Tag",
-                    key=f"strike_tag_{idx}",
-                    label_visibility="collapsed",
-                    disabled=disabled,
-                )
-                strike = row_cols[5].number_input(
+                strike = row_cols[4].number_input(
                     "Strike",
                     min_value=0.01,
                     value=spot,
@@ -544,19 +540,10 @@ def render_dashboard():
                     label_visibility="collapsed",
                     disabled=disabled,
                 )
-                option_ticker = row_cols[6].text_input(
-                    "Option ticker",
-                    key=f"bbg_ticker_{idx}",
-                    label_visibility="collapsed",
-                    disabled=disabled,
+                manual_override_value = st.session_state.get(
+                    f"manual_prem_{idx}", False
                 )
-                manual_override = row_cols[7].checkbox(
-                    "Manual",
-                    key=f"manual_prem_{idx}",
-                    label_visibility="collapsed",
-                    disabled=disabled,
-                )
-                premium = row_cols[8].number_input(
+                premium = row_cols[5].number_input(
                     "Premium",
                     min_value=0.0,
                     value=1.0,
@@ -566,46 +553,22 @@ def render_dashboard():
                     disabled=disabled,
                     help=(
                         "Manual override enabled; this value will be used."
-                        if manual_override
+                        if manual_override_value
                         else "Market data can overwrite this value when available."
                     ),
                 )
-                resolve_disabled = disabled or not base_underlying
-                resolve_clicked = row_cols[9].button(
-                    "Resolve",
-                    key=f"resolve_leg_{idx}",
-                    disabled=resolve_disabled,
+                manual_override = row_cols[6].checkbox(
+                    "Manual",
+                    key=f"manual_prem_{idx}",
+                    label_visibility="collapsed",
+                    disabled=disabled,
                 )
-                if resolve_clicked:
-                    expiry_value = _current_expiry()
-                    put_call = "CALL" if kind == "Call" else "PUT"
-                    try:
-                        resolved = resolve_option_ticker_from_strike(
-                            base_underlying,
-                            expiry_value,
-                            put_call,
-                            strike,
-                        )
-                    except Exception as exc:
-                        _add_notice(
-                            "ticker_notice",
-                            "error",
-                            f"Leg {idx + 1}: ticker resolve failed ({exc}).",
-                        )
-                    else:
-                        if resolved:
-                            st.session_state[f"bbg_ticker_{idx}"] = resolved
-                            _add_notice(
-                                "ticker_notice",
-                                "success",
-                                f"Leg {idx + 1} ticker set to {resolved}.",
-                            )
-                        else:
-                            _add_notice(
-                                "ticker_notice",
-                                "warning",
-                                f"Leg {idx + 1}: no matching ticker.",
-                            )
+                option_ticker = row_cols[7].text_input(
+                    "Option ticker",
+                    key=f"bbg_ticker_{idx}",
+                    label_visibility="collapsed",
+                    disabled=disabled,
+                )
                 if include:
                     position = float(ratio) if position_label == "Long" else -float(ratio)
                     legs.append(
@@ -720,35 +683,6 @@ def render_dashboard():
             else:
                 margin_proxy = compute_margin_proxy(strategy, results)
 
-            metric_cols = st.columns(3)
-            metric_cols[0].metric("Strategy PoP", f"{pop * 100:.1f}%")
-            metric_cols[1].metric("Margin Proxy", f"{margin_proxy:.2f}")
-            metric_cols[2].metric("Capital Basis", f"{total_basis:.2f}")
-
-            chart_toggle_cols = st.columns(3)
-            show_options = chart_toggle_cols[0].checkbox(
-                "Show Options PnL",
-                value=True,
-                key="show_options_pnl",
-            )
-            show_stock = chart_toggle_cols[1].checkbox(
-                "Show Stock PnL",
-                value=stock_position != 0,
-                key="show_stock_pnl",
-            )
-            show_combined = chart_toggle_cols[2].checkbox(
-                "Show Combined PnL",
-                value=True,
-                key="show_combined_pnl",
-            )
-            annotate_cols = st.columns(2)
-            show_strikes = annotate_cols[0].checkbox(
-                "Show Strikes", value=True, key="show_strikes"
-            )
-            show_breakevens = annotate_cols[1].checkbox(
-                "Show Breakevens", value=True, key="show_breakevens"
-            )
-
             price_grid = results["price_grid"]
             combined_pnl = results["pnl"]
             option_only = StrategyInput(
@@ -764,124 +698,205 @@ def render_dashboard():
                 combined - option
                 for combined, option in zip(combined_pnl, options_pnl)
             ]
-            fig = go.Figure()
-            if show_options:
-                fig.add_trace(
-                    go.Scatter(
-                        x=price_grid,
-                        y=options_pnl,
-                        mode="lines",
-                        name="Options PnL",
-                        line=dict(color="#1f77b4"),
-                    )
-                )
-            if show_stock:
-                fig.add_trace(
-                    go.Scatter(
-                        x=price_grid,
-                        y=stock_pnl,
-                        mode="lines",
-                        name="Stock PnL",
-                        line=dict(color="#2ca02c", dash="dot"),
-                    )
-                )
-            if show_combined:
-                fig.add_trace(
-                    go.Scatter(
-                        x=price_grid,
-                        y=combined_pnl,
-                        mode="lines",
-                        name="Combined PnL",
-                        line=dict(color="#111111", width=2),
-                    )
-                )
-
-            label_positions = ["top left", "top right", "bottom left", "bottom right"]
-            if show_strikes:
-                raw_strikes = []
-                for leg in legs:
-                    strike = leg.strike
-                    if isinstance(strike, (int, float)) and math.isfinite(strike):
-                        raw_strikes.append(float(strike))
-                strikes = []
-                for value in sorted(raw_strikes):
-                    if not strikes or abs(value - strikes[-1]) > 1e-6:
-                        strikes.append(value)
-                strike_label_limit = 6
-                for idx, strike in enumerate(strikes):
-                    label = None
-                    if idx < strike_label_limit:
-                        label = f"K{idx + 1}={strike:g}"
-                    if label:
-                        fig.add_vline(
-                            x=strike,
-                            line_dash="dot",
-                            line_color="rgba(0,0,0,0.35)",
-                            annotation_text=label,
-                            annotation_position=label_positions[
-                                idx % len(label_positions)
-                            ],
-                        )
-                    else:
-                        fig.add_vline(
-                            x=strike,
-                            line_dash="dot",
-                            line_color="rgba(0,0,0,0.35)",
-                        )
-
-            if show_breakevens:
-                breakevens = []
-                for value in results.get("breakevens", []):
-                    if isinstance(value, (int, float)) and math.isfinite(value):
-                        breakevens.append(float(value))
-                breakevens = sorted(breakevens)
-                breakeven_label_limit = 4
-                for idx, breakeven in enumerate(breakevens):
-                    label = None
-                    if idx < breakeven_label_limit:
-                        label = f"BE{idx + 1}={breakeven:g}"
-                    if label:
-                        fig.add_vline(
-                            x=breakeven,
-                            line_dash="dash",
-                            line_color="rgba(255,0,0,0.45)",
-                            annotation_text=label,
-                            annotation_position=label_positions[
-                                idx % len(label_positions)
-                            ],
-                        )
-                    else:
-                        fig.add_vline(
-                            x=breakeven,
-                            line_dash="dash",
-                            line_color="rgba(255,0,0,0.45)",
-                        )
-            fig.update_layout(
-                xaxis_title="Underlying Price at Expiry",
-                yaxis_title="PnL",
-                height=360,
+            net_premium = compute_net_premium(strategy)
+            if net_premium < 0:
+                net_premium_text = f"Credit {abs(net_premium):.2f}"
+            elif net_premium > 0:
+                net_premium_text = f"Debit {net_premium:.2f}"
+            else:
+                net_premium_text = "0.00"
+            breakevens = results.get("breakevens", [])
+            breakeven_text = (
+                ", ".join(f"{value:g}" for value in breakevens)
+                if breakevens
+                else "None"
             )
-            st.plotly_chart(fig, use_container_width=True)
+            summary_rows = [
+                {"Metric": "Max Option PnL", "Value": f"{max(options_pnl):.2f}"},
+                {"Metric": "Min Option PnL", "Value": f"{min(options_pnl):.2f}"},
+                {"Metric": "Max Combined PnL", "Value": f"{max(combined_pnl):.2f}"},
+                {"Metric": "Min Combined PnL", "Value": f"{min(combined_pnl):.2f}"},
+                {"Metric": "Breakeven(s)", "Value": breakeven_text},
+                {"Metric": "Net Premium", "Value": net_premium_text},
+                {"Metric": "Strategy PoP", "Value": f"{pop * 100:.1f}%"},
+                {"Metric": "Capital Basis", "Value": f"{total_basis:.2f}"},
+            ]
+            summary_df = pd.DataFrame(summary_rows)
+            margin_rows = [
+                {
+                    "Metric": "Strategy Code",
+                    "Value": classify_strategy(strategy),
+                },
+                {"Metric": "Margin Proxy", "Value": f"{margin_proxy:.2f}"},
+                {"Metric": "ROI Policy", "Value": roi_policy},
+            ]
+            margin_df = pd.DataFrame(margin_rows)
 
-            if show_prob_details:
-                sigma = effective_sigma(
-                    strategy,
-                    per_leg_iv=per_leg_iv,
-                    mode=vol_mode,
-                    r=0.0,
-                    q=0.0,
-                    t=t,
-                    atm_iv=atm_iv,
+            payoff_cols = st.columns([1.6, 1.0])
+            with payoff_cols[0]:
+                chart_toggle_cols = st.columns(3)
+                show_options = chart_toggle_cols[0].checkbox(
+                    "Show Options PnL",
+                    value=True,
+                    key="show_options_pnl",
                 )
-                details = build_probability_details(
-                    S0=spot,
-                    r=0.0,
-                    q=0.0,
-                    sigma=sigma,
-                    t=t,
-                    breakevens=results.get("breakevens", []),
+                show_stock = chart_toggle_cols[1].checkbox(
+                    "Show Stock PnL",
+                    value=stock_position != 0,
+                    key="show_stock_pnl",
                 )
-                st.dataframe(details, use_container_width=True, height=220)
+                show_combined = chart_toggle_cols[2].checkbox(
+                    "Show Combined PnL",
+                    value=True,
+                    key="show_combined_pnl",
+                )
+                annotate_cols = st.columns(2)
+                show_strikes = annotate_cols[0].checkbox(
+                    "Show Strikes", value=True, key="show_strikes"
+                )
+                show_breakevens = annotate_cols[1].checkbox(
+                    "Show Breakevens", value=True, key="show_breakevens"
+                )
+
+                fig = go.Figure()
+                if show_options:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=price_grid,
+                            y=options_pnl,
+                            mode="lines",
+                            name="Options PnL",
+                            line=dict(color="#1f77b4"),
+                        )
+                    )
+                if show_stock:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=price_grid,
+                            y=stock_pnl,
+                            mode="lines",
+                            name="Stock PnL",
+                            line=dict(color="#2ca02c", dash="dot"),
+                        )
+                    )
+                if show_combined:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=price_grid,
+                            y=combined_pnl,
+                            mode="lines",
+                            name="Combined PnL",
+                            line=dict(color="#111111", width=2),
+                        )
+                    )
+
+                label_positions = [
+                    "top left",
+                    "top right",
+                    "bottom left",
+                    "bottom right",
+                ]
+                if show_strikes:
+                    raw_strikes = []
+                    for leg in legs:
+                        strike = leg.strike
+                        if isinstance(strike, (int, float)) and math.isfinite(strike):
+                            raw_strikes.append(float(strike))
+                    strikes = []
+                    for value in sorted(raw_strikes):
+                        if not strikes or abs(value - strikes[-1]) > 1e-6:
+                            strikes.append(value)
+                    strike_label_limit = 6
+                    for idx, strike in enumerate(strikes):
+                        label = None
+                        if idx < strike_label_limit:
+                            label = f"K{idx + 1}={strike:g}"
+                        if label:
+                            fig.add_vline(
+                                x=strike,
+                                line_dash="dot",
+                                line_color="rgba(0,0,0,0.35)",
+                                annotation_text=label,
+                                annotation_position=label_positions[
+                                    idx % len(label_positions)
+                                ],
+                            )
+                        else:
+                            fig.add_vline(
+                                x=strike,
+                                line_dash="dot",
+                                line_color="rgba(0,0,0,0.35)",
+                            )
+
+                if show_breakevens:
+                    breakevens = []
+                    for value in results.get("breakevens", []):
+                        if isinstance(value, (int, float)) and math.isfinite(value):
+                            breakevens.append(float(value))
+                    breakevens = sorted(breakevens)
+                    breakeven_label_limit = 4
+                    for idx, breakeven in enumerate(breakevens):
+                        label = None
+                        if idx < breakeven_label_limit:
+                            label = f"BE{idx + 1}={breakeven:g}"
+                        if label:
+                            fig.add_vline(
+                                x=breakeven,
+                                line_dash="dash",
+                                line_color="rgba(255,0,0,0.45)",
+                                annotation_text=label,
+                                annotation_position=label_positions[
+                                    idx % len(label_positions)
+                                ],
+                            )
+                        else:
+                            fig.add_vline(
+                                x=breakeven,
+                                line_dash="dash",
+                                line_color="rgba(255,0,0,0.45)",
+                            )
+                fig.update_layout(
+                    xaxis_title="Underlying Price at Expiry",
+                    yaxis_title="PnL",
+                    height=340,
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+                if show_prob_details:
+                    sigma = effective_sigma(
+                        strategy,
+                        per_leg_iv=per_leg_iv,
+                        mode=vol_mode,
+                        r=0.0,
+                        q=0.0,
+                        t=t,
+                        atm_iv=atm_iv,
+                    )
+                    details = build_probability_details(
+                        S0=spot,
+                        r=0.0,
+                        q=0.0,
+                        sigma=sigma,
+                        t=t,
+                        breakevens=results.get("breakevens", []),
+                    )
+                    st.dataframe(details, use_container_width=True, height=200)
+
+            with payoff_cols[1]:
+                st.caption("Payoff & Metrics")
+                st.dataframe(
+                    summary_df,
+                    use_container_width=True,
+                    height=260,
+                    hide_index=True,
+                )
+                st.caption("Margin & Capital")
+                st.dataframe(
+                    margin_df,
+                    use_container_width=True,
+                    height=140,
+                    hide_index=True,
+                )
 
             st.caption("Report")
             generate_pdf = st.button("Generate PDF Report", key="generate_pdf")
@@ -970,14 +985,32 @@ def render_dashboard():
     if scenario_table is None or scenario_table.empty:
         st.info("Run Analysis to view scenario results.")
     else:
+        display_cols = [
+            "price",
+            "option_pnl",
+            "stock_pnl",
+            "combined_pnl",
+            "net_roi",
+            "commentary",
+        ]
+        scenario_display = scenario_table[display_cols].rename(
+            columns={
+                "price": "Scenario Price",
+                "option_pnl": "Option PnL",
+                "stock_pnl": "Stock PnL",
+                "combined_pnl": "Combined PnL",
+                "net_roi": "ROI",
+                "commentary": "Commentary",
+            }
+        )
         st.dataframe(
-            scenario_table.head(10),
+            scenario_display.head(10),
             use_container_width=True,
             height=260,
         )
         with st.expander("Show full scenario table"):
             st.dataframe(
-                scenario_table,
+                scenario_display,
                 use_container_width=True,
                 height=420,
             )

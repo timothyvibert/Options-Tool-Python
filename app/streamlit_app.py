@@ -1,4 +1,5 @@
-from datetime import date
+from datetime import date, datetime
+import tempfile
 from typing import Optional, Tuple
 
 import pandas as pd
@@ -28,7 +29,10 @@ from adapters.bloomberg import (
     resolve_security,
     select_chain_ticker,
 )
+from reporting.report_pdf import build_report_pdf
 from core.payoff import _compute_pnl_for_price, compute_payoff
+from core.roi import capital_basis, combined_capital_basis
+from core.margin import compute_margin_proxy
 from core.probability import (
     build_probability_details,
     effective_sigma,
@@ -589,3 +593,89 @@ if run:
     st.dataframe(scenario_table.head(10), use_container_width=True)
     with st.expander("Show full scenario table"):
         st.dataframe(scenario_table, use_container_width=True)
+
+    st.subheader("Report")
+    generate_pdf = st.button("Generate PDF Report", key="generate_pdf")
+    if generate_pdf:
+        legs_payload = []
+        for idx in range(4):
+            if not st.session_state.get(f"include_{idx}", False):
+                continue
+            ratio = st.session_state.get(f"ratio_{idx}", 1)
+            side = st.session_state.get(f"pos_{idx}", "Long")
+            qty = ratio if side == "Long" else -ratio
+            legs_payload.append(
+                {
+                    "type": st.session_state.get(f"kind_{idx}", ""),
+                    "side": side,
+                    "qty": qty,
+                    "strike": st.session_state.get(f"strike_{idx}"),
+                    "premium": st.session_state.get(f"prem_{idx}"),
+                }
+            )
+        option_basis = capital_basis(strategy, results, roi_policy)
+        total_basis = combined_capital_basis(strategy, option_basis)
+        margin_proxy = (
+            float(scenario_table["margin_requirement"].iloc[0])
+            if not scenario_table.empty
+            else compute_margin_proxy(strategy, results)
+        )
+        inputs_payload = {
+            "ticker": underlying_input.strip(),
+            "resolved_ticker": resolved_underlying,
+            "strategy_name": (
+                selected_strategy_row["strategy_name"]
+                if selected_strategy_row is not None
+                else ""
+            ),
+            "expiry": (
+                chain_expiry.isoformat()
+                if isinstance(chain_expiry, date)
+                else ""
+            ),
+            "pricing_mode": pricing_mode,
+            "spot": spot,
+            "stock_position": stock_position,
+            "avg_cost": avg_cost,
+            "roi_policy": roi_policy,
+            "legs": legs_payload,
+        }
+        summary_payload = {
+            "min_pnl": min(results["pnl"]) if results.get("pnl") else None,
+            "max_pnl": max(results["pnl"]) if results.get("pnl") else None,
+            "breakevens": results.get("breakevens", []),
+            "pop": f"{pop * 100:.1f}%",
+            "margin_proxy": margin_proxy,
+            "capital_basis": total_basis,
+        }
+        notes = [
+            "Expiry-only payoff; interim PnL is not modeled.",
+            "Probability of profit is model-based and uses a lognormal distribution.",
+            "Margin is a proxy and does not reflect broker-specific rules.",
+            "This report is for informational purposes only and is not investment advice.",
+        ]
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            build_report_pdf(
+                tmp.name,
+                title="Options Strategy Report",
+                as_of=timestamp,
+                inputs=inputs_payload,
+                summary=summary_payload,
+                scenario_df=scenario_table,
+                notes=notes,
+            )
+            tmp_path = tmp.name
+        with open(tmp_path, "rb") as handle:
+            st.session_state["pdf_bytes"] = handle.read()
+        st.session_state["pdf_filename"] = (
+            f"strategy_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        )
+        st.success("PDF report generated.")
+    if st.session_state.get("pdf_bytes"):
+        st.download_button(
+            "Download PDF Report",
+            data=st.session_state["pdf_bytes"],
+            file_name=st.session_state.get("pdf_filename", "strategy_report.pdf"),
+            mime="application/pdf",
+        )

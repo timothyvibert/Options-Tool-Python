@@ -19,6 +19,51 @@ from core.payoff import _compute_pnl_for_price
 from core.roi import NET_PREMIUM, capital_basis, combined_capital_basis
 
 
+def _price_key(value: float) -> float:
+    return round(float(value), 6)
+
+
+def _unique_sorted(values: list[float]) -> list[float]:
+    deduped: list[float] = []
+    for value in sorted(values):
+        if not deduped or abs(value - deduped[-1]) > 1e-6:
+            deduped.append(value)
+    return deduped
+
+
+def _strike_label_map(strikes: list[float]) -> dict[float, str]:
+    if not strikes:
+        return {}
+    ordered = _unique_sorted(strikes)
+    if len(ordered) == 1:
+        return {ordered[0]: "Strike"}
+    if len(ordered) == 2:
+        return {ordered[0]: "Lower Strike", ordered[1]: "Upper Strike"}
+    labels = {ordered[0]: "Strike (Lowest)", ordered[-1]: "Strike (Highest)"}
+    for strike in ordered[1:-1]:
+        labels[strike] = "Strike (Middle)"
+    return labels
+
+
+def _breakeven_label_map(breakevens: list[float]) -> dict[float, str]:
+    labels: dict[float, str] = {}
+    ordered = _unique_sorted(breakevens)
+    for idx, value in enumerate(ordered, start=1):
+        labels[value] = f"Breakeven {idx}"
+    return labels
+
+
+def _move_label(prefix: str, spot: float, price: float) -> str:
+    if spot == 0:
+        return f"{prefix} (--%)"
+    pct = abs((price / spot - 1.0) * 100.0)
+    return f"{prefix} ({int(round(pct))}%)"
+
+
+def _scenario_fallback_label(price: float) -> str:
+    return f"Scenario @ {price:.2f}"
+
+
 def build_scenario_points(
     input: StrategyInput,
     payoff_result: dict,
@@ -70,9 +115,41 @@ def compute_scenario_table(
     margin_requirement = compute_margin_proxy(input, payoff_result)
     templates_df = load_advisory_templates()
     archetype = resolve_archetype(input, strategy_row)
+    spot = float(input.spot)
+    strike_values = []
+    for leg in input.legs:
+        strike = leg.strike
+        if isinstance(strike, (int, float)) and math.isfinite(strike):
+            strike_values.append(float(strike))
+    strike_labels = _strike_label_map(strike_values)
+    breakeven_labels = _breakeven_label_map(
+        [
+            float(value)
+            for value in payoff_result.get("breakevens", [])
+            if isinstance(value, (int, float)) and math.isfinite(value)
+        ]
+    )
+    label_map: dict[float, str] = {}
+    label_map[_price_key(spot)] = "Current Market Price"
+    for strike, label in strike_labels.items():
+        label_map[_price_key(strike)] = label
+    for breakeven, label in breakeven_labels.items():
+        label_map[_price_key(breakeven)] = label
+    if points:
+        min_price = min(points)
+        max_price = max(points)
+        label_map[_price_key(min_price)] = _move_label(
+            "Downside", spot, float(min_price)
+        )
+        label_map[_price_key(max_price)] = _move_label(
+            "Upside", spot, float(max_price)
+        )
 
     rows = []
     for price in points:
+        scenario_label = label_map.get(_price_key(price))
+        if not scenario_label:
+            scenario_label = _scenario_fallback_label(price)
         option_pnl = _compute_pnl_for_price(option_only, price)
         combined_pnl = _compute_pnl_for_price(input, price)
         stock_pnl = combined_pnl - option_pnl
@@ -92,6 +169,7 @@ def compute_scenario_table(
                 "option_roi": option_roi,
                 "net_roi": net_roi,
                 "commentary": commentary,
+                "scenario": scenario_label,
             }
         )
 

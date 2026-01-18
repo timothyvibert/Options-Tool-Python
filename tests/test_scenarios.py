@@ -52,5 +52,83 @@ def test_scenario_table_columns_and_rows():
         "option_roi",
         "net_roi",
         "commentary",
+        "scenario",
     ]
     assert len(table) == len(points)
+
+
+def test_scenario_labels_for_strikes_breakevens():
+    strategy = StrategyInput(
+        spot=100.0,
+        legs=[
+            OptionLeg(kind="call", position=1, strike=90.0, premium=2.0),
+            OptionLeg(kind="put", position=1, strike=110.0, premium=2.0),
+        ],
+    )
+    payoff = compute_payoff(strategy)
+    points = build_scenario_points(strategy, payoff, mode="STANDARD")
+    table = compute_scenario_table(
+        strategy,
+        points,
+        payoff_result=payoff,
+        roi_policy=NET_PREMIUM,
+    )
+    strike_row_low = table.loc[table["price"] == 90.0].iloc[0]
+    strike_row_high = table.loc[table["price"] == 110.0].iloc[0]
+    assert strike_row_low["scenario"] == "Lower Strike"
+    assert strike_row_high["scenario"] == "Upper Strike"
+
+    breakevens = sorted(payoff["breakevens"])
+    if breakevens:
+        breakeven_row = table.loc[table["price"] == breakevens[0]].iloc[0]
+        assert breakeven_row["scenario"].startswith("Breakeven")
+
+
+def test_scenario_labels_for_downside_upside():
+    strategy = StrategyInput(
+        spot=100.0,
+        legs=[
+            OptionLeg(kind="call", position=1, strike=90.0, premium=2.0),
+        ],
+    )
+    payoff = compute_payoff(strategy)
+    points = build_scenario_points(
+        strategy, payoff, mode="STANDARD", downside_tgt=0.8, upside_tgt=1.2
+    )
+    table = compute_scenario_table(
+        strategy,
+        points,
+        payoff_result=payoff,
+        roi_policy=NET_PREMIUM,
+    )
+    min_price = min(points)
+    max_price = max(points)
+    downside_label = table.loc[table["price"] == min_price].iloc[0]["scenario"]
+    upside_label = table.loc[table["price"] == max_price].iloc[0]["scenario"]
+    assert downside_label == "Downside (20%)"
+    assert upside_label == "Upside (20%)"
+
+
+def test_scenario_labels_non_empty():
+    strategy = StrategyInput(
+        spot=100.0,
+        legs=[
+            OptionLeg(kind="call", position=1, strike=95.0, premium=2.0),
+            OptionLeg(kind="call", position=1, strike=105.0, premium=2.0),
+        ],
+    )
+    payoff = compute_payoff(strategy)
+    points = build_scenario_points(
+        strategy, payoff, mode="STANDARD", downside_tgt=0.85, upside_tgt=1.15
+    )
+    table = compute_scenario_table(
+        strategy,
+        points,
+        payoff_result=payoff,
+        roi_policy=NET_PREMIUM,
+    )
+    labels = table["scenario"].tolist()
+    assert all(isinstance(label, str) and label.strip() for label in labels)
+    assert "Current Market Price" in labels
+    assert "Lower Strike" in labels
+    assert "Upper Strike" in labels

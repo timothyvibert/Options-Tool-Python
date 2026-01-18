@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import date
+from datetime import date, datetime
 from typing import Dict, Iterable, Optional
 
 import pandas as pd
@@ -27,13 +27,8 @@ MARKET_SECTOR_KEYWORDS = {"EQUITY", "INDEX", "CURNCY", "COMDTY"}
 def with_session():
     from polars_bloomberg import BQuery
 
-    query = BQuery()
-    try:
+    with BQuery() as query:
         yield query
-    finally:
-        close = getattr(query, "close", None)
-        if callable(close):
-            close()
 
 
 def _to_pandas(data: object) -> pd.DataFrame:
@@ -186,11 +181,17 @@ def _normalize_expiry(value: object) -> Optional[str]:
             return None
     except TypeError:
         pass
+    if isinstance(value, pd.Timestamp):
+        return value.date().isoformat()
+    if isinstance(value, datetime):
+        return value.date().isoformat()
     if isinstance(value, date):
         return value.isoformat()
     text = str(value).strip()
     if text == "":
         return None
+    if len(text) == 10 and text[4] == "-" and text[7] == "-":
+        return text
     parsed = pd.to_datetime(text, errors="coerce")
     if pd.isna(parsed):
         return None

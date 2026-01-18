@@ -1,3 +1,6 @@
+import sys
+import types
+
 import pandas as pd
 
 from adapters.bloomberg import build_leg_price_updates
@@ -32,3 +35,79 @@ def test_build_leg_price_updates_mid_fallback():
     )
     updates = build_leg_price_updates(legs, snapshot, MID)
     assert updates[0] == 2.0
+
+
+def test_bloomberg_session_uses_context_manager(monkeypatch):
+    events = []
+
+    class FakeBQuery:
+        counter = 0
+
+        def __init__(self):
+            self.id = FakeBQuery.counter
+            FakeBQuery.counter += 1
+            self.entered = False
+
+        def __enter__(self):
+            self.entered = True
+            events.append((self.id, "enter"))
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append((self.id, "exit"))
+            self.entered = False
+
+        def _check(self, label: str) -> None:
+            assert self.entered
+            events.append((self.id, label))
+
+        def bdp(self, securities, fields):
+            self._check("bdp")
+            return pd.DataFrame(
+                {
+                    "security": securities,
+                    "PX_LAST": [101.0] * len(securities),
+                }
+            )
+
+        def bsrch(self, query):
+            self._check("bsrch")
+            return pd.DataFrame({"security": ["TEST US Equity"]})
+
+        def bql(self, query):
+            self._check("bql")
+            return pd.DataFrame(
+                {
+                    "OPTION_TICKER": ["OPT1"],
+                    "OPT_STRIKE_PX": [100.0],
+                    "OPT_PUT_CALL": ["CALL"],
+                    "OPT_EXPIRATION_DATE": [pd.Timestamp("2025-01-17")],
+                }
+            )
+
+    fake_module = types.ModuleType("polars_bloomberg")
+    fake_module.BQuery = FakeBQuery
+    monkeypatch.setitem(sys.modules, "polars_bloomberg", fake_module)
+
+    from adapters import bloomberg
+
+    assert bloomberg.fetch_spot("TEST US Equity") == 101.0
+    assert bloomberg.resolve_security("TEST") == "TEST US Equity"
+    chain = bloomberg.fetch_option_chain(
+        "TEST US Equity", "2025-01-17", 100.0, 0.1
+    )
+    assert not chain.empty
+
+    def _assert_enter_before(label: str) -> None:
+        seen = {}
+        for idx, (call_id, event) in enumerate(events):
+            seen.setdefault(call_id, {})[event] = idx
+        for call_id, marks in seen.items():
+            if label not in marks:
+                continue
+            assert "enter" in marks
+            assert marks["enter"] < marks[label]
+
+    _assert_enter_before("bdp")
+    _assert_enter_before("bsrch")
+    _assert_enter_before("bql")

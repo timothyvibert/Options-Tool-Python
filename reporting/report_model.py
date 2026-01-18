@@ -41,6 +41,24 @@ def _fmt_date(value: object) -> str:
     return str(value)
 
 
+def _fmt_long_date(value: object) -> str:
+    if _is_missing(value):
+        return MISSING
+    if isinstance(value, datetime):
+        return value.strftime("%b %d, %Y")
+    if isinstance(value, date):
+        return value.strftime("%b %d, %Y")
+    if isinstance(value, str):
+        text = value.strip()
+        if text:
+            try:
+                parsed = datetime.fromisoformat(text[:10])
+                return parsed.strftime("%b %d, %Y")
+            except ValueError:
+                return text
+    return str(value)
+
+
 def _fmt_currency(value: object) -> str:
     if _is_missing(value):
         return MISSING
@@ -354,6 +372,27 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
     if not commentary_blocks:
         commentary_blocks = [{"level": MISSING, "text": MISSING}]
 
+    warnings = {"dividend": None}
+    dividend_risk = None
+    if isinstance(pack_underlying, Mapping):
+        dividend_risk = pack_underlying.get("dividend_risk")
+    if isinstance(dividend_risk, Mapping):
+        before_expiry = dividend_risk.get("before_expiry")
+        if before_expiry is True:
+            ex_div_date = dividend_risk.get("ex_div_date")
+            date_text = _fmt_long_date(ex_div_date)
+            if date_text != MISSING:
+                warning_text = (
+                    f"This strategy spans an ex-dividend date ({date_text}). "
+                    "Early assignment risk may apply."
+                )
+            else:
+                warning_text = (
+                    "This strategy spans an ex-dividend date. "
+                    "Early assignment risk may apply."
+                )
+            warnings["dividend"] = warning_text
+
     disclaimers = state.get("disclaimers")
     if isinstance(disclaimers, list) and disclaimers:
         disclaimer_list = [str(item) if str(item).strip() else MISSING for item in disclaimers]
@@ -374,5 +413,6 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         "key_levels": key_levels,
         "scenario_table": scenario_table,
         "commentary_blocks": commentary_blocks,
+        "warnings": warnings,
         "disclaimers": disclaimer_list,
     }

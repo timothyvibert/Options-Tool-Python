@@ -197,6 +197,9 @@ def build_report_pdf(
         story.append(table)
 
     story.append(Paragraph("Assumptions & Disclaimers", styles["section"]))
+    warning_text = summary.get("warning")
+    if warning_text:
+        story.append(Paragraph(str(warning_text), styles["small"]))
     for note in notes:
         story.append(Paragraph(f"- {note}", styles["small"]))
 

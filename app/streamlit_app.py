@@ -1509,6 +1509,13 @@ def render_client_report():
             }
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             summary_payload = st.session_state.get("analysis_summary_payload", {})
+            warnings = model.get("warnings", {})
+            dividend_warning = (
+                warnings.get("dividend") if isinstance(warnings, dict) else None
+            )
+            if dividend_warning:
+                summary_payload = dict(summary_payload)
+                summary_payload["warning"] = dividend_warning
             notes = model.get("disclaimers", ["--"])
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                 build_report_pdf(
@@ -1666,6 +1673,15 @@ def render_client_report():
 
         disclaimers = model.get("disclaimers", ["--"])
         with st.container(border=True):
+            warnings = model.get("warnings", {})
+            dividend_warning = (
+                warnings.get("dividend") if isinstance(warnings, dict) else None
+            )
+            if dividend_warning:
+                st.markdown(
+                    f"<div class='report-disclaimer'>{_as_text(dividend_warning)}</div>",
+                    unsafe_allow_html=True,
+                )
             disclaimer_text = " ".join([_as_text(item) for item in disclaimers])
             st.markdown(
                 f"<div class='report-disclaimer'>{_as_text(disclaimer_text)}</div>",

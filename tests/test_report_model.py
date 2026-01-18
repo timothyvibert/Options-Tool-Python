@@ -72,3 +72,35 @@ def test_report_model_dataframe_scenario():
     }
     model = build_report_model(state)
     assert model["scenario_table"]["top10"]
+
+
+def test_report_model_dividend_warning():
+    state = {
+        "analysis_pack": {
+            "underlying": {
+                "dividend_risk": {
+                    "ex_div_date": "2026-03-13",
+                    "before_expiry": True,
+                }
+            }
+        }
+    }
+    model = build_report_model(state)
+    warnings = model.get("warnings", {})
+    assert warnings.get("dividend")
+
+
+def test_report_model_no_dividend_warning():
+    state = {
+        "analysis_pack": {
+            "underlying": {
+                "dividend_risk": {
+                    "ex_div_date": "2026-03-13",
+                    "before_expiry": False,
+                }
+            }
+        }
+    }
+    model = build_report_model(state)
+    warnings = model.get("warnings", {})
+    assert warnings.get("dividend") is None

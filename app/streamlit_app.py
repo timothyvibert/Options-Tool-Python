@@ -26,6 +26,7 @@ from adapters.bloomberg import (
     build_leg_price_updates,
     fetch_option_snapshot,
     fetch_spot,
+    fetch_underlying_snapshot,
     resolve_security,
     resolve_option_ticker_from_strike,
 )
@@ -487,6 +488,31 @@ def render_dashboard():
                 st.session_state["bbg_snapshot_time"] = datetime.now().strftime(
                     "%Y-%m-%d %H:%M:%S"
                 )
+                if base_underlying:
+                    try:
+                        underlying_snapshot = fetch_underlying_snapshot(
+                            base_underlying
+                        )
+                        st.session_state["underlying_snapshot"] = (
+                            underlying_snapshot
+                        )
+                        st.session_state["underlying_snapshot_status"] = {
+                            "ok": True,
+                            "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "ticker": base_underlying,
+                            "source": "fill_leg_prices",
+                        }
+                    except Exception as exc:
+                        st.session_state["underlying_snapshot"] = {
+                            "error": str(exc)
+                        }
+                        st.session_state["underlying_snapshot_status"] = {
+                            "ok": False,
+                            "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "ticker": base_underlying,
+                            "source": "fill_leg_prices",
+                            "error": str(exc),
+                        }
                 updates = build_leg_price_updates(
                     leg_requests,
                     snapshot,
@@ -850,7 +876,14 @@ def render_dashboard():
             st.session_state["analysis_as_of"] = analysis_as_of
 
             underlying_profile = st.session_state.get("underlying_snapshot")
-            if not isinstance(underlying_profile, dict):
+            base_underlying = resolved_underlying or underlying_input.strip()
+            if base_underlying:
+                try:
+                    underlying_profile = fetch_underlying_snapshot(base_underlying)
+                    st.session_state["underlying_snapshot"] = underlying_profile
+                except Exception:
+                    underlying_profile = st.session_state.get("underlying_snapshot")
+            if not isinstance(underlying_profile, (dict, pd.Series)):
                 underlying_profile = None
             analysis_pack = build_analysis_pack(
                 strategy_input=strategy,
@@ -1189,6 +1222,58 @@ def render_bloomberg_data():
     )
     st.table(pd.DataFrame(underlying_rows))
 
+    st.caption("Dividend risk")
+    analysis_pack = st.session_state.get("analysis_pack")
+    dividend_risk = {}
+    if isinstance(analysis_pack, dict):
+        underlying_info = analysis_pack.get("underlying")
+        if isinstance(underlying_info, dict):
+            risk = underlying_info.get("dividend_risk")
+            if isinstance(risk, dict):
+                dividend_risk = risk
+
+    ex_div_date = dividend_risk.get("ex_div_date")
+    if isinstance(ex_div_date, datetime):
+        ex_div_display = ex_div_date.date().isoformat()
+    elif isinstance(ex_div_date, date):
+        ex_div_display = ex_div_date.isoformat()
+    elif ex_div_date:
+        ex_div_display = str(ex_div_date)
+    else:
+        ex_div_display = "--"
+
+    days_to_dividend = dividend_risk.get("days_to_dividend")
+    days_display = (
+        str(int(days_to_dividend))
+        if isinstance(days_to_dividend, (int, float)) and not pd.isna(days_to_dividend)
+        else "--"
+    )
+
+    before_expiry = dividend_risk.get("before_expiry")
+    if ex_div_display == "--" or before_expiry is None:
+        before_display = "--"
+    else:
+        before_display = "Yes" if before_expiry else "No"
+
+    st.write(f"Ex-div date: {ex_div_display}")
+    st.write(f"Days to dividend: {days_display}")
+    st.write(f"Dividend before expiry: {before_display}")
+
+    with st.expander("Dividend (BDS) debug"):
+        snapshot = st.session_state.get("underlying_snapshot")
+        debug_payload = None
+        if isinstance(snapshot, pd.Series):
+            debug_payload = snapshot.to_dict().get("dividend_debug")
+        elif isinstance(snapshot, dict):
+            debug_payload = snapshot.get("dividend_debug")
+        if debug_payload is None:
+            debug_payload = {}
+        if isinstance(snapshot, (dict, pd.Series)):
+            st.write(f"Underlying snapshot present: True (keys={len(snapshot)})")
+        else:
+            st.write("Underlying snapshot present: False")
+        st.json(debug_payload)
+
     st.caption("Option Legs Snapshot")
     snapshot = st.session_state.get("bbg_snapshot_df")
     if not isinstance(snapshot, pd.DataFrame) or snapshot.empty:
@@ -1304,10 +1389,18 @@ def render_bloomberg_data():
             st.info("No active legs to display.")
 
     with st.expander("Raw Bloomberg payload"):
+        underlying_snapshot = st.session_state.get("underlying_snapshot")
+        if isinstance(underlying_snapshot, pd.Series):
+            st.json(underlying_snapshot.to_dict())
+        elif isinstance(underlying_snapshot, dict):
+            st.json(underlying_snapshot)
+        else:
+            st.info("No underlying snapshot payload available.")
+
         if isinstance(snapshot, pd.DataFrame) and not snapshot.empty:
             st.dataframe(snapshot_df, use_container_width=True, height=240)
         else:
-            st.info("No raw snapshot payload available.")
+            st.info("No option snapshot payload available.")
 
 def render_client_report():
     from reporting.report_model import build_report_model

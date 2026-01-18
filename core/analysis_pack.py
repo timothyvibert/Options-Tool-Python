@@ -42,6 +42,7 @@ def _extract_dividend_date(profile: object) -> Optional[date]:
         return None
     normalized = {str(key).upper(): value for key, value in profile.items()}
     for field in [
+        "EX_DIV_DATE",
         "DVD_EX_DT",
         "EQY_DVD_EX_DT",
         "DVD_EX_DATE",
@@ -155,7 +156,24 @@ def build_analysis_pack(
         profile_value = profile_value.to_dict()
     if not isinstance(profile_value, Mapping):
         profile_value = {}
+    normalized_profile = {str(key).upper(): value for key, value in profile_value.items()}
     ex_div_date = _extract_dividend_date(profile_value)
+    projected_dividend = pd.to_numeric(
+        normalized_profile.get("PROJECTED_DIVIDEND"), errors="coerce"
+    )
+    if pd.isna(projected_dividend):
+        projected_dividend = None
+    else:
+        projected_dividend = float(projected_dividend)
+    dividend_status = normalized_profile.get("DIVIDEND_STATUS")
+    if dividend_status is not None:
+        try:
+            if pd.isna(dividend_status):
+                dividend_status = None
+        except TypeError:
+            pass
+    if dividend_status is not None:
+        dividend_status = str(dividend_status).strip() or None
     days_to_dividend = None
     if ex_div_date is not None and as_of_date is not None:
         days_to_dividend = (ex_div_date - as_of_date).days
@@ -406,6 +424,8 @@ def build_analysis_pack(
                 "ex_div_date": ex_div_date,
                 "days_to_dividend": days_to_dividend,
                 "before_expiry": before_expiry,
+                "projected_dividend": projected_dividend,
+                "dividend_status": dividend_status,
             },
         },
         "strategy": {

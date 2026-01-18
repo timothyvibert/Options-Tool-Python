@@ -26,7 +26,11 @@ def test_build_analysis_pack_minimal():
         roi_policy=NET_PREMIUM,
         vol_mode="ATM",
         atm_iv=0.2,
-        underlying_profile={"DVD_EX_DT": "2026-02-01"},
+        underlying_profile={
+            "DVD_EX_DT": "2026-02-01",
+            "projected_dividend": 0.88,
+            "dividend_status": "Projected",
+        },
         bbg_leg_snapshots=None,
         scenario_mode="STANDARD",
         downside_tgt=0.9,
@@ -65,6 +69,8 @@ def test_build_analysis_pack_minimal():
     assert dividend_risk["ex_div_date"].isoformat() == "2026-02-01"
     assert dividend_risk["days_to_dividend"] == 14
     assert dividend_risk["before_expiry"] is True
+    assert dividend_risk["projected_dividend"] == 0.88
+    assert dividend_risk["dividend_status"] == "Projected"
 
 
 def test_build_analysis_pack_no_dividend_data():
@@ -95,3 +101,5 @@ def test_build_analysis_pack_no_dividend_data():
     assert dividend_risk["ex_div_date"] is None
     assert dividend_risk["days_to_dividend"] is None
     assert dividend_risk["before_expiry"] is None
+    assert dividend_risk["projected_dividend"] is None
+    assert dividend_risk["dividend_status"] is None

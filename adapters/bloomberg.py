@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import date, datetime
-from typing import Dict, Iterable, Optional, Sequence
+from typing import Dict, Iterable, Mapping, Optional, Sequence
 
 import pandas as pd
 
@@ -115,8 +115,13 @@ def fetch_underlying_snapshot(ticker: str) -> pd.Series:
     if row.empty:
         row = df.iloc[[0]]
     record = row.iloc[0].copy()
-    ex_div_date = get_next_dividend_date(ticker, snapshot=record.to_dict())
+    bds_dividend = fetch_projected_dividend(ticker)
+    bdp_ex_div_date = get_next_dividend_date(ticker, snapshot=record.to_dict())
+    ex_div_date = bds_dividend.get("ex_div_date") or bdp_ex_div_date
     record["ex_div_date"] = ex_div_date
+    record["projected_dividend"] = bds_dividend.get("projected_dividend")
+    record["dividend_status"] = bds_dividend.get("dividend_status")
+    record["dividend_debug"] = bds_dividend.get("debug") or {}
     return record
 
 
@@ -336,6 +341,269 @@ def get_next_dividend_date(
         if parsed is not None:
             return parsed
     return None
+
+
+def _fetch_bds_rows(security: str, field: str) -> tuple[list[dict], Optional[str]]:
+    error = None
+    try:
+        with with_session() as query:
+            bds_fn = getattr(query, "bds", None)
+            if callable(bds_fn):
+                raw = bds_fn([security], field)
+                df = _to_pandas(raw)
+                if isinstance(df, pd.DataFrame):
+                    return df.to_dict(orient="records"), None
+                return [], None
+    except Exception as exc:
+        error = str(exc)
+
+    try:
+        import blpapi
+    except Exception as exc:
+        return [], error or str(exc)
+
+    session = blpapi.Session()
+    if not session.start():
+        return [], error or "Failed to start Bloomberg session."
+    try:
+        if not session.openService("//blp/refdata"):
+            return [], error or "Failed to open //blp/refdata."
+        service = session.getService("//blp/refdata")
+        request = service.createRequest("ReferenceDataRequest")
+        request.getElement("securities").appendValue(security)
+        request.getElement("fields").appendValue(field)
+        session.sendRequest(request)
+        rows: list[dict] = []
+        request_error = error
+        while True:
+            event = session.nextEvent()
+            for message in event:
+                if message.hasElement("responseError"):
+                    request_error = str(message.getElement("responseError"))
+                if not message.hasElement("securityData"):
+                    continue
+                sec_data_array = message.getElement("securityData")
+                for i in range(sec_data_array.numValues()):
+                    sec_data = sec_data_array.getValueAsElement(i)
+                    if sec_data.hasElement("securityError"):
+                        request_error = str(sec_data.getElement("securityError"))
+                        continue
+                    if not sec_data.hasElement("fieldData"):
+                        continue
+                    field_data = sec_data.getElement("fieldData")
+                    if not field_data.hasElement(field):
+                        continue
+                    bulk = field_data.getElement(field)
+                    for j in range(bulk.numValues()):
+                        row_elem = bulk.getValueAsElement(j)
+                        row: dict[str, object] = {}
+                        for k in range(row_elem.numElements()):
+                            elem = row_elem.getElement(k)
+                            name = str(elem.name())
+                            if elem.isNull():
+                                value = None
+                            else:
+                                try:
+                                    value = elem.getValue()
+                                except Exception:
+                                    value = str(elem)
+                            row[name] = value
+                        rows.append(row)
+            if event.eventType() == blpapi.Event.RESPONSE:
+                break
+        return rows, request_error
+    finally:
+        session.stop()
+
+
+def fetch_projected_dividend(
+    ticker: str, as_of_date: Optional[date] = None
+) -> Dict[str, object]:
+    debug = {
+        "dataset": "BDVD_PR_EX_DTS_DVD_AMTS_W_ANN",
+        "rows": None,
+        "first_row": None,
+        "selected_row": None,
+        "parsed": {
+            "ex_div_date": None,
+            "projected_dividend": None,
+            "dividend_status": None,
+        },
+        "error": None,
+    }
+    if not ticker:
+        return {
+            "ex_div_date": None,
+            "projected_dividend": None,
+            "dividend_status": None,
+            "debug": debug,
+        }
+    rows, error = _fetch_bds_rows(
+        ticker, "BDVD_PR_EX_DTS_DVD_AMTS_W_ANN"
+    )
+    debug["error"] = error
+    debug["rows"] = len(rows)
+    if not rows:
+        return {
+            "ex_div_date": None,
+            "projected_dividend": None,
+            "dividend_status": None,
+            "debug": debug,
+        }
+
+    date_keys = [
+        "EX DATE",
+        "EX_DATE",
+        "DVD_EX_DT",
+        "EX_DIV_DATE",
+        "EX-DATE",
+        "EX DATE (PROJECTED)",
+    ]
+    amount_keys = [
+        "AMOUNT",
+        "DVD_AMT",
+        "DIVIDEND AMOUNT",
+        "PROJECTED DIVIDEND",
+        "DIVIDEND",
+    ]
+    type_keys = [
+        "TYPE",
+        "DIVIDEND TYPE",
+        "STATUS",
+        "DIVIDEND STATUS",
+        "DVD_TYPE",
+    ]
+
+    def _pick_value(row: Mapping[str, object], keys: Iterable[str]) -> object:
+        for key in keys:
+            if key in row:
+                return row.get(key)
+        return None
+
+    def _first_date_like(values: Iterable[object]) -> Optional[date]:
+        for value in values:
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                continue
+            parsed = _normalize_dividend_date(value)
+            if parsed is not None:
+                return parsed
+        return None
+
+    def _first_numeric_like(values: Iterable[object]) -> Optional[float]:
+        for value in values:
+            if isinstance(value, (datetime, date, pd.Timestamp)):
+                continue
+            if _normalize_dividend_date(value) is not None and not isinstance(
+                value, (int, float, str)
+            ):
+                continue
+            numeric = pd.to_numeric(value, errors="coerce")
+            if pd.isna(numeric):
+                continue
+            return float(numeric)
+        return None
+
+    def _coerce_status(value: object) -> Optional[str]:
+        if value is None:
+            return None
+        try:
+            if pd.isna(value):
+                return None
+        except TypeError:
+            pass
+        text = str(value).strip()
+        return text if text else None
+
+    parsed_rows = []
+    for idx, row in enumerate(rows):
+        row_map = {str(key).strip(): value for key, value in row.items()}
+        upper_map = {key.upper(): value for key, value in row_map.items()}
+        ex_div_raw = _pick_value(upper_map, date_keys)
+        if ex_div_raw is None:
+            ex_div_date = _first_date_like(row_map.values())
+        else:
+            ex_div_date = _normalize_dividend_date(ex_div_raw)
+
+        projected_raw = _pick_value(upper_map, amount_keys)
+        if projected_raw is None:
+            projected_value = _first_numeric_like(row_map.values())
+        else:
+            projected_value = pd.to_numeric(projected_raw, errors="coerce")
+            if pd.isna(projected_value):
+                projected_value = None
+            else:
+                projected_value = float(projected_value)
+
+        status_raw = _pick_value(upper_map, type_keys)
+        status_value = _coerce_status(status_raw)
+
+        parsed_rows.append(
+            {
+                "index": idx,
+                "ex_div_date": ex_div_date,
+                "projected_dividend": projected_value,
+                "dividend_status": status_value,
+                "raw": row_map,
+            }
+        )
+
+    if parsed_rows:
+        debug_first = {}
+        for key, value in parsed_rows[0]["raw"].items():
+            text = str(value)
+            if len(text) > 120:
+                text = text[:117] + "..."
+            debug_first[key] = text
+        debug["first_row"] = debug_first
+
+    as_of_date = as_of_date or datetime.now().date()
+    candidates = [
+        row for row in parsed_rows
+        if row["ex_div_date"] is not None and row["ex_div_date"] >= as_of_date
+    ]
+
+    def _is_projection(status: Optional[str]) -> bool:
+        if not status:
+            return False
+        upper = status.upper()
+        return "BDVD" in upper or "PROJ" in upper
+
+    selected = None
+    preferred = [row for row in candidates if _is_projection(row["dividend_status"])]
+    if preferred:
+        selected = sorted(preferred, key=lambda row: row["index"])[0]
+    elif candidates:
+        selected = sorted(
+            candidates, key=lambda row: (row["ex_div_date"], row["index"])
+        )[0]
+
+    if selected is None:
+        return {
+            "ex_div_date": None,
+            "projected_dividend": None,
+            "dividend_status": None,
+            "debug": debug,
+        }
+
+    parsed_ex_div = selected["ex_div_date"]
+    projected_value = selected["projected_dividend"]
+    status_value = selected["dividend_status"]
+    debug["selected_row"] = {
+        "ex_div_date": parsed_ex_div,
+        "projected_dividend": projected_value,
+        "dividend_status": status_value,
+    }
+    debug["parsed"] = {
+        "ex_div_date": parsed_ex_div,
+        "projected_dividend": projected_value,
+        "dividend_status": status_value,
+    }
+    return {
+        "ex_div_date": parsed_ex_div,
+        "projected_dividend": projected_value,
+        "dividend_status": status_value,
+        "debug": debug,
+    }
 
 
 def format_bbg_expiry(expiry: object) -> str:

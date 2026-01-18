@@ -1,10 +1,12 @@
 import sys
 import types
+from datetime import date, timedelta
 
 import pandas as pd
 
 from adapters.bloomberg import (
     build_leg_price_updates,
+    fetch_projected_dividend,
     fetch_option_snapshot,
     validate_tickers,
 )
@@ -147,3 +149,107 @@ def test_fetch_option_snapshot_normalizes_fields(monkeypatch):
     assert row["vega"] == 0.12
     assert row["iv_mid"] == 0.35
     assert pd.isna(row["DAYS_TO_EXPIRATION"])
+
+
+def test_fetch_projected_dividend_returns_debug(monkeypatch):
+    class FakeBQuery:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def bds(self, securities, field):
+            return pd.DataFrame()
+
+    fake_module = types.ModuleType("polars_bloomberg")
+    fake_module.BQuery = FakeBQuery
+    monkeypatch.setitem(sys.modules, "polars_bloomberg", fake_module)
+
+    result = fetch_projected_dividend("ABBV US Equity")
+    assert "debug" in result
+    debug = result["debug"]
+    for key in ["dataset", "rows", "first_row", "selected_row", "parsed", "error"]:
+        assert key in debug
+
+
+def test_fetch_projected_dividend_selects_future_projection(monkeypatch):
+    today = date.today()
+    past = today - timedelta(days=30)
+    future = today + timedelta(days=30)
+
+    class FakeBQuery:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def bds(self, securities, field):
+            return pd.DataFrame(
+                [
+                    {
+                        "Ex Date": past,
+                        "Amount": 0.51,
+                        "Type": "Regular Cash",
+                    },
+                    {
+                        "Ex Date": future,
+                        "Amount": 0.53,
+                        "Type": "BDVD Projection",
+                    },
+                ]
+            )
+
+    fake_module = types.ModuleType("polars_bloomberg")
+    fake_module.BQuery = FakeBQuery
+    monkeypatch.setitem(sys.modules, "polars_bloomberg", fake_module)
+
+    result = fetch_projected_dividend("KO US Equity")
+    assert result["ex_div_date"] == future
+    assert result["projected_dividend"] == 0.53
+    assert "BDVD" in (result["dividend_status"] or "").upper()
+
+
+def test_fetch_projected_dividend_all_past(monkeypatch):
+    today = date.today()
+    past1 = today - timedelta(days=60)
+    past2 = today - timedelta(days=30)
+
+    class FakeBQuery:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def bds(self, securities, field):
+            return pd.DataFrame(
+                [
+                    {"Ex Date": past1, "Amount": 0.5, "Type": "Regular Cash"},
+                    {"Ex Date": past2, "Amount": 0.51, "Type": "BDVD Projection"},
+                ]
+            )
+
+    fake_module = types.ModuleType("polars_bloomberg")
+    fake_module.BQuery = FakeBQuery
+    monkeypatch.setitem(sys.modules, "polars_bloomberg", fake_module)
+
+    result = fetch_projected_dividend("KO US Equity")
+    assert result["ex_div_date"] is None
+    assert result["projected_dividend"] is None
+    assert result["dividend_status"] is None
+
+
+def test_fetch_projected_dividend_error(monkeypatch):
+    def _fake_rows(security, field):
+        return [], "BDS not available"
+
+    from adapters import bloomberg
+
+    monkeypatch.setattr(bloomberg, "_fetch_bds_rows", _fake_rows)
+    result = fetch_projected_dividend("KO US Equity")
+    assert result["ex_div_date"] is None
+    assert result["projected_dividend"] is None
+    assert result["dividend_status"] is None
+    assert result["debug"]["error"] == "BDS not available"

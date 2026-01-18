@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import date, datetime
-from typing import Dict, Iterable, Optional
+from typing import Dict, Iterable, Optional, Sequence
 
 import pandas as pd
 
@@ -21,6 +21,7 @@ FIELDS = [
     "OPT_PUT_CALL",
 ]
 MARKET_SECTOR_KEYWORDS = {"EQUITY", "INDEX", "CURNCY", "COMDTY"}
+DEFAULT_STRIKE_OFFSETS = [-0.5, 0.5, -1.0, 1.0, -2.5, 2.5, -5.0, 5.0]
 
 
 @contextmanager
@@ -150,30 +151,7 @@ def resolve_security(user_ticker: str) -> str:
     return str(first.iloc[0])
 
 
-def _chain_column_map(df: pd.DataFrame) -> pd.DataFrame:
-    mapping = {
-        "OPTION_TICKER": "option_ticker",
-        "SECURITY": "option_ticker",
-        "OPT_STRIKE_PX": "strike",
-        "STRIKE": "strike",
-        "OPT_PUT_CALL": "put_call",
-        "PUT_CALL": "put_call",
-        "OPT_EXPIRATION_DATE": "expiry",
-        "EXPIRY": "expiry",
-        "EXPIRATION": "expiry",
-    }
-    rename = {}
-    for column in df.columns:
-        key = column.upper()
-        if key in mapping:
-            rename[column] = mapping[key]
-    df = df.rename(columns=rename)
-    if "option_ticker" not in df.columns and "security" in df.columns:
-        df = df.rename(columns={"security": "option_ticker"})
-    return df
-
-
-def _normalize_expiry(value: object) -> Optional[str]:
+def normalize_iso_date(value: object) -> Optional[str]:
     if value is None:
         return None
     try:
@@ -198,91 +176,154 @@ def _normalize_expiry(value: object) -> Optional[str]:
     return parsed.date().isoformat()
 
 
-def fetch_option_chain(
-    underlying: str, expiry: str, spot: float, pct_window: float
-) -> pd.DataFrame:
-    lower = spot * (1.0 - pct_window)
-    upper = spot * (1.0 + pct_window)
-    expiry_key = pd.to_datetime(expiry).date().isoformat()
-    bql_query = (
-        "get(OPT_CHAIN('{underlying}'),"
-        " 'OPTION_TICKER','OPT_STRIKE_PX','OPT_PUT_CALL','OPT_EXPIRATION_DATE') "
-        "for(filter(OPT_CHAIN('{underlying}'),"
-        " OPT_EXPIRATION_DATE='{expiry}'"
-        " and OPT_STRIKE_PX>={lower}"
-        " and OPT_STRIKE_PX<={upper}))"
-    ).format(
-        underlying=underlying,
-        expiry=expiry_key,
-        lower=lower,
-        upper=upper,
-    )
+def format_bbg_expiry(expiry: object) -> str:
+    if isinstance(expiry, (date, datetime, pd.Timestamp)):
+        expiry_date = expiry.date() if isinstance(expiry, datetime) else expiry
+    else:
+        parsed = pd.to_datetime(expiry, errors="coerce")
+        if pd.isna(parsed):
+            raise ValueError("Invalid expiry provided for Bloomberg ticker.")
+        expiry_date = parsed.date()
+    month = expiry_date.month
+    day = expiry_date.day
+    year = expiry_date.year % 100
+    return f"{month}/{day}/{year:02d}"
 
+
+def _strip_sector_suffix(underlying: str) -> str:
+    parts = underlying.strip().split()
+    if not parts:
+        return ""
+    if parts[-1].upper() in MARKET_SECTOR_KEYWORDS:
+        parts = parts[:-1]
+    return " ".join(parts).strip()
+
+
+def _infer_sector_suffix(underlying: str, sector_hint: Optional[str]) -> str:
+    hint = (sector_hint or "").strip()
+    if hint:
+        hint_key = hint.upper()
+        if hint_key in MARKET_SECTOR_KEYWORDS:
+            return hint_key.title()
+        return hint
+    if "INDEX" in underlying.upper():
+        return "Index"
+    return "Equity"
+
+
+def _format_strike_for_ticker(strike: float) -> str:
+    try:
+        value = float(strike)
+    except (TypeError, ValueError):
+        raise ValueError("Strike must be numeric for ticker construction.")
+    if abs(value - round(value)) < 1e-6:
+        return str(int(round(value)))
+    text = f"{value:.6f}".rstrip("0").rstrip(".")
+    return text
+
+
+def construct_option_ticker(
+    underlying: str,
+    expiry: str,
+    put_call: str,
+    strike: float,
+    sector_hint: Optional[str] = None,
+) -> str:
+    base = _strip_sector_suffix(underlying)
+    if not base:
+        raise ValueError("Underlying is required for ticker construction.")
+    side = _normalize_put_call(put_call)
+    if side is None:
+        raise ValueError("put_call must be CALL or PUT.")
+    prefix = "C" if side == "CALL" else "P"
+    expiry_text = format_bbg_expiry(expiry)
+    strike_text = _format_strike_for_ticker(strike)
+    sector = _infer_sector_suffix(underlying, sector_hint)
+    return f"{base} {expiry_text} {prefix}{strike_text} {sector}".strip()
+
+
+def validate_tickers(tickers: list[str]) -> pd.DataFrame:
+    if not tickers:
+        return pd.DataFrame(columns=["security"])
+    fields = [
+        "PX_LAST",
+        "BID",
+        "ASK",
+        "PX_MID",
+        "MID",
+        "OPT_EXPIRATION_DATE",
+        "OPT_STRIKE_PX",
+        "OPT_PUT_CALL",
+    ]
     with with_session() as query:
-        raw = query.bql(bql_query)
+        raw = query.bdp(tickers, fields)
     df = _ensure_security_column(_to_pandas(raw))
-    df = _chain_column_map(df)
-
-    required = {"option_ticker", "strike", "put_call", "expiry"}
-    missing = required - set(df.columns)
-    if missing:
-        raise RuntimeError(
-            f"Option chain response missing columns: {sorted(missing)}"
-        )
-
-    df["expiry"] = df["expiry"].apply(_normalize_expiry)
-    df["strike"] = pd.to_numeric(df["strike"], errors="coerce")
-    df["put_call"] = df["put_call"].apply(_normalize_put_call)
-    df = df.dropna(subset=["option_ticker", "strike", "put_call", "expiry"])
-    df = df[df["expiry"] == expiry_key]
-    df = df[(df["strike"] >= lower) & (df["strike"] <= upper)]
-
-    if df.empty:
-        raise RuntimeError("Option chain query returned no rows.")
-
-    return df[["option_ticker", "strike", "put_call", "expiry"]].copy()
+    df = _ensure_columns(df, fields)
+    if "PX_MID" not in df.columns and "MID" in df.columns:
+        df["PX_MID"] = df["MID"]
+    key_fields = [
+        "PX_LAST",
+        "BID",
+        "ASK",
+        "PX_MID",
+        "MID",
+        "OPT_EXPIRATION_DATE",
+        "OPT_STRIKE_PX",
+        "OPT_PUT_CALL",
+    ]
+    mask = pd.Series(False, index=df.index)
+    for field in key_fields:
+        if field in df.columns:
+            mask = mask | df[field].notna()
+    return df[mask].copy()
 
 
-def chain_strikes(chain_df: pd.DataFrame, put_call: str) -> list[float]:
-    if chain_df is None or chain_df.empty:
-        return []
-    side = _normalize_put_call(put_call)
-    if side is None:
-        return []
-    strikes = []
-    for value, row_side in zip(chain_df["strike"], chain_df["put_call"]):
-        if _normalize_put_call(row_side) != side:
-            continue
-        strike = _value_or_none(value)
-        if strike is None:
-            continue
-        strikes.append(float(strike))
-    return sorted(set(strikes))
-
-
-def select_chain_ticker(
-    chain_df: pd.DataFrame, put_call: str, strike: float
+def resolve_option_ticker_from_strike(
+    underlying: str,
+    expiry: str,
+    put_call: str,
+    strike: float,
+    sector_hint: Optional[str] = None,
+    offsets: Optional[Sequence[float]] = None,
 ) -> Optional[str]:
-    if chain_df is None or chain_df.empty:
+    exact = construct_option_ticker(
+        underlying, expiry, put_call, strike, sector_hint
+    )
+    exact_df = validate_tickers([exact])
+    if not exact_df.empty:
+        return exact
+
+    offset_list = list(offsets) if offsets is not None else DEFAULT_STRIKE_OFFSETS
+    candidates: list[str] = []
+    seen: set[str] = set()
+    for offset in offset_list:
+        if offset == 0:
+            continue
+        candidate_strike = float(strike) + float(offset)
+        if candidate_strike <= 0:
+            continue
+        ticker = construct_option_ticker(
+            underlying, expiry, put_call, candidate_strike, sector_hint
+        )
+        key = ticker.upper()
+        if key in seen:
+            continue
+        seen.add(key)
+        candidates.append(ticker)
+
+    if not candidates:
         return None
-    side = _normalize_put_call(put_call)
-    if side is None:
+    validated = validate_tickers(candidates)
+    if validated.empty:
         return None
-    target = float(strike)
-    candidates = chain_df[
-        chain_df["put_call"].apply(_normalize_put_call) == side
-    ]
-    if candidates.empty:
-        return None
-    candidates = candidates.copy()
-    candidates["strike"] = pd.to_numeric(candidates["strike"], errors="coerce")
-    candidates = candidates.dropna(subset=["strike"])
-    matches = candidates[
-        (candidates["strike"] - target).abs() < 1e-6
-    ]
-    if matches.empty:
-        return None
-    return str(matches.iloc[0]["option_ticker"])
+    valid_set = {
+        str(value).strip().upper()
+        for value in validated["security"].dropna().tolist()
+    }
+    for ticker in candidates:
+        if ticker.upper() in valid_set:
+            return ticker
+    return None
 
 
 def _value_or_none(value: object) -> Optional[float]:

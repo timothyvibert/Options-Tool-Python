@@ -1,4 +1,5 @@
 from datetime import date, datetime
+import math
 import tempfile
 from typing import Optional, Tuple
 
@@ -724,18 +725,141 @@ def render_dashboard():
             metric_cols[1].metric("Margin Proxy", f"{margin_proxy:.2f}")
             metric_cols[2].metric("Capital Basis", f"{total_basis:.2f}")
 
-            price_grid = results["price_grid"]
-            pnl = results["pnl"]
-            fig = go.Figure()
-            fig.add_trace(
-                go.Scatter(x=price_grid, y=pnl, mode="lines", name="Expiry PnL")
+            chart_toggle_cols = st.columns(3)
+            show_options = chart_toggle_cols[0].checkbox(
+                "Show Options PnL",
+                value=True,
+                key="show_options_pnl",
             )
-            for breakeven in results["breakevens"]:
-                fig.add_vline(x=breakeven, line_dash="dash", line_color="gray")
+            show_stock = chart_toggle_cols[1].checkbox(
+                "Show Stock PnL",
+                value=stock_position != 0,
+                key="show_stock_pnl",
+            )
+            show_combined = chart_toggle_cols[2].checkbox(
+                "Show Combined PnL",
+                value=True,
+                key="show_combined_pnl",
+            )
+            annotate_cols = st.columns(2)
+            show_strikes = annotate_cols[0].checkbox(
+                "Show Strikes", value=True, key="show_strikes"
+            )
+            show_breakevens = annotate_cols[1].checkbox(
+                "Show Breakevens", value=True, key="show_breakevens"
+            )
+
+            price_grid = results["price_grid"]
+            combined_pnl = results["pnl"]
+            option_only = StrategyInput(
+                spot=spot,
+                stock_position=0.0,
+                avg_cost=0.0,
+                legs=legs,
+            )
+            options_pnl = [
+                _compute_pnl_for_price(option_only, price) for price in price_grid
+            ]
+            stock_pnl = [
+                combined - option
+                for combined, option in zip(combined_pnl, options_pnl)
+            ]
+            fig = go.Figure()
+            if show_options:
+                fig.add_trace(
+                    go.Scatter(
+                        x=price_grid,
+                        y=options_pnl,
+                        mode="lines",
+                        name="Options PnL",
+                        line=dict(color="#1f77b4"),
+                    )
+                )
+            if show_stock:
+                fig.add_trace(
+                    go.Scatter(
+                        x=price_grid,
+                        y=stock_pnl,
+                        mode="lines",
+                        name="Stock PnL",
+                        line=dict(color="#2ca02c", dash="dot"),
+                    )
+                )
+            if show_combined:
+                fig.add_trace(
+                    go.Scatter(
+                        x=price_grid,
+                        y=combined_pnl,
+                        mode="lines",
+                        name="Combined PnL",
+                        line=dict(color="#111111", width=2),
+                    )
+                )
+
+            label_positions = ["top left", "top right", "bottom left", "bottom right"]
+            if show_strikes:
+                raw_strikes = []
+                for leg in legs:
+                    strike = leg.strike
+                    if isinstance(strike, (int, float)) and math.isfinite(strike):
+                        raw_strikes.append(float(strike))
+                strikes = []
+                for value in sorted(raw_strikes):
+                    if not strikes or abs(value - strikes[-1]) > 1e-6:
+                        strikes.append(value)
+                strike_label_limit = 6
+                for idx, strike in enumerate(strikes):
+                    label = None
+                    if idx < strike_label_limit:
+                        label = f"K{idx + 1}={strike:g}"
+                    if label:
+                        fig.add_vline(
+                            x=strike,
+                            line_dash="dot",
+                            line_color="rgba(0,0,0,0.35)",
+                            annotation_text=label,
+                            annotation_position=label_positions[
+                                idx % len(label_positions)
+                            ],
+                        )
+                    else:
+                        fig.add_vline(
+                            x=strike,
+                            line_dash="dot",
+                            line_color="rgba(0,0,0,0.35)",
+                        )
+
+            if show_breakevens:
+                breakevens = []
+                for value in results.get("breakevens", []):
+                    if isinstance(value, (int, float)) and math.isfinite(value):
+                        breakevens.append(float(value))
+                breakevens = sorted(breakevens)
+                breakeven_label_limit = 4
+                for idx, breakeven in enumerate(breakevens):
+                    label = None
+                    if idx < breakeven_label_limit:
+                        label = f"BE{idx + 1}={breakeven:g}"
+                    if label:
+                        fig.add_vline(
+                            x=breakeven,
+                            line_dash="dash",
+                            line_color="rgba(255,0,0,0.45)",
+                            annotation_text=label,
+                            annotation_position=label_positions[
+                                idx % len(label_positions)
+                            ],
+                        )
+                    else:
+                        fig.add_vline(
+                            x=breakeven,
+                            line_dash="dash",
+                            line_color="rgba(255,0,0,0.45)",
+                        )
             fig.update_layout(
                 xaxis_title="Underlying Price at Expiry",
                 yaxis_title="PnL",
-                height=400,
+                height=360,
             )
             st.plotly_chart(fig, use_container_width=True)
 

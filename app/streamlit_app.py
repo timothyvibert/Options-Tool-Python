@@ -1080,6 +1080,60 @@ def render_dashboard():
                     height=140,
                     hide_index=True,
                 )
+                dividend_risk = None
+                if isinstance(analysis_pack, dict):
+                    underlying_info = analysis_pack.get("underlying")
+                    if isinstance(underlying_info, dict):
+                        dividend_risk = underlying_info.get("dividend_risk")
+                ex_div_date = (
+                    dividend_risk.get("ex_div_date")
+                    if isinstance(dividend_risk, dict)
+                    else None
+                )
+                if isinstance(ex_div_date, datetime):
+                    ex_div_display = ex_div_date.date().isoformat()
+                elif isinstance(ex_div_date, date):
+                    ex_div_display = ex_div_date.isoformat()
+                elif ex_div_date:
+                    ex_div_display = str(ex_div_date)
+                else:
+                    ex_div_display = "--"
+                days_to_dividend = (
+                    dividend_risk.get("days_to_dividend")
+                    if isinstance(dividend_risk, dict)
+                    else None
+                )
+                if isinstance(days_to_dividend, (int, float)) and not pd.isna(
+                    days_to_dividend
+                ):
+                    days_display = str(int(days_to_dividend))
+                else:
+                    days_display = "--"
+                before_expiry = (
+                    dividend_risk.get("before_expiry")
+                    if isinstance(dividend_risk, dict)
+                    else None
+                )
+                if before_expiry is True:
+                    before_display = "Yes"
+                elif before_expiry is False:
+                    before_display = "No"
+                else:
+                    before_display = "--"
+                dividend_df = pd.DataFrame(
+                    [
+                        {"Metric": "Ex-div date", "Value": ex_div_display},
+                        {"Metric": "Days to dividend", "Value": days_display},
+                        {"Metric": "Before expiry", "Value": before_display},
+                    ]
+                )
+                st.caption("Dividend")
+                st.dataframe(
+                    dividend_df,
+                    use_container_width=True,
+                    height=120,
+                    hide_index=True,
+                )
 
             st.caption("Report")
             generate_pdf = st.button("Generate PDF Report", key="generate_pdf")

@@ -21,6 +21,7 @@ from core.eligibility import (
     get_account_eligibility,
     load_account_map,
 )
+from core.analysis_pack import build_analysis_pack
 from adapters.bloomberg import (
     build_leg_price_updates,
     fetch_option_snapshot,
@@ -475,6 +476,7 @@ def render_dashboard():
                 st.error(f"Price refresh failed: {exc}")
 
     legs = []
+    leg_meta = []
     scenario_table = None
     results = None
     pop = None
@@ -585,6 +587,18 @@ def render_dashboard():
                             strike=strike,
                             premium=premium,
                         )
+                    )
+                    leg_meta.append(
+                        {
+                            "index": idx + 1,
+                            "kind": kind,
+                            "side": position_label,
+                            "ratio": ratio,
+                            "strike": strike,
+                            "premium": premium,
+                            "ticker": option_ticker,
+                            "override": manual_override,
+                        }
                     )
 
         for level, message in st.session_state.pop("ticker_notice", []):
@@ -738,6 +752,109 @@ def render_dashboard():
                 {"Metric": "ROI Policy", "Value": roi_policy},
             ]
             margin_df = pd.DataFrame(margin_rows)
+
+            raw_strikes = []
+            for leg in legs:
+                strike = leg.strike
+                if isinstance(strike, (int, float)) and math.isfinite(strike):
+                    raw_strikes.append(float(strike))
+            analysis_strikes = []
+            for value in sorted(raw_strikes):
+                if not analysis_strikes or abs(value - analysis_strikes[-1]) > 1e-6:
+                    analysis_strikes.append(value)
+
+            options_notional = sum(
+                abs(leg.position) * leg.strike * leg.multiplier for leg in legs
+            )
+            combined_notional = options_notional + abs(stock_position * spot)
+            net_prem_pct = (net_premium / spot * 100.0) if spot else 0.0
+
+            option_roi_values = []
+            net_roi_values = []
+            if scenario_table is not None and not scenario_table.empty:
+                option_roi_values = [
+                    float(value)
+                    for value in scenario_table["option_roi"].dropna().tolist()
+                ]
+                net_roi_values = [
+                    float(value) for value in scenario_table["net_roi"].dropna().tolist()
+                ]
+
+            pop_text = f"{pop * 100:.1f}%"
+            analysis_summary = {
+                "max_profit_options": f"{max(options_pnl):.2f}" if options_pnl else "--",
+                "max_profit_combined": f"{max(combined_pnl):.2f}" if combined_pnl else "--",
+                "max_loss_options": f"{min(options_pnl):.2f}" if options_pnl else "--",
+                "max_loss_combined": f"{min(combined_pnl):.2f}" if combined_pnl else "--",
+                "capital_basis_options": f"{option_basis:.2f}",
+                "capital_basis_combined": f"{total_basis:.2f}",
+                "max_roi_options": f"{max(option_roi_values):.2f}"
+                if option_roi_values
+                else "--",
+                "max_roi_combined": f"{max(net_roi_values):.2f}"
+                if net_roi_values
+                else "--",
+                "min_roi_options": f"{min(option_roi_values):.2f}"
+                if option_roi_values
+                else "--",
+                "min_roi_combined": f"{min(net_roi_values):.2f}"
+                if net_roi_values
+                else "--",
+                "cost_credit_options": net_premium_text,
+                "cost_credit_combined": net_premium_text,
+                "notional_options": f"{options_notional:.2f}",
+                "notional_combined": f"{combined_notional:.2f}",
+                "net_prem_per_share": f"{net_premium:.2f}",
+                "net_prem_pct_spot": f"{net_prem_pct:.2f}%",
+                "pop_options": pop_text,
+                "pop_combined": pop_text,
+            }
+
+            st.session_state["analysis_payoff"] = {
+                "price_grid": list(price_grid) if price_grid is not None else [],
+                "options_pnl": list(options_pnl),
+                "stock_pnl": list(stock_pnl),
+                "combined_pnl": list(combined_pnl),
+                "strikes": analysis_strikes,
+                "breakevens": list(breakevens) if breakevens is not None else [],
+            }
+            st.session_state["analysis_scenario_df"] = scenario_table.copy()
+            st.session_state["analysis_summary"] = analysis_summary
+            analysis_as_of = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.session_state["analysis_as_of"] = analysis_as_of
+
+            underlying_profile = st.session_state.get("underlying_snapshot")
+            if not isinstance(underlying_profile, dict):
+                underlying_profile = None
+            analysis_pack = build_analysis_pack(
+                strategy_input=strategy,
+                strategy_meta={
+                    "group": st.session_state.get("strategy_group"),
+                    "subgroup": st.session_state.get("strategy_subgroup"),
+                    "strategy_id": st.session_state.get("strategy_id"),
+                    "strategy_name": (
+                        selected_strategy_row["strategy_name"]
+                        if selected_strategy_row is not None
+                        else ""
+                    ),
+                    "expiry": chain_expiry,
+                    "as_of": analysis_as_of,
+                    "underlying_ticker": underlying_input.strip(),
+                    "resolved_underlying": resolved_underlying,
+                    "legs_meta": leg_meta,
+                    "strategy_row": selected_strategy_row,
+                },
+                pricing_mode=pricing_mode,
+                roi_policy=roi_policy,
+                vol_mode=vol_mode,
+                atm_iv=atm_iv,
+                underlying_profile=underlying_profile,
+                bbg_leg_snapshots=None,
+                scenario_mode=scenario_mode,
+                downside_tgt=downside_tgt,
+                upside_tgt=upside_tgt,
+            )
+            st.session_state["analysis_pack"] = analysis_pack
 
             payoff_cols = st.columns([1.6, 1.0])
             with payoff_cols[0]:
@@ -1132,7 +1249,391 @@ def render_bloomberg_data():
             st.info("No raw snapshot payload available.")
 
 def render_client_report():
-    st.info("Client report preview coming next")
+    from reporting.report_model import build_report_model
+
+    model = build_report_model(st.session_state)
+
+    analysis_payoff = st.session_state.get("analysis_payoff", {})
+    price_grid = analysis_payoff.get("price_grid", []) if isinstance(analysis_payoff, dict) else []
+    if not price_grid:
+        st.info("Run Analysis on the Dashboard to preview the client report.")
+        return
+
+    payoff = model.get("payoff", {})
+
+    def _as_text(value: object) -> str:
+        if value is None:
+            return "--"
+        text = str(value).strip()
+        return text if text else "--"
+
+    def _header_cell(col, label: str, value: object, value_class: str = "report-value") -> None:
+        col.markdown(f"<div class='report-label'>{label}</div>", unsafe_allow_html=True)
+        col.markdown(
+            f"<div class='{value_class}'>{_as_text(value)}</div>",
+            unsafe_allow_html=True,
+        )
+
+    def _render_table(rows, columns) -> None:
+        safe_rows = []
+        for row in rows:
+            safe_rows.append({col: _as_text(row.get(col, "--")) for col in columns})
+        df = pd.DataFrame(safe_rows, columns=columns)
+        html = df.to_html(index=False, classes="report-table", border=0, escape=False)
+        st.markdown(html, unsafe_allow_html=True)
+
+    def _to_float(value: object) -> Optional[float]:
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return float(value) if math.isfinite(value) else None
+        if isinstance(value, str):
+            text = value.replace(",", "").strip()
+            if text == "":
+                return None
+            try:
+                return float(text)
+            except ValueError:
+                return None
+        return None
+
+    report_css = """
+<style>
+.report-title {color:#E60000;font-size:24px;font-weight:700;margin:0;}
+.report-label {font-size:10px;text-transform:uppercase;color:#6B7280;letter-spacing:0.04em;margin-bottom:2px;}
+.report-value {font-size:11px;color:#111827;margin:0;}
+.report-section-title {font-size:12px;font-weight:700;text-transform:uppercase;color:#111827;margin:0 0 6px 0;}
+.report-table {width:100%;border-collapse:collapse;font-size:10px;}
+.report-table th {text-align:left;padding:4px 6px;background:#F3F4F6;color:#6B7280;text-transform:uppercase;}
+.report-table td {padding:4px 6px;border-bottom:1px solid #E5E7EB;color:#111827;}
+.report-disclaimer {font-size:9.5px;color:#6B7280;line-height:1.4;}
+.report-footer {font-size:9px;text-transform:uppercase;color:#9CA3AF;letter-spacing:0.05em;}
+.report-page-label {font-size:10px;text-transform:uppercase;color:#6B7280;letter-spacing:0.06em;margin:4px 0;}
+</style>
+"""
+
+    layout_cols = st.columns([1, 3, 1])
+    with layout_cols[1]:
+        st.markdown(report_css, unsafe_allow_html=True)
+
+        export_pdf = st.button("Export PDF", key="export_pdf")
+        if export_pdf:
+            scenario_df = st.session_state.get("analysis_scenario_df")
+            expiry_value = st.session_state.get("chain_expiry")
+            expiry_text = (
+                expiry_value.isoformat()
+                if isinstance(expiry_value, date)
+                else str(expiry_value or "")
+            )
+            legs_payload = []
+            for idx in range(4):
+                if not st.session_state.get(f"include_{idx}", False):
+                    continue
+                ratio = st.session_state.get(f"ratio_{idx}", 1)
+                side = st.session_state.get(f"pos_{idx}", "Long")
+                qty = ratio if side == "Long" else -ratio
+                legs_payload.append(
+                    {
+                        "type": st.session_state.get(f"kind_{idx}", ""),
+                        "side": side,
+                        "qty": qty,
+                        "strike": st.session_state.get(f"strike_{idx}"),
+                        "premium": st.session_state.get(f"prem_{idx}"),
+                    }
+                )
+            inputs_payload = {
+                "ticker": st.session_state.get("underlying_ticker", ""),
+                "resolved_ticker": st.session_state.get("resolved_underlying", ""),
+                "strategy_name": st.session_state.get("analysis_strategy_name", ""),
+                "expiry": expiry_text,
+                "pricing_mode": st.session_state.get("pricing_mode", ""),
+                "spot": st.session_state.get("spot_value", 0.0),
+                "stock_position": st.session_state.get("stock_position", 0.0),
+                "avg_cost": st.session_state.get("avg_cost", 0.0),
+                "roi_policy": st.session_state.get("roi_policy", ""),
+                "legs": legs_payload,
+            }
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            summary_payload = st.session_state.get("analysis_summary_payload", {})
+            notes = model.get("disclaimers", ["--"])
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                build_report_pdf(
+                    tmp.name,
+                    title="Options Strategy Report",
+                    as_of=timestamp,
+                    inputs=inputs_payload,
+                    summary=summary_payload,
+                    scenario_df=scenario_df,
+                    notes=notes,
+                )
+                tmp_path = tmp.name
+            with open(tmp_path, "rb") as handle:
+                st.session_state["pdf_bytes"] = handle.read()
+            st.session_state["pdf_filename"] = (
+                f"strategy_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            )
+            st.success("PDF report generated.")
+
+        if st.session_state.get("pdf_bytes"):
+            st.download_button(
+                "Download PDF Report",
+                data=st.session_state["pdf_bytes"],
+                file_name=st.session_state.get("pdf_filename", "strategy_report.pdf"),
+                mime="application/pdf",
+            )
+
+        st.markdown("<div class='report-page-label'>Page 1</div>", unsafe_allow_html=True)
+
+        header = model.get("header", {})
+        with st.container(border=True):
+            row1 = st.columns([1.1, 1.4, 1.0, 1.5, 1.0])
+            _header_cell(row1[0], "Report Time", header.get("report_time", "--"))
+            _header_cell(row1[1], "Underlying", header.get("ticker", "--"))
+            _header_cell(row1[2], "Last Price", header.get("last_price", "--"))
+            _header_cell(
+                row1[3],
+                "Strategy",
+                header.get("strategy_name", "--"),
+                value_class="report-title",
+            )
+            _header_cell(row1[4], "Expiry", header.get("expiry", "--"))
+
+            row2 = st.columns([1.0, 1.1, 1.5, 1.2, 1.2, 1.2])
+            _header_cell(row2[0], "Shares", header.get("shares", "--"))
+            _header_cell(row2[1], "Avg Cost", header.get("avg_cost", "--"))
+            _header_cell(row2[2], "Name", header.get("name", "--"))
+            _header_cell(row2[3], "Sector", header.get("sector", "--"))
+            _header_cell(
+                row2[4],
+                "52W High/Low",
+                f"{_as_text(header.get('high_52w'))} / {_as_text(header.get('low_52w'))}",
+            )
+            _header_cell(row2[5], "Dividend Yield", header.get("dividend_yield", "--"))
+
+            row3 = st.columns([1.2, 2.0, 2.8])
+            _header_cell(row3[0], "Earnings Date", header.get("earnings_date", "--"))
+            _header_cell(row3[1], "Policies", header.get("policies", "--"))
+            _header_cell(row3[2], "Title", header.get("title", "--"))
+
+        body_cols = st.columns([1.1, 1.6])
+        structure = model.get("structure", {})
+        with body_cols[0]:
+            with st.container(border=True):
+                st.markdown(
+                    "<div class='report-section-title'>Structure</div>",
+                    unsafe_allow_html=True,
+                )
+                _render_table(
+                    structure.get("legs", []),
+                    ["leg", "side", "expiry", "strike", "premium"],
+                )
+                st.markdown(
+                    f"<div class='report-label'>Net Premium (total)</div>"
+                    f"<div class='report-value'>{_as_text(structure.get('net_premium_total'))}</div>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown(
+                    f"<div class='report-label'>Net Premium (per share)</div>"
+                    f"<div class='report-value'>{_as_text(structure.get('net_premium_per_share'))}</div>",
+                    unsafe_allow_html=True,
+                )
+
+        with body_cols[1]:
+            with st.container(border=True):
+                st.markdown(
+                    "<div class='report-section-title'>Payoff</div>",
+                    unsafe_allow_html=True,
+                )
+                fig = go.Figure()
+                price_grid = payoff.get("price_grid", [])
+                combined_pnl = payoff.get("combined_pnl", [])
+                if price_grid and combined_pnl:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=price_grid,
+                            y=combined_pnl,
+                            mode="lines",
+                            name="Combined PnL",
+                            line=dict(color="#4B5563", width=2),
+                        )
+                    )
+                    raw_strikes = []
+                    for value in payoff.get("strikes", []):
+                        numeric = _to_float(value)
+                        if numeric is not None:
+                            raw_strikes.append(numeric)
+                    strikes = sorted(set(raw_strikes))
+                    label_positions = [
+                        "top left",
+                        "top right",
+                        "bottom left",
+                        "bottom right",
+                    ]
+                    for idx, strike in enumerate(strikes[:6]):
+                        fig.add_vline(
+                            x=strike,
+                            line_dash="dot",
+                            line_color="#E5E7EB",
+                            annotation_text=f"K{idx + 1}={strike:g}",
+                            annotation_position=label_positions[idx % len(label_positions)],
+                        )
+                    for idx, value in enumerate(payoff.get("breakevens", [])[:4]):
+                        numeric = _to_float(value)
+                        if numeric is None:
+                            continue
+                        fig.add_vline(
+                            x=numeric,
+                            line_dash="dash",
+                            line_color="#9CA3AF",
+                            annotation_text=f"BE{idx + 1}={numeric:g}",
+                            annotation_position=label_positions[idx % len(label_positions)],
+                        )
+                    fig.update_layout(
+                        xaxis_title="Underlying Price at Expiry",
+                        yaxis_title="PnL",
+                        height=420,
+                        plot_bgcolor="#FFFFFF",
+                        paper_bgcolor="#FFFFFF",
+                        margin=dict(l=30, r=20, t=30, b=30),
+                    )
+                    fig.update_xaxes(showgrid=True, gridcolor="#E5E7EB")
+                    fig.update_yaxes(showgrid=True, gridcolor="#E5E7EB")
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("No payoff data available.")
+
+        metrics = model.get("metrics", {})
+        with st.container(border=True):
+            st.markdown(
+                "<div class='report-section-title'>Payoff &amp; Metrics</div>",
+                unsafe_allow_html=True,
+            )
+            _render_table(metrics.get("rows", []), ["metric", "options", "combined"])
+
+        disclaimers = model.get("disclaimers", ["--"])
+        with st.container(border=True):
+            disclaimer_text = " ".join([_as_text(item) for item in disclaimers])
+            st.markdown(
+                f"<div class='report-disclaimer'>{_as_text(disclaimer_text)}</div>",
+                unsafe_allow_html=True,
+            )
+
+        st.divider()
+        st.markdown("<div class='report-page-label'>Page 2</div>", unsafe_allow_html=True)
+
+        commentary_blocks = model.get("commentary_blocks", [])
+        scenario_blocks = list(commentary_blocks)
+        while len(scenario_blocks) < 3:
+            scenario_blocks.append({"level": "--", "text": "--"})
+        scenario_cols = st.columns(3)
+        for idx, col in enumerate(scenario_cols):
+            block = scenario_blocks[idx]
+            title = _as_text(block.get("level"))
+            text = _as_text(block.get("text"))
+            with col:
+                with st.container(border=True):
+                    st.markdown(
+                        f"<div class='report-section-title'>{title}</div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.markdown(
+                        f"<div class='report-value'>{text}</div>",
+                        unsafe_allow_html=True,
+                    )
+
+        key_levels = model.get("key_levels") or model.get("scenario_table", {}).get(
+            "top10", []
+        )
+        key_rows = []
+        for row in key_levels:
+            def pick(keys):
+                for key in keys:
+                    if key in row:
+                        return _as_text(row.get(key))
+                return "--"
+            key_rows.append(
+                {
+                    "Scenario": pick(["Scenario", "scenario"]),
+                    "Price": pick(["Price", "price"]),
+                    "Move %": pick(["Move %", "move_pct", "move_percent"]),
+                    "Stock PnL": pick(["Stock PnL", "stock_pnl"]),
+                    "Option PnL": pick(["Option PnL", "option_pnl"]),
+                    "Option ROI": pick(["Option ROI", "option_roi"]),
+                    "Net PnL": pick(["Net PnL", "net_pnl", "combined_pnl"]),
+                    "Net ROI": pick(["Net ROI", "net_roi"]),
+                }
+            )
+        with st.container(border=True):
+            st.markdown(
+                "<div class='report-section-title'>Key Levels</div>",
+                unsafe_allow_html=True,
+            )
+            key_df = pd.DataFrame(
+                key_rows,
+                columns=[
+                    "Scenario",
+                    "Price",
+                    "Move %",
+                    "Stock PnL",
+                    "Option PnL",
+                    "Option ROI",
+                    "Net PnL",
+                    "Net ROI",
+                ],
+            )
+            def _highlight_spot(row):
+                label = str(row.get("Scenario", "")).strip().lower()
+                if label in {"spot", "current market price"}:
+                    return ["background-color: #FEF9C3"] * len(row)
+                return ["" for _ in row]
+            styled = key_df.style.apply(_highlight_spot, axis=1)
+            html = styled.to_html()
+            st.markdown(html, unsafe_allow_html=True)
+
+        with st.container(border=True):
+            st.markdown(
+                "<div class='report-section-title'>Commentary</div>",
+                unsafe_allow_html=True,
+            )
+            groups = {
+                "Spot": [],
+                "Strikes": [],
+                "Breakevens": [],
+                "Low": [],
+                "High": [],
+            }
+            for block in commentary_blocks:
+                label = _as_text(block.get("level"))
+                text = _as_text(block.get("text"))
+                upper_label = label.upper()
+                if upper_label.startswith("SPOT"):
+                    groups["Spot"].append(text)
+                elif "STRIKE" in upper_label:
+                    groups["Strikes"].append(text)
+                elif upper_label.startswith("BE") or "BREAK" in upper_label:
+                    groups["Breakevens"].append(text)
+                elif upper_label.startswith("LOW"):
+                    groups["Low"].append(text)
+                elif upper_label.startswith("HIGH"):
+                    groups["High"].append(text)
+
+            for title in ["Spot", "Strikes", "Breakevens", "Low", "High"]:
+                block_text = " ".join(groups[title]) if groups[title] else "--"
+                st.markdown(
+                    f"<div class='report-label'>{title}</div>"
+                    f"<div class='report-value'>{_as_text(block_text)}</div>",
+                    unsafe_allow_html=True,
+                )
+
+        footer_cols = st.columns([1, 1])
+        footer_cols[0].markdown(
+            "<div class='report-footer'>UBS Financial Services Inc.</div>",
+            unsafe_allow_html=True,
+        )
+        footer_cols[1].markdown(
+            "<div class='report-footer' style='text-align:right;'>Page 2 of 2</div>",
+            unsafe_allow_html=True,
+        )
 
 
 tabs = st.tabs(["Dashboard", "Bloomberg Data", "Client Report"])

@@ -28,7 +28,12 @@ from adapters.bloomberg import (
     resolve_security,
     select_chain_ticker,
 )
-from core.payoff import compute_payoff
+from core.payoff import _compute_pnl_for_price, compute_payoff
+from core.probability import (
+    build_probability_details,
+    effective_sigma,
+    strategy_pop,
+)
 from core.pricing import DEALABLE, MID
 from core.roi import CASH_SECURED, MARGIN_PROXY, NET_PREMIUM, RISK_MAX_LOSS
 from core.scenarios import build_scenario_points, compute_scenario_table
@@ -396,6 +401,24 @@ else:
     downside_tgt = 0.8
     upside_tgt = 1.2
 
+st.subheader("Probability")
+vol_mode = st.selectbox(
+    "Volatility mode",
+    options=["ATM", "VEGA_WEIGHTED"],
+    key="vol_mode",
+)
+atm_iv = st.number_input(
+    "ATM IV",
+    min_value=0.0001,
+    value=0.2,
+    step=0.01,
+    key="atm_iv",
+)
+show_prob_details = st.checkbox(
+    "Show probability details",
+    key="show_prob_details",
+)
+
 st.subheader("Bloomberg pricing")
 fill_leg_prices = st.button("Bloomberg: Fill Leg Prices", key="fill_leg_prices")
 if fill_leg_prices:
@@ -506,6 +529,46 @@ if run:
         height=500,
     )
     st.plotly_chart(fig, use_container_width=True)
+
+    per_leg_iv = [None for _ in legs]
+    expiry = st.session_state.get("chain_expiry")
+    if isinstance(expiry, date):
+        days = (expiry - date.today()).days
+        t = max(days / 365.0, 1e-6)
+    else:
+        t = 1.0
+    pop = strategy_pop(
+        strategy,
+        _compute_pnl_for_price,
+        S0=spot,
+        r=0.0,
+        q=0.0,
+        sigma_mode=vol_mode,
+        atm_iv=atm_iv,
+        per_leg_iv=per_leg_iv,
+        t=t,
+    )
+    st.metric("Strategy PoP", f"{pop * 100:.1f}%")
+
+    if show_prob_details:
+        sigma = effective_sigma(
+            strategy,
+            per_leg_iv=per_leg_iv,
+            mode=vol_mode,
+            r=0.0,
+            q=0.0,
+            t=t,
+            atm_iv=atm_iv,
+        )
+        details = build_probability_details(
+            S0=spot,
+            r=0.0,
+            q=0.0,
+            sigma=sigma,
+            t=t,
+            breakevens=results.get("breakevens", []),
+        )
+        st.dataframe(details, use_container_width=True)
 
     scenario_points = build_scenario_points(
         strategy,

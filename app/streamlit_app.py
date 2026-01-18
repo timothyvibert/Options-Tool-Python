@@ -170,6 +170,19 @@ def render_dashboard():
             return expiry.isoformat()
         return str(expiry)
 
+    def _contract_identity(idx: int) -> tuple[str, str, str, float]:
+        underlying = _current_underlying().upper()
+        expiry = _current_expiry()
+        kind = st.session_state.get(f"kind_{idx}", "Call")
+        kind_text = str(kind).strip().upper()
+        put_call = "CALL" if kind_text.startswith("C") else "PUT"
+        strike_value = st.session_state.get(f"strike_{idx}", spot)
+        try:
+            strike = float(strike_value)
+        except (TypeError, ValueError):
+            strike = float("nan")
+        return (underlying, expiry, put_call, strike)
+
     def _queue_refresh_spot() -> None:
         st.session_state["pending_refresh_spot"] = True
 
@@ -396,6 +409,19 @@ def render_dashboard():
     if fill_leg_prices:
         base_underlying = _current_underlying()
         expiry_value = _current_expiry()
+        identity_changed = False
+        for idx in range(4):
+            if not st.session_state.get(f"include_{idx}", False):
+                continue
+            identity = _contract_identity(idx)
+            prev_identity = st.session_state.get(f"bbg_contract_id_{idx}")
+            if prev_identity is not None and prev_identity != identity:
+                st.session_state[f"bbg_ticker_{idx}"] = ""
+                identity_changed = True
+            st.session_state[f"bbg_contract_id_{idx}"] = identity
+        if identity_changed:
+            st.session_state.pop("bbg_snapshot_df", None)
+            st.session_state.pop("bbg_snapshot_time", None)
         leg_requests = []
         tickers = []
         for idx in range(4):
@@ -1171,6 +1197,23 @@ def render_bloomberg_data():
         snapshot_df = snapshot.copy()
         if "security" not in snapshot_df.columns:
             snapshot_df = snapshot_df.rename(columns={"Security": "security"})
+        if "dte" not in snapshot_df.columns:
+            dte_series = pd.to_numeric(
+                snapshot_df.get("DAYS_TO_EXPIRATION"), errors="coerce"
+            )
+            if "DAYS_EXPIRE" in snapshot_df.columns:
+                dte_series = dte_series.fillna(
+                    pd.to_numeric(snapshot_df.get("DAYS_EXPIRE"), errors="coerce")
+                )
+            snapshot_df["dte"] = dte_series
+        if snapshot_df["dte"].isna().all():
+            fallback_expiry = st.session_state.get("chain_expiry")
+            fallback_as_of = st.session_state.get("bbg_snapshot_time")
+            expiry_dt = pd.to_datetime(fallback_expiry, errors="coerce")
+            as_of_dt = pd.to_datetime(fallback_as_of, errors="coerce")
+            if not pd.isna(expiry_dt) and not pd.isna(as_of_dt):
+                dte_value = (expiry_dt.date() - as_of_dt.date()).days
+                snapshot_df["dte"] = snapshot_df["dte"].fillna(dte_value)
         ticker_map = {}
         for _, row in snapshot_df.iterrows():
             security = str(row.get("security", "")).strip().upper()
@@ -1195,7 +1238,25 @@ def render_bloomberg_data():
             put_call = row.get("OPT_PUT_CALL") if row is not None else None
             strike = row.get("OPT_STRIKE_PX") if row is not None else None
             expiry = row.get("OPT_EXPIRATION_DATE") if row is not None else None
-            dte = row.get("DAYS_TO_EXPIRATION") if row is not None else None
+            dte = None
+            if row is not None:
+                dte = row.get("dte")
+                if pd.isna(dte):
+                    dte = row.get("DAYS_TO_EXPIRATION")
+                if pd.isna(dte):
+                    dte = row.get("DAYS_EXPIRE")
+                if pd.isna(dte):
+                    expiry_value = expiry if expiry is not None else expiry_text
+                    as_of_value = st.session_state.get("bbg_snapshot_time")
+                    expiry_dt = pd.to_datetime(expiry_value, errors="coerce")
+                    as_of_dt = pd.to_datetime(as_of_value, errors="coerce")
+                    if not pd.isna(expiry_dt) and not pd.isna(as_of_dt):
+                        dte = (expiry_dt.date() - as_of_dt.date()).days
+                dte = pd.to_numeric(dte, errors="coerce")
+                if pd.isna(dte):
+                    dte = None
+                else:
+                    dte = int(dte)
             bid = row.get("BID") if row is not None else None
             ask = row.get("ASK") if row is not None else None
             mid = None
@@ -1244,7 +1305,7 @@ def render_bloomberg_data():
 
     with st.expander("Raw Bloomberg payload"):
         if isinstance(snapshot, pd.DataFrame) and not snapshot.empty:
-            st.dataframe(snapshot, use_container_width=True, height=240)
+            st.dataframe(snapshot_df, use_container_width=True, height=240)
         else:
             st.info("No raw snapshot payload available.")
 

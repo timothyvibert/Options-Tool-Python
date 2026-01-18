@@ -5,23 +5,6 @@ import pandas as pd
 import adapters.bloomberg as bloomberg
 
 
-def test_chain_strikes_and_ticker_selection():
-    chain = pd.DataFrame(
-        [
-            {"option_ticker": "C90", "strike": 90, "put_call": "C", "expiry": "2025-01-01"},
-            {"option_ticker": "C100", "strike": 100, "put_call": "CALL", "expiry": "2025-01-01"},
-            {"option_ticker": "P100", "strike": 100, "put_call": "P", "expiry": "2025-01-01"},
-            {"option_ticker": "C110", "strike": 110, "put_call": "CALL", "expiry": "2025-01-01"},
-        ]
-    )
-    call_strikes = bloomberg.chain_strikes(chain, "CALL")
-    put_strikes = bloomberg.chain_strikes(chain, "PUT")
-    assert call_strikes == [90.0, 100.0, 110.0]
-    assert put_strikes == [100.0]
-    assert bloomberg.select_chain_ticker(chain, "CALL", 100.0) == "C100"
-    assert bloomberg.select_chain_ticker(chain, "PUT", 100.0) == "P100"
-
-
 def test_resolve_security_fallback_with_bsrch():
     class DummyQuery:
         def __init__(self, results):
@@ -46,3 +29,22 @@ def test_resolve_security_fallback_with_bsrch():
         assert bloomberg.resolve_security("ABC") == "ABC"
     finally:
         bloomberg.with_session = original
+
+
+def test_validate_tickers_filters_nulls(monkeypatch):
+    class DummyQuery:
+        def bdp(self, securities, fields):
+            return pd.DataFrame(
+                [
+                    {"security": securities[0], "PX_LAST": pd.NA},
+                    {"security": securities[1], "PX_LAST": 10.0},
+                ]
+            )
+
+    @contextmanager
+    def dummy_session():
+        yield DummyQuery()
+
+    monkeypatch.setattr(bloomberg, "with_session", dummy_session)
+    df = bloomberg.validate_tickers(["AAA", "BBB"])
+    assert df["security"].tolist() == ["BBB"]

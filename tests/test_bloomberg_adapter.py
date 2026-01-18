@@ -3,7 +3,7 @@ import types
 
 import pandas as pd
 
-from adapters.bloomberg import build_leg_price_updates
+from adapters.bloomberg import build_leg_price_updates, validate_tickers
 from core.pricing import DEALABLE, MID
 
 
@@ -74,17 +74,6 @@ def test_bloomberg_session_uses_context_manager(monkeypatch):
             self._check("bsrch")
             return pd.DataFrame({"security": ["TEST US Equity"]})
 
-        def bql(self, query):
-            self._check("bql")
-            return pd.DataFrame(
-                {
-                    "OPTION_TICKER": ["OPT1"],
-                    "OPT_STRIKE_PX": [100.0],
-                    "OPT_PUT_CALL": ["CALL"],
-                    "OPT_EXPIRATION_DATE": [pd.Timestamp("2025-01-17")],
-                }
-            )
-
     fake_module = types.ModuleType("polars_bloomberg")
     fake_module.BQuery = FakeBQuery
     monkeypatch.setitem(sys.modules, "polars_bloomberg", fake_module)
@@ -93,10 +82,8 @@ def test_bloomberg_session_uses_context_manager(monkeypatch):
 
     assert bloomberg.fetch_spot("TEST US Equity") == 101.0
     assert bloomberg.resolve_security("TEST") == "TEST US Equity"
-    chain = bloomberg.fetch_option_chain(
-        "TEST US Equity", "2025-01-17", 100.0, 0.1
-    )
-    assert not chain.empty
+    valid = validate_tickers(["TEST 1/17/25 C100 Equity"])
+    assert not valid.empty
 
     def _assert_enter_before(label: str) -> None:
         seen = {}
@@ -110,4 +97,3 @@ def test_bloomberg_session_uses_context_manager(monkeypatch):
 
     _assert_enter_before("bdp")
     _assert_enter_before("bsrch")
-    _assert_enter_before("bql")

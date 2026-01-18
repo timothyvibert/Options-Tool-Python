@@ -9,19 +9,37 @@ import pandas as pd
 from core.pricing import select_price
 
 
-FIELDS = [
+OPTION_SNAPSHOT_FIELDS = [
     "BID",
     "ASK",
     "PX_MID",
     "MID",
     "PX_LAST",
     "IVOL_MID",
+    "IVOL",
     "DAYS_TO_EXPIRATION",
+    "DAYS_EXPIRE",
     "OPT_STRIKE_PX",
     "OPT_PUT_CALL",
+    "DELTA_MID_RT",
+    "THETA",
+    "THETA_MID",
+    "GAMMA",
+    "VEGA",
 ]
 MARKET_SECTOR_KEYWORDS = {"EQUITY", "INDEX", "CURNCY", "COMDTY"}
 DEFAULT_STRIKE_OFFSETS = [-0.5, 0.5, -1.0, 1.0, -2.5, 2.5, -5.0, 5.0]
+UNDERLYING_FIELDS = [
+    "PX_LAST",
+    "NAME",
+    "GICS_SECTOR_NAME",
+    "INDUSTRY_SECTOR",
+    "52WK_HIGH",
+    "52WK_LOW",
+    "DVD_YLD",
+    "EQY_DVD_YLD_IND",
+    "EARNINGS_ANNOUNCEMENT_DATE",
+]
 
 
 @contextmanager
@@ -74,6 +92,21 @@ def fetch_spot(ticker: str) -> float:
     return float(value)
 
 
+def fetch_underlying_snapshot(ticker: str) -> pd.Series:
+    if not ticker:
+        return pd.Series(dtype=object)
+    with with_session() as query:
+        raw = query.bdp([ticker], UNDERLYING_FIELDS)
+    df = _ensure_security_column(_to_pandas(raw))
+    df = _ensure_columns(df, UNDERLYING_FIELDS)
+    if df.empty:
+        return pd.Series(dtype=object)
+    row = df.loc[df["security"] == ticker]
+    if row.empty:
+        row = df.iloc[[0]]
+    return row.iloc[0]
+
+
 def fetch_option_snapshot(option_tickers: list[str]) -> pd.DataFrame:
     if not option_tickers:
         return pd.DataFrame(
@@ -84,20 +117,73 @@ def fetch_option_snapshot(option_tickers: list[str]) -> pd.DataFrame:
                 "PX_MID",
                 "PX_LAST",
                 "IVOL_MID",
+                "IVOL",
                 "DAYS_TO_EXPIRATION",
+                "DAYS_EXPIRE",
                 "OPT_STRIKE_PX",
                 "OPT_PUT_CALL",
+                "DELTA_MID_RT",
+                "THETA",
+                "THETA_MID",
+                "GAMMA",
+                "VEGA",
+                "dte",
+                "delta_mid",
+                "theta",
+                "gamma",
+                "vega",
+                "iv_mid",
             ]
         )
 
     with with_session() as query:
-        raw = query.bdp(option_tickers, FIELDS)
+        raw = query.bdp(option_tickers, OPTION_SNAPSHOT_FIELDS)
     df = _ensure_security_column(_to_pandas(raw))
-    df = _ensure_columns(df, FIELDS)
-    if "PX_MID" not in df.columns and "MID" in df.columns:
-        df["PX_MID"] = df["MID"]
+    df = _ensure_columns(df, OPTION_SNAPSHOT_FIELDS)
+    if "MID" in df.columns:
+        df["PX_MID"] = pd.to_numeric(df["PX_MID"], errors="coerce")
+        mid_values = pd.to_numeric(df["MID"], errors="coerce")
+        df["PX_MID"] = df["PX_MID"].fillna(mid_values)
     if "MID" in df.columns:
         df = df.drop(columns=["MID"])
+
+    numeric_fields = [
+        "BID",
+        "ASK",
+        "PX_MID",
+        "PX_LAST",
+        "IVOL_MID",
+        "IVOL",
+        "DAYS_TO_EXPIRATION",
+        "DAYS_EXPIRE",
+        "OPT_STRIKE_PX",
+        "DELTA_MID_RT",
+        "THETA",
+        "THETA_MID",
+        "GAMMA",
+        "VEGA",
+    ]
+    for field in numeric_fields:
+        if field in df.columns:
+            df[field] = pd.to_numeric(df[field], errors="coerce")
+
+    dte = pd.to_numeric(df.get("DAYS_TO_EXPIRATION"), errors="coerce")
+    if "DAYS_EXPIRE" in df.columns:
+        dte_alt = pd.to_numeric(df.get("DAYS_EXPIRE"), errors="coerce")
+        dte = dte.fillna(dte_alt)
+    df["dte"] = dte
+
+    df["delta_mid"] = pd.to_numeric(df.get("DELTA_MID_RT"), errors="coerce")
+    theta = pd.to_numeric(df.get("THETA"), errors="coerce")
+    if "THETA_MID" in df.columns:
+        theta = theta.fillna(pd.to_numeric(df.get("THETA_MID"), errors="coerce"))
+    df["theta"] = theta
+    df["gamma"] = pd.to_numeric(df.get("GAMMA"), errors="coerce")
+    df["vega"] = pd.to_numeric(df.get("VEGA"), errors="coerce")
+    iv_mid = pd.to_numeric(df.get("IVOL_MID"), errors="coerce")
+    if "IVOL" in df.columns:
+        iv_mid = iv_mid.fillna(pd.to_numeric(df.get("IVOL"), errors="coerce"))
+    df["iv_mid"] = iv_mid
     return df[
         [
             "security",
@@ -106,9 +192,22 @@ def fetch_option_snapshot(option_tickers: list[str]) -> pd.DataFrame:
             "PX_MID",
             "PX_LAST",
             "IVOL_MID",
+            "IVOL",
             "DAYS_TO_EXPIRATION",
+            "DAYS_EXPIRE",
             "OPT_STRIKE_PX",
             "OPT_PUT_CALL",
+            "DELTA_MID_RT",
+            "THETA",
+            "THETA_MID",
+            "GAMMA",
+            "VEGA",
+            "dte",
+            "delta_mid",
+            "theta",
+            "gamma",
+            "vega",
+            "iv_mid",
         ]
     ]
 

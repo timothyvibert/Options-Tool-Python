@@ -3,7 +3,11 @@ import types
 
 import pandas as pd
 
-from adapters.bloomberg import build_leg_price_updates, validate_tickers
+from adapters.bloomberg import (
+    build_leg_price_updates,
+    fetch_option_snapshot,
+    validate_tickers,
+)
 from core.pricing import DEALABLE, MID
 
 
@@ -97,3 +101,49 @@ def test_bloomberg_session_uses_context_manager(monkeypatch):
 
     _assert_enter_before("bdp")
     _assert_enter_before("bsrch")
+
+
+def test_fetch_option_snapshot_normalizes_fields(monkeypatch):
+    class FakeBQuery:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def bdp(self, securities, fields):
+            return pd.DataFrame(
+                {
+                    "security": securities,
+                    "BID": ["1.1"],
+                    "ASK": [2.2],
+                    "MID": [1.65],
+                    "PX_LAST": [1.5],
+                    "IVOL": [0.35],
+                    "DAYS_EXPIRE": [30],
+                    "OPT_STRIKE_PX": [100],
+                    "OPT_PUT_CALL": ["C"],
+                    "DELTA_MID_RT": ["0.25"],
+                    "THETA_MID": [-0.01],
+                    "GAMMA": [0.05],
+                    "VEGA": [0.12],
+                }
+            )
+
+    fake_module = types.ModuleType("polars_bloomberg")
+    fake_module.BQuery = FakeBQuery
+    monkeypatch.setitem(sys.modules, "polars_bloomberg", fake_module)
+
+    snapshot = fetch_option_snapshot(["OPT1"])
+    assert all(
+        col in snapshot.columns
+        for col in ["dte", "delta_mid", "theta", "gamma", "vega", "iv_mid"]
+    )
+    row = snapshot.iloc[0]
+    assert row["dte"] == 30
+    assert row["delta_mid"] == 0.25
+    assert row["theta"] == -0.01
+    assert row["gamma"] == 0.05
+    assert row["vega"] == 0.12
+    assert row["iv_mid"] == 0.35
+    assert pd.isna(row["DAYS_TO_EXPIRATION"])

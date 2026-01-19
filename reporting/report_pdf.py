@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
@@ -91,6 +91,7 @@ def build_report_pdf(
     summary: Dict[str, Any],
     scenario_df: pd.DataFrame,
     notes: List[str],
+    report_model: Optional[Dict[str, Any]] = None,
 ) -> None:
     if _REPORTLAB_ERROR is not None:
         raise RuntimeError(
@@ -195,6 +196,86 @@ def build_report_pdf(
             )
         )
         story.append(table)
+
+    scenario_cards = []
+    key_levels_rows = []
+    if isinstance(report_model, dict):
+        scenario_cards = report_model.get("scenario_analysis_cards") or []
+        key_levels_rows = report_model.get("key_levels_display_rows") or []
+
+    if isinstance(scenario_cards, list) and scenario_cards:
+        story.append(Paragraph("Scenario Analysis", styles["section"]))
+        card_cells = []
+        for card in scenario_cards[:3]:
+            if not isinstance(card, dict):
+                card_cells.append(Paragraph("", styles["body"]))
+                continue
+            title_text = str(card.get("title") or "")
+            condition_text = str(card.get("condition") or "")
+            body_text = str(card.get("body") or "")
+            parts = []
+            if title_text:
+                parts.append(f"<b>{title_text}</b>")
+            if condition_text:
+                parts.append(condition_text)
+            if body_text:
+                parts.append(body_text)
+            card_cells.append(Paragraph("<br/>".join(parts), styles["small"]))
+        card_table = Table([card_cells], colWidths=[2.4 * inch, 2.4 * inch, 2.4 * inch])
+        card_table.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+        )
+        story.append(card_table)
+
+    if isinstance(key_levels_rows, list) and key_levels_rows:
+        story.append(Paragraph("Key Levels", styles["section"]))
+        columns = [
+            "Scenario",
+            "Price",
+            "Move %",
+            "Stock PnL",
+            "Option PnL",
+            "Option ROI",
+            "Net PnL",
+            "Net ROI",
+        ]
+        table_data = [columns]
+        for row in key_levels_rows:
+            if not isinstance(row, dict):
+                continue
+            table_data.append(
+                [
+                    _fmt_value(row.get("Scenario", row.get("scenario", ""))),
+                    _fmt_value(row.get("Price", row.get("price", ""))),
+                    _fmt_value(row.get("Move %", row.get("move_pct", ""))),
+                    _fmt_value(row.get("Stock PnL", row.get("stock_pnl", ""))),
+                    _fmt_value(row.get("Option PnL", row.get("option_pnl", ""))),
+                    _fmt_value(row.get("Option ROI", row.get("option_roi", ""))),
+                    _fmt_value(row.get("Net PnL", row.get("net_pnl", ""))),
+                    _fmt_value(row.get("Net ROI", row.get("net_roi", ""))),
+                ]
+            )
+        key_table = Table(table_data, repeatRows=1)
+        key_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]
+            )
+        )
+        story.append(key_table)
 
     story.append(Paragraph("Assumptions & Disclaimers", styles["section"]))
     warning_text = summary.get("warning")

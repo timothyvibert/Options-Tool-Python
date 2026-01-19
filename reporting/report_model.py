@@ -122,6 +122,98 @@ def _scenario_row_from_source(row: Mapping[str, object]) -> Dict[str, str]:
     }
 
 
+def _scenario_card_text(value: object) -> str:
+    if _is_missing(value):
+        return ""
+    return str(value)
+
+
+def _coerce_float(value: object) -> Optional[float]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        if isinstance(value, float) and math.isnan(value):
+            return None
+        return float(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if text == "":
+            return None
+        if text.endswith("%"):
+            text = text[:-1].strip()
+        text = text.replace(",", "")
+        try:
+            return float(text)
+        except ValueError:
+            return None
+    return None
+
+
+def _fmt_price(value: object) -> str:
+    numeric = _coerce_float(value)
+    if numeric is None:
+        return MISSING
+    return f"{numeric:.2f}"
+
+
+def _fmt_move_pct(value: object) -> str:
+    numeric = _coerce_float(value)
+    if numeric is None:
+        return MISSING
+    return f"{numeric:.1f}"
+
+
+def _fmt_pnl(value: object) -> str:
+    numeric = _coerce_float(value)
+    if numeric is None:
+        return MISSING
+    if abs(numeric) < 1e-6:
+        return "0.00"
+    return f"{numeric:.2f}"
+
+
+def _fmt_roi(value: object) -> str:
+    if value is None:
+        return MISSING
+    if isinstance(value, str):
+        text = value.strip()
+        if text == "":
+            return MISSING
+        if "%" in text:
+            numeric = _coerce_float(text)
+            if numeric is None:
+                return text
+            return f"{numeric:.1f}%"
+    numeric = _coerce_float(value)
+    if numeric is None:
+        return MISSING
+    if abs(numeric) <= 2.0:
+        numeric *= 100.0
+    return f"{numeric:.1f}%"
+
+
+def _key_level_sort_key(row: Mapping[str, object]) -> tuple[int, int, float]:
+    label = row.get("label")
+    if _is_missing(label):
+        label = row.get("Scenario") or row.get("scenario")
+    label_text = str(label).strip().lower() if label is not None else ""
+    row_id = row.get("id")
+    is_infinity = False
+    if isinstance(row_id, str) and row_id.strip().lower() == "infinity":
+        is_infinity = True
+    if "infinity" in label_text:
+        is_infinity = True
+    if row.get("is_infinity") is True:
+        is_infinity = True
+    price = _coerce_float(row.get("price", row.get("Price")))
+    is_missing = price is None
+    if is_infinity:
+        return (1, 1, float("inf"))
+    if is_missing:
+        return (0, 1, 0.0)
+    return (0, 0, float(price))
+
+
 def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
     snapshot = state.get("underlying_snapshot")
     analysis_pack = state.get("analysis_pack")
@@ -372,6 +464,68 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
     if not commentary_blocks:
         commentary_blocks = [{"level": MISSING, "text": MISSING}]
 
+    scenario_analysis_cards: List[Dict[str, str]] = []
+    narrative_scenarios = analysis_pack.get("narrative_scenarios") if analysis_pack else None
+    if isinstance(narrative_scenarios, Mapping):
+        def pick_scenario(keys: List[str]) -> Optional[Mapping[str, object]]:
+            for key in keys:
+                if key in narrative_scenarios:
+                    scenario = narrative_scenarios.get(key)
+                    if isinstance(scenario, Mapping):
+                        return scenario
+                    return None
+            return None
+
+        for label, keys in [
+            ("Bearish", ["bearish", "Bearish", "bear", "Bear"]),
+            ("Stagnant", ["stagnant", "Stagnant", "base", "Base"]),
+            ("Bullish", ["bullish", "Bullish", "bull", "Bull"]),
+        ]:
+            scenario = pick_scenario(keys)
+            title = _scenario_card_text(scenario.get("title") if scenario else None) or label
+            condition = _scenario_card_text(
+                (scenario.get("condition") if scenario else None)
+                or (scenario.get("conditions") if scenario else None)
+            )
+            body = _scenario_card_text(
+                (scenario.get("body") if scenario else None)
+                or (scenario.get("narrative") if scenario else None)
+            )
+            scenario_analysis_cards.append(
+                {"title": title, "condition": condition, "body": body}
+            )
+
+    key_levels_rows: List[Dict[str, object]] = []
+    if isinstance(analysis_pack, Mapping):
+        key_levels_block = analysis_pack.get("key_levels")
+        if isinstance(key_levels_block, Mapping):
+            levels = key_levels_block.get("levels")
+            if isinstance(levels, list):
+                key_levels_rows = list(levels)
+    key_levels_rows_by_price = sorted(key_levels_rows, key=_key_level_sort_key)
+    key_levels_display_rows: List[Dict[str, str]] = []
+    for row in key_levels_rows_by_price:
+        if not isinstance(row, Mapping):
+            continue
+        label = row.get("label")
+        if _is_missing(label):
+            label = row.get("Scenario") or row.get("scenario")
+        label_text = _fmt_text(label)
+        key_levels_display_rows.append(
+            {
+                "Scenario": label_text,
+                "Price": _fmt_price(row.get("price", row.get("Price"))),
+                "Move %": _fmt_move_pct(row.get("move_pct", row.get("Move %"))),
+                "Stock PnL": _fmt_pnl(row.get("stock_pnl", row.get("Stock PnL"))),
+                "Option PnL": _fmt_pnl(row.get("option_pnl", row.get("Option PnL"))),
+                "Option ROI": _fmt_roi(row.get("option_roi", row.get("Option ROI"))),
+                "Net PnL": _fmt_pnl(
+                    row.get("net_pnl", row.get("Net PnL", row.get("combined_pnl")))
+                ),
+                "Net ROI": _fmt_roi(row.get("net_roi", row.get("Net ROI"))),
+            }
+        )
+
     warnings = {"dividend": None}
     dividend_risk = None
     if isinstance(pack_underlying, Mapping):
@@ -411,7 +565,11 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         "payoff": payoff,
         "metrics": metrics,
         "key_levels": key_levels,
+        "key_levels_rows": key_levels_rows,
+        "key_levels_rows_by_price": key_levels_rows_by_price,
+        "key_levels_display_rows": key_levels_display_rows,
         "scenario_table": scenario_table,
+        "scenario_analysis_cards": scenario_analysis_cards,
         "commentary_blocks": commentary_blocks,
         "warnings": warnings,
         "disclaimers": disclaimer_list,

@@ -1601,6 +1601,7 @@ def render_client_report():
                     summary=summary_payload,
                     scenario_df=scenario_df,
                     notes=notes,
+                    report_model=model,
                 )
                 tmp_path = tmp.name
             with open(tmp_path, "rb") as handle:
@@ -1767,27 +1768,45 @@ def render_client_report():
         st.markdown("<div class='report-page-label'>Page 2</div>", unsafe_allow_html=True)
 
         commentary_blocks = model.get("commentary_blocks", [])
-        scenario_blocks = list(commentary_blocks)
+        scenario_blocks = list(model.get("scenario_analysis_cards", []))
+        if not scenario_blocks:
+            scenario_blocks = list(commentary_blocks)
         while len(scenario_blocks) < 3:
-            scenario_blocks.append({"level": "--", "text": "--"})
+            scenario_blocks.append({"title": "--", "condition": "", "body": "--"})
         scenario_cols = st.columns(3)
         for idx, col in enumerate(scenario_cols):
             block = scenario_blocks[idx]
-            title = _as_text(block.get("level"))
-            text = _as_text(block.get("text"))
+            title = _as_text(block.get("title") or block.get("level"))
+            condition = block.get("condition") if isinstance(block, dict) else ""
+            if not isinstance(condition, str):
+                condition = str(condition) if condition is not None else ""
+            condition = condition.strip()
+            body = block.get("body") if isinstance(block, dict) else ""
+            if not body:
+                body = block.get("text") if isinstance(block, dict) else ""
+            if not isinstance(body, str):
+                body = str(body) if body is not None else ""
             with col:
                 with st.container(border=True):
                     st.markdown(
                         f"<div class='report-section-title'>{title}</div>",
                         unsafe_allow_html=True,
                     )
-                    st.markdown(
-                        f"<div class='report-value'>{text}</div>",
-                        unsafe_allow_html=True,
-                    )
+                    if condition:
+                        st.markdown(
+                            f"<div class='report-label'>{condition}</div>",
+                            unsafe_allow_html=True,
+                        )
+                    if body:
+                        st.markdown(
+                            f"<div class='report-value'>{body}</div>",
+                            unsafe_allow_html=True,
+                        )
 
-        key_levels = model.get("key_levels") or model.get("scenario_table", {}).get(
-            "top10", []
+        key_levels = (
+            model.get("key_levels_display_rows")
+            or model.get("key_levels_rows")
+            or model.get("scenario_table", {}).get("top10", [])
         )
         key_rows = []
         for row in key_levels:
@@ -1798,7 +1817,7 @@ def render_client_report():
                 return "--"
             key_rows.append(
                 {
-                    "Scenario": pick(["Scenario", "scenario"]),
+                    "Scenario": pick(["label", "Scenario", "scenario"]),
                     "Price": pick(["Price", "price"]),
                     "Move %": pick(["Move %", "move_pct", "move_percent"]),
                     "Stock PnL": pick(["Stock PnL", "stock_pnl"]),

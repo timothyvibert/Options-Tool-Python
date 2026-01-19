@@ -109,11 +109,11 @@ RULES = [
 TEMPLATES = {
     "ccov_bear_v3": (
         "Below {cap_strike}, the call strike is the key level for {coverage_clause}. "
-        "At expiry below {cap_strike}, the call expires worthless and the premium cushions downside on {coverage_scope}."
+        "At expiry below {cap_strike}, the call expires worthless on {coverage_scope}."
     ),
     "ccov_base_v3": (
         "Between {spot} and {cap_strike}, results are driven by the shares for {coverage_clause}. "
-        "At expiry in this range, the call expires worthless and the option premium is retained on {coverage_scope}."
+        "At expiry in this range, the call expires worthless on {coverage_scope}."
     ),
     "ccov_bull_v3": (
         "Above {cap_strike}, upside is limited by the call strike for {coverage_clause}. "
@@ -125,7 +125,7 @@ TEMPLATES = {
     ),
     "pprt_base_v3": (
         "Between {put_strike} and {spot}, the shares drive results for {coverage_clause}. "
-        "At expiry in this range, protection remains in place while the premium is the cost of insurance on {coverage_scope}."
+        "At expiry in this range, protection remains in place on {coverage_scope}."
     ),
     "pprt_bull_v3": (
         "Above {spot}, upside participation continues for {coverage_clause}. "
@@ -137,7 +137,7 @@ TEMPLATES = {
     ),
     "collar_base_v3": (
         "Between {put_strike} and {cap_strike}, the strike band defines outcomes for {coverage_clause}. "
-        "At expiry in this range, the put expires worthless and the call stays out of the money; the net option premium is realized on {coverage_scope}."
+        "At expiry in this range, the put expires worthless and the call stays out of the money on {coverage_scope}."
     ),
     "collar_bull_v3": (
         "Above {cap_strike}, upside is limited by the call strike for {coverage_clause}. "

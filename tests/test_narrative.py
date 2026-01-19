@@ -31,6 +31,21 @@ def _assert_no_stock_language(text: str) -> None:
     assert "overlay" not in lowered
 
 
+def _has_overlay_delta(text: str) -> bool:
+    lowered = text.lower()
+    leads = [
+        "relative to holding the shares alone",
+        "net effect versus stock-only",
+        "compared with stock-only",
+    ]
+    return any(lead in lowered for lead in leads)
+
+
+def _has_breakdown(text: str) -> bool:
+    lowered = text.lower()
+    return "for context" in lowered and "options contribute" in lowered
+
+
 def test_narrative_covered_call_full():
     strategy_input = StrategyInput(
         spot=100.0,
@@ -85,11 +100,18 @@ def test_narrative_partial_collar_meta():
     assert "800 of 1,000 shares" in bear_body
     assert "partially protected" in bear_body
     assert "at expiry" in bear_body
+    assert not (_has_overlay_delta(bear_body) and _has_breakdown(bear_body))
 
     bull_body = bull.get("body", "").lower()
     assert "partially capped" in bull_body
     assert "at expiry" in bull_body
     assert "above $110.00" in bull.get("condition", "").lower()
+    assert not (_has_overlay_delta(bull_body) and _has_breakdown(bull_body))
+
+    base_body = narrative.get("base", {}).get("body", "").lower()
+    assert "realized" not in base_body
+    assert (" paid" in base_body) or (" received" in base_body)
+    assert not (_has_overlay_delta(base_body) and _has_breakdown(base_body))
 
 
 def test_narrative_bull_call_spread_options_only():
@@ -108,6 +130,7 @@ def test_narrative_bull_call_spread_options_only():
 
     base_body = narrative.get("base", {}).get("body", "").lower()
     assert "breakeven" in base_body
+    assert "debit" in base_body
     assert "retain premium" not in base_body
     assert "at expiry" in base_body
 

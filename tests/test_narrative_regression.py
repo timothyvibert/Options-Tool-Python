@@ -43,6 +43,28 @@ def _assert_expiry_language(text: str) -> None:
 # Bash: NARRATIVE_REGRESSION_DUMP=1 python -m pytest -q tests/test_narrative_regression.py
 
 
+def _has_overlay_delta(text: str) -> bool:
+    lowered = text.lower()
+    leads = [
+        "relative to holding the shares alone",
+        "net effect versus stock-only",
+        "compared with stock-only",
+    ]
+    return any(lead in lowered for lead in leads)
+
+
+def _has_breakdown(text: str) -> bool:
+    lowered = text.lower()
+    return "for context" in lowered and "options contribute" in lowered
+
+
+def _has_premium_contradiction(text: str) -> bool:
+    lowered = text.lower()
+    if "realized" not in lowered:
+        return False
+    return (" paid" in lowered) or (" received" in lowered)
+
+
 def _should_dump_artifacts() -> bool:
     value = os.getenv("NARRATIVE_REGRESSION_DUMP", "").strip().lower()
     return value in {"1", "true", "yes", "y", "on"}
@@ -250,6 +272,8 @@ def test_narrative_regression_harness():
                 if key == "bear":
                     assert "debit" in body.lower()
                 assert "retain premium" not in body.lower()
+            assert not (_has_overlay_delta(body) and _has_breakdown(body))
+            assert not _has_premium_contradiction(body)
             if case["partial_phrase"]:
                 assert case["partial_phrase"] in body
 

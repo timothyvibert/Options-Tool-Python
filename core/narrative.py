@@ -62,6 +62,16 @@ def _format_currency_abs(value: Optional[float]) -> Optional[str]:
     return f"${abs(value):,.2f}"
 
 
+def _format_total_from_per_share(
+    per_share: Optional[float],
+    contract_count: Optional[int],
+) -> Optional[str]:
+    if per_share is None or not contract_count:
+        return None
+    total = per_share * 100.0 * contract_count
+    return f"${abs(total):,.2f}"
+
+
 def _format_roi_ratio(value: Optional[float]) -> Optional[str]:
     if value is None:
         return None
@@ -330,21 +340,68 @@ def _format_signed_currency(value: Optional[float]) -> Optional[str]:
     return f"{sign}${abs(value):,.2f}"
 
 
+def _infer_contract_count(analysis_pack: Mapping[str, object]) -> Optional[int]:
+    if not isinstance(analysis_pack, Mapping):
+        return None
+    legs_data = analysis_pack.get("legs")
+    strategy_input = analysis_pack.get("strategy_input")
+    if not isinstance(legs_data, list) and isinstance(strategy_input, StrategyInput):
+        legs_data = [
+            {
+                "kind": leg.kind,
+                "ratio": abs(leg.position),
+                "position": leg.position,
+            }
+            for leg in strategy_input.legs
+        ]
+    if not isinstance(legs_data, list):
+        return None
+    quantities = []
+    for leg in legs_data:
+        if not isinstance(leg, Mapping):
+            continue
+        kind = str(leg.get("kind") or leg.get("type") or "").lower()
+        if kind not in {"call", "put"}:
+            continue
+        qty = _to_float(leg.get("ratio"))
+        if qty is None or qty <= 0:
+            position = _to_float(leg.get("position"))
+            if position is not None:
+                qty = abs(position)
+        if qty and qty > 0:
+            quantities.append(qty)
+    if not quantities:
+        return None
+    return int(round(min(quantities)))
+
+
 def _premium_context(
     strategy_input: StrategyInput,
     summary_rows: Optional[List[Mapping[str, object]]],
     contract_count: Optional[int] = None,
+    is_credit: Optional[bool] = None,
+    is_debit: Optional[bool] = None,
 ) -> dict:
     per_share = _summary_metric(summary_rows, "Net Prem/Share", prefer="options")
     if per_share is None or abs(per_share) < 1e-9:
-        return {"per_share": None, "total": None, "direction": None, "contract_count": None}
+        return {
+            "per_share": None,
+            "total": None,
+            "direction": None,
+            "contract_count": contract_count,
+        }
     multiplier = None
     if strategy_input.legs:
         multiplier = strategy_input.legs[0].multiplier
     total = None
-    if multiplier and contract_count:
-        total = per_share * multiplier * contract_count
-    direction = "received" if per_share < 0 else "paid"
+    if contract_count:
+        total = per_share * (multiplier or 100.0) * contract_count
+    if is_credit is True:
+        direction = "received"
+    elif is_debit is True:
+        direction = "paid"
+    else:
+        direction = "received" if per_share < 0 else "paid"
     return {
         "per_share": per_share,
         "total": total,
@@ -398,6 +455,14 @@ def _level_value(level: Optional[Mapping[str, object]], keys: Iterable[str]) -> 
             if value is not None:
                 return value
     return None
+
+
+def _has_breakdown_data(level: Optional[Mapping[str, object]], has_stock: bool) -> bool:
+    if not has_stock or not isinstance(level, Mapping):
+        return False
+    option_pnl = _level_value(level, ["option_pnl", "Option PnL"])
+    stock_pnl = _level_value(level, ["stock_pnl", "Stock PnL"])
+    return option_pnl is not None or stock_pnl is not None
 
 
 def _pnl_sentence(
@@ -472,11 +537,15 @@ def _numbers_sentence(
     if not has_stock:
         parts: list[str] = []
         anchor_text = _format_price(anchor_price) if anchor_price is not None else None
+        contract_count = premium_ctx.get("contract_count")
         debit_text = None
         if premium_ctx.get("direction") == "paid":
             total = premium_ctx.get("total")
             per_share = premium_ctx.get("per_share")
-            if total is not None:
+            total_text = _format_total_from_per_share(per_share, contract_count)
+            if total_text and per_share is not None:
+                debit_text = f"{total_text} total ({_format_currency_abs(per_share)} per share)"
+            elif total is not None:
                 debit_text = _format_currency_abs(total)
             elif per_share is not None:
                 debit_text = f"{_format_currency_abs(per_share)} per share"
@@ -491,6 +560,14 @@ def _numbers_sentence(
             elif kind == "base":
                 if include_breakeven and breakeven_text:
                     parts.append(f"Breakeven is around {breakeven_text}.")
+                if debit_text:
+                    parts.append(
+                        f"Maximum loss remains limited to the debit paid: {debit_text}."
+                    )
+                elif max_loss_text and is_defined_risk:
+                    parts.append(f"Maximum loss is {max_loss_text}.")
+                if max_profit_text and is_capped_profit:
+                    parts.append(f"Maximum profit is {max_profit_text}.")
             else:
                 if max_profit_text and is_capped_profit:
                     parts.append(f"Maximum profit is {max_profit_text}.")
@@ -791,12 +868,12 @@ def _build_narrative_context(analysis_pack: Mapping[str, object]) -> dict:
     context["coverage_clause"] = coverage_context.get("coverage_clause")
     context["coverage_scope"] = coverage_context.get("coverage_scope")
     context["is_partial"] = bool(coverage_context.get("is_partial"))
-    context["contract_count"] = coverage_context.get("contract_count")
+    inferred_contracts = _infer_contract_count(analysis_pack)
+    context["contract_count"] = coverage_context.get("contract_count") or inferred_contracts
     if not has_stock:
         context["coverage_ratio"] = None
         context["coverage_clause"] = None
         context["coverage_scope"] = None
-        context["contract_count"] = None
         context["is_partial"] = False
 
     legs_data = []
@@ -1002,6 +1079,8 @@ def _build_fallback_narratives_from_key_levels(
         strategy_input,
         summary_rows,
         contract_count=narrative_ctx.get("contract_count"),
+        is_credit=narrative_ctx.get("is_credit"),
+        is_debit=narrative_ctx.get("is_debit"),
     )
     prefer = "combined" if has_stock else "options"
     max_profit = _summary_metric(summary_rows, "Max Profit", prefer=prefer)
@@ -1052,7 +1131,7 @@ def _build_fallback_narratives_from_key_levels(
                 strike_text = _format_price(upper_short_price) if upper_short_price is not None else "the call strike"
                 if kind == "bear":
                     mechanics = (
-                        f"At expiry below {strike_text}, the call expires worthless and premium cushions downside on {coverage_scope}."
+                        f"At expiry below {strike_text}, the call expires worthless on {coverage_scope}."
                     )
                 elif kind == "bull":
                     mechanics = (
@@ -1061,7 +1140,7 @@ def _build_fallback_narratives_from_key_levels(
                 else:
                     mechanics = (
                         f"At expiry between { _format_price(spot_price) if spot_price is not None else strike_text } and {strike_text}, "
-                        f"the call expires worthless and the premium is retained on {coverage_scope}."
+                        f"the call expires worthless on {coverage_scope}."
                     )
                 return _join_sentences([opener, mechanics])
 
@@ -1079,7 +1158,7 @@ def _build_fallback_narratives_from_key_levels(
                 else:
                     mechanics = (
                         f"At expiry between {strike_text} and {_format_price(spot_price) if spot_price is not None else strike_text}, "
-                        f"protection remains in place while the premium is the cost of insurance on {coverage_scope}."
+                        f"protection remains in place on {coverage_scope}."
                     )
                 return _join_sentences([opener, mechanics])
 
@@ -1097,7 +1176,7 @@ def _build_fallback_narratives_from_key_levels(
                 else:
                     mechanics = (
                         f"At expiry between {put_text} and {call_text}, the put expires worthless and the call stays out of the money; "
-                        f"the net option premium is realized on {coverage_scope}."
+                        f"the call stays out of the money on {coverage_scope}."
                     )
                 return _join_sentences([opener, mechanics])
 
@@ -1271,7 +1350,12 @@ def _build_fallback_narratives_from_key_levels(
         delta_vs_stock = None
         if overlay_pnl is not None and stock_only_pnl is not None:
             delta_vs_stock = overlay_pnl - stock_only_pnl
-        overlay_sentence = _overlay_sentence(kind, delta_vs_stock) if has_stock else None
+        breakdown_present = _has_breakdown_data(anchor, has_stock)
+        overlay_sentence = (
+            _overlay_sentence(kind, delta_vs_stock)
+            if has_stock and not breakdown_present
+            else None
+        )
         base_body = _fallback_base_body(kind)
         body = _join_sentences(
             [base_body, overlay_sentence or "", numbers_sentence or ""]
@@ -1435,6 +1519,8 @@ def build_narrative_scenarios(
         strategy_input,
         summary_rows,
         contract_count=narrative_ctx.get("contract_count"),
+        is_credit=narrative_ctx.get("is_credit"),
+        is_debit=narrative_ctx.get("is_debit"),
     )
 
     if max_profit is None:
@@ -1624,7 +1710,12 @@ def build_narrative_scenarios(
             is_capped_profit,
             is_defined_risk,
         )
-        overlay_sentence = _overlay_sentence(kind, delta_vs_stock) if has_stock else None
+        breakdown_present = _has_breakdown_data(primary, has_stock)
+        overlay_sentence = (
+            _overlay_sentence(kind, delta_vs_stock)
+            if has_stock and not breakdown_present
+            else None
+        )
         body = _join_sentences(
             [base_body, overlay_sentence or "", numbers_sentence or ""]
         )

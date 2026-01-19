@@ -48,6 +48,7 @@ def test_narrative_covered_call():
     bear = narrative.get("bear")
     assert bear.get("delta_vs_stock") is not None
     assert bear.get("delta_vs_stock") > 0
+    assert "Compared with holding the stock alone" in bear.get("body", "")
 
 
 def test_narrative_protective_put():
@@ -65,6 +66,8 @@ def test_narrative_protective_put():
     assert narrative.get("bull") is not None
     trace = narrative.get("trace")
     assert trace.get("rule_id") == "protective_put_v1"
+    bear = narrative.get("bear")
+    assert "Compared with holding the stock alone" in bear.get("body", "")
 
 
 def test_narrative_iron_condor():
@@ -90,6 +93,12 @@ def test_narrative_iron_condor():
     bear = narrative.get("bear")
     assert bear.get("stock_only_pnl") == 0.0
     assert bear.get("delta_vs_stock") is not None
+    assert "$0.00" not in bear.get("condition", "")
+    assert "below $95.00" in bear.get("condition", "")
+    base = narrative.get("base")
+    assert "$95.00-$105.00" in base.get("condition", "")
+    bull = narrative.get("bull")
+    assert "above $105.00" in bull.get("condition", "")
 
 
 def test_narrative_no_match():

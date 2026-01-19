@@ -1804,7 +1804,8 @@ def render_client_report():
                         )
 
         key_levels = (
-            model.get("key_levels_display_rows")
+            model.get("key_levels_display_rows_by_price")
+            or model.get("key_levels_display_rows")
             or model.get("key_levels_rows")
             or model.get("scenario_table", {}).get("top10", [])
         )
@@ -1832,9 +1833,9 @@ def render_client_report():
                 "<div class='report-section-title'>Key Levels</div>",
                 unsafe_allow_html=True,
             )
-            key_df = pd.DataFrame(
-                key_rows,
-                columns=[
+            has_stock_position = bool(model.get("has_stock_position", False))
+            if has_stock_position:
+                display_cols = [
                     "Scenario",
                     "Price",
                     "Move %",
@@ -1843,7 +1844,20 @@ def render_client_report():
                     "Option ROI",
                     "Net PnL",
                     "Net ROI",
-                ],
+                ]
+            else:
+                display_cols = [
+                    "Scenario",
+                    "Price",
+                    "Move %",
+                    "Option PnL",
+                    "Option ROI",
+                    "Net PnL",
+                    "Net ROI",
+                ]
+            key_df = pd.DataFrame(
+                key_rows,
+                columns=display_cols,
             )
             def _highlight_spot(row):
                 label = str(row.get("Scenario", "")).strip().lower()

@@ -183,10 +183,14 @@ def _fmt_roi(value: object) -> str:
             numeric = _coerce_float(text)
             if numeric is None:
                 return text
+            if abs(numeric) < 1e-6:
+                numeric = 0.0
             return f"{numeric:.1f}%"
     numeric = _coerce_float(value)
     if numeric is None:
         return MISSING
+    if abs(numeric) < 1e-6:
+        numeric = 0.0
     if abs(numeric) <= 2.0:
         numeric *= 100.0
     return f"{numeric:.1f}%"
@@ -496,14 +500,25 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
             )
 
     key_levels_rows: List[Dict[str, object]] = []
+    key_levels_meta: Mapping[str, object] = {}
+    key_levels_block = None
     if isinstance(analysis_pack, Mapping):
         key_levels_block = analysis_pack.get("key_levels")
         if isinstance(key_levels_block, Mapping):
             levels = key_levels_block.get("levels")
             if isinstance(levels, list):
                 key_levels_rows = list(levels)
+            meta = key_levels_block.get("meta")
+            if isinstance(meta, Mapping):
+                key_levels_meta = meta
+    if key_levels_meta:
+        has_stock_position = bool(key_levels_meta.get("has_stock_position", False))
+    elif isinstance(key_levels_block, Mapping):
+        has_stock_position = bool(key_levels_block.get("has_stock_position", False))
+    else:
+        has_stock_position = False
     key_levels_rows_by_price = sorted(key_levels_rows, key=_key_level_sort_key)
-    key_levels_display_rows: List[Dict[str, str]] = []
+    key_levels_display_rows_by_price: List[Dict[str, str]] = []
     for row in key_levels_rows_by_price:
         if not isinstance(row, Mapping):
             continue
@@ -511,20 +526,29 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         if _is_missing(label):
             label = row.get("Scenario") or row.get("scenario")
         label_text = _fmt_text(label)
-        key_levels_display_rows.append(
+        net_roi_value = row.get("net_roi", row.get("Net ROI"))
+        option_roi_value = row.get("option_roi", row.get("Option ROI"))
+        if (
+            not has_stock_position
+            and _is_missing(option_roi_value)
+            and not _is_missing(net_roi_value)
+        ):
+            option_roi_value = net_roi_value
+        key_levels_display_rows_by_price.append(
             {
                 "Scenario": label_text,
                 "Price": _fmt_price(row.get("price", row.get("Price"))),
                 "Move %": _fmt_move_pct(row.get("move_pct", row.get("Move %"))),
                 "Stock PnL": _fmt_pnl(row.get("stock_pnl", row.get("Stock PnL"))),
                 "Option PnL": _fmt_pnl(row.get("option_pnl", row.get("Option PnL"))),
-                "Option ROI": _fmt_roi(row.get("option_roi", row.get("Option ROI"))),
+                "Option ROI": _fmt_roi(option_roi_value),
                 "Net PnL": _fmt_pnl(
                     row.get("net_pnl", row.get("Net PnL", row.get("combined_pnl")))
                 ),
-                "Net ROI": _fmt_roi(row.get("net_roi", row.get("Net ROI"))),
+                "Net ROI": _fmt_roi(net_roi_value),
             }
         )
+    key_levels_display_rows = key_levels_display_rows_by_price
 
     warnings = {"dividend": None}
     dividend_risk = None
@@ -568,6 +592,8 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         "key_levels_rows": key_levels_rows,
         "key_levels_rows_by_price": key_levels_rows_by_price,
         "key_levels_display_rows": key_levels_display_rows,
+        "key_levels_display_rows_by_price": key_levels_display_rows_by_price,
+        "has_stock_position": has_stock_position,
         "scenario_table": scenario_table,
         "scenario_analysis_cards": scenario_analysis_cards,
         "commentary_blocks": commentary_blocks,

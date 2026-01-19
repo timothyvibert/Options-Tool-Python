@@ -18,18 +18,34 @@ def _to_float(value: object) -> Optional[float]:
     return None
 
 
+def _is_missing(value: object) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return value.strip() == ""
+    return False
+
+
 def _format_price(value: Optional[float]) -> str:
     if value is None:
         return "--"
     return f"${value:,.2f}"
 
 
-def _condition_text(kind: str, anchors: List[Mapping[str, object]]) -> str:
+def _condition_text(
+    kind: str,
+    anchors: List[Mapping[str, object]],
+    exclude_zero: bool = False,
+) -> str:
     prices = [
         _to_float(anchor.get("price"))
         for anchor in anchors
         if _to_float(anchor.get("price")) is not None
     ]
+    if exclude_zero:
+        non_zero = [price for price in prices if abs(price) > 1e-6]
+        if non_zero:
+            prices = non_zero
     prices = sorted(prices)
     if not prices:
         return "--"
@@ -87,6 +103,65 @@ def _level_map(levels: Iterable[Mapping[str, object]]) -> dict[str, dict]:
         if isinstance(level_id, str) and level_id:
             mapping[level_id] = dict(level)
     return mapping
+
+
+def _strike_levels(levels: Iterable[Mapping[str, object]]) -> list[dict]:
+    strikes = []
+    for level in levels:
+        if not isinstance(level, Mapping):
+            continue
+        label = level.get("label")
+        if _is_missing(label):
+            label = level.get("Scenario") or level.get("scenario")
+        label_text = str(label).strip().lower() if label is not None else ""
+        if "strike" not in label_text:
+            continue
+        price = _to_float(level.get("price"))
+        if price is None:
+            continue
+        payload = dict(level)
+        payload["_label_text"] = label_text
+        payload["_price"] = price
+        strikes.append(payload)
+    strikes.sort(key=lambda item: item["_price"])
+    return strikes
+
+
+def _short_strike_bounds(
+    strike_levels: list[dict],
+) -> tuple[Optional[dict], Optional[dict]]:
+    if not strike_levels:
+        return None, None
+    lower_middle = next(
+        (
+            level
+            for level in strike_levels
+            if "lower middle" in level.get("_label_text", "")
+        ),
+        None,
+    )
+    upper_middle = next(
+        (
+            level
+            for level in strike_levels
+            if "upper middle" in level.get("_label_text", "")
+        ),
+        None,
+    )
+    if lower_middle and upper_middle:
+        return lower_middle, upper_middle
+    if len(strike_levels) >= 4:
+        return strike_levels[1], strike_levels[2]
+    if len(strike_levels) == 2:
+        return strike_levels[0], strike_levels[1]
+    return None, None
+
+
+def _format_signed_currency(value: Optional[float]) -> Optional[str]:
+    if value is None:
+        return None
+    sign = "-" if value < 0 else "+"
+    return f"{sign}${abs(value):,.2f}"
 
 
 def _pick_primary_anchor(
@@ -168,6 +243,8 @@ def build_narrative_scenarios(
     scenarios: dict[str, object] = {}
     templates = selected_rule.get("templates", {})
     scenario_anchors = selected_rule.get("scenario_anchors", {})
+    strike_levels = _strike_levels(levels)
+    lower_short, upper_short = _short_strike_bounds(strike_levels)
     for kind, title in [
         ("bear", "Bearish Case"),
         ("base", "Stagnant Case"),
@@ -178,7 +255,22 @@ def build_narrative_scenarios(
             anchor_ids = []
         anchors = [level_lookup[a_id] for a_id in anchor_ids if a_id in level_lookup]
         anchors_used[kind] = [anchor.get("id") for anchor in anchors if "id" in anchor]
-        condition = _condition_text(kind, anchors)
+        condition = ""
+        if context.get("iron_condor") and lower_short and upper_short:
+            lower_price = _to_float(lower_short.get("price"))
+            upper_price = _to_float(upper_short.get("price"))
+            if lower_price is not None and upper_price is not None:
+                if kind == "bear":
+                    condition = f"If stock falls below {_format_price(lower_price)}"
+                elif kind == "bull":
+                    condition = f"If stock rises above {_format_price(upper_price)}"
+                else:
+                    condition = (
+                        f"If stock stays {_format_price(lower_price)}-"
+                        f"{_format_price(upper_price)}"
+                    )
+        if not condition:
+            condition = _condition_text(kind, anchors, exclude_zero=True)
         primary = _pick_primary_anchor(anchors)
         price = _to_float(primary.get("price")) if primary else None
         overlay_pnl = _to_float(primary.get("net_pnl")) if primary else None
@@ -198,6 +290,14 @@ def build_narrative_scenarios(
         body = _render_template(
             templates.get(kind, ""), {"anchor_price": _format_price(price)}
         )
+        if has_stock:
+            delta_text = _format_signed_currency(delta_vs_stock)
+            if delta_text is not None:
+                overlay_note = (
+                    " Compared with holding the stock alone, this overlay changes "
+                    f"P&L by {delta_text} at this scenario."
+                )
+                body = f"{body}{overlay_note}" if body else overlay_note.strip()
         scenarios[kind] = {
             "title": title,
             "condition": condition,

@@ -199,9 +199,14 @@ def build_report_pdf(
 
     scenario_cards = []
     key_levels_rows = []
+    has_stock_position = True
     if isinstance(report_model, dict):
         scenario_cards = report_model.get("scenario_analysis_cards") or []
-        key_levels_rows = report_model.get("key_levels_display_rows") or []
+        key_levels_rows = report_model.get("key_levels_display_rows_by_price") or report_model.get(
+            "key_levels_display_rows"
+        ) or []
+        if "has_stock_position" in report_model:
+            has_stock_position = bool(report_model.get("has_stock_position"))
 
     if isinstance(scenario_cards, list) and scenario_cards:
         story.append(Paragraph("Scenario Analysis", styles["section"]))
@@ -238,16 +243,27 @@ def build_report_pdf(
 
     if isinstance(key_levels_rows, list) and key_levels_rows:
         story.append(Paragraph("Key Levels", styles["section"]))
-        columns = [
-            "Scenario",
-            "Price",
-            "Move %",
-            "Stock PnL",
-            "Option PnL",
-            "Option ROI",
-            "Net PnL",
-            "Net ROI",
-        ]
+        if has_stock_position:
+            columns = [
+                "Scenario",
+                "Price",
+                "Move %",
+                "Stock PnL",
+                "Option PnL",
+                "Option ROI",
+                "Net PnL",
+                "Net ROI",
+            ]
+        else:
+            columns = [
+                "Scenario",
+                "Price",
+                "Move %",
+                "Option PnL",
+                "Option ROI",
+                "Net PnL",
+                "Net ROI",
+            ]
         table_data = [columns]
         for row in key_levels_rows:
             if not isinstance(row, dict):
@@ -257,7 +273,11 @@ def build_report_pdf(
                     _fmt_value(row.get("Scenario", row.get("scenario", ""))),
                     _fmt_value(row.get("Price", row.get("price", ""))),
                     _fmt_value(row.get("Move %", row.get("move_pct", ""))),
-                    _fmt_value(row.get("Stock PnL", row.get("stock_pnl", ""))),
+                    *(
+                        [_fmt_value(row.get("Stock PnL", row.get("stock_pnl", "")))]
+                        if has_stock_position
+                        else []
+                    ),
                     _fmt_value(row.get("Option PnL", row.get("option_pnl", ""))),
                     _fmt_value(row.get("Option ROI", row.get("option_roi", ""))),
                     _fmt_value(row.get("Net PnL", row.get("net_pnl", ""))),

@@ -151,7 +151,7 @@ def test_report_model_key_levels_rows():
     state = {"analysis_pack": {"key_levels": {"levels": levels}}}
     model = build_report_model(state)
     assert model.get("key_levels_rows") == levels
-    display_rows = model.get("key_levels_display_rows")
+    display_rows = model.get("key_levels_display_rows_by_price")
     assert isinstance(display_rows, list)
     assert len(display_rows) == 2
 
@@ -172,7 +172,7 @@ def test_report_model_key_levels_display_formatting():
     ]
     state = {"analysis_pack": {"key_levels": {"levels": levels}}}
     model = build_report_model(state)
-    display_rows = model.get("key_levels_display_rows")
+    display_rows = model.get("key_levels_display_rows_by_price")
     assert display_rows
     row = display_rows[0]
     assert row["Price"] == "100.00"
@@ -208,7 +208,7 @@ def test_report_model_key_levels_order_preserved():
         "Upside (20%)",
         "Strike (Lowest)",
     ]
-    display_rows = model.get("key_levels_display_rows")
+    display_rows = model.get("key_levels_display_rows_by_price")
     assert [row.get("Scenario") for row in display_rows] == [
         "Downside (20%)",
         "Strike (Lowest)",
@@ -248,7 +248,7 @@ def test_report_model_key_levels_by_price_ordering():
         "Upside (20%)",
         "Stock to Infinity",
     ]
-    display_rows = model.get("key_levels_display_rows")
+    display_rows = model.get("key_levels_display_rows_by_price")
     assert [row.get("Scenario") for row in display_rows] == [
         "Stock to Zero",
         "Downside (20%)",
@@ -262,3 +262,61 @@ def test_report_model_key_levels_by_price_ordering():
         "Upside (20%)",
         "Stock to Infinity",
     ]
+
+
+def test_report_model_key_levels_has_stock_position_false():
+    levels = [
+        {
+            "id": "spot",
+            "label": "Spot",
+            "price": 100.0,
+            "option_roi": 0.0,
+            "net_roi": -1e-8,
+        }
+    ]
+    state = {
+        "analysis_pack": {
+            "key_levels": {"levels": levels, "meta": {"has_stock_position": False}}
+        }
+    }
+    model = build_report_model(state)
+    assert model.get("has_stock_position") is False
+    display_rows = model.get("key_levels_display_rows_by_price")
+    assert display_rows
+    row = display_rows[0]
+    assert row["Option ROI"] == "0.0%"
+    assert row["Net ROI"] == "0.0%"
+
+
+def test_report_model_option_roi_inferred_options_only():
+    levels = [
+        {"id": "spot", "label": "Spot", "price": 100.0, "net_roi": 1.0}
+    ]
+    state = {
+        "analysis_pack": {
+            "key_levels": {"levels": levels, "meta": {"has_stock_position": False}}
+        }
+    }
+    model = build_report_model(state)
+    display_rows = model.get("key_levels_display_rows_by_price")
+    assert display_rows
+    row = display_rows[0]
+    assert row["Option ROI"] == "100.0%"
+    assert row["Net ROI"] == "100.0%"
+
+
+def test_report_model_option_roi_not_inferred_with_stock():
+    levels = [
+        {"id": "spot", "label": "Spot", "price": 100.0, "net_roi": 1.0}
+    ]
+    state = {
+        "analysis_pack": {
+            "key_levels": {"levels": levels, "meta": {"has_stock_position": True}}
+        }
+    }
+    model = build_report_model(state)
+    display_rows = model.get("key_levels_display_rows_by_price")
+    assert display_rows
+    row = display_rows[0]
+    assert row["Option ROI"] == "--"
+    assert row["Net ROI"] == "100.0%"

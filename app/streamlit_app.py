@@ -1684,45 +1684,94 @@ def render_client_report():
                 fig = go.Figure()
                 price_grid = payoff.get("price_grid", [])
                 combined_pnl = payoff.get("combined_pnl", [])
+                options_pnl = payoff.get("options_pnl", [])
+                stock_pnl = payoff.get("stock_pnl", [])
+                has_stock_position = bool(model.get("has_stock_position"))
                 if price_grid and combined_pnl:
+                    if options_pnl and len(options_pnl) == len(price_grid):
+                        fig.add_trace(
+                            go.Scatter(
+                                x=price_grid,
+                                y=options_pnl,
+                                mode="lines",
+                                name="Options",
+                                line=dict(color="#2563EB", width=2),
+                            )
+                        )
+                    if has_stock_position and stock_pnl and len(stock_pnl) == len(price_grid):
+                        fig.add_trace(
+                            go.Scatter(
+                                x=price_grid,
+                                y=stock_pnl,
+                                mode="lines",
+                                name="Stock",
+                                line=dict(color="#10B981", width=2),
+                            )
+                        )
                     fig.add_trace(
                         go.Scatter(
                             x=price_grid,
                             y=combined_pnl,
                             mode="lines",
-                            name="Combined PnL",
+                            name="Combined",
                             line=dict(color="#4B5563", width=2),
                         )
                     )
-                    raw_strikes = []
-                    for value in payoff.get("strikes", []):
-                        numeric = _to_float(value)
-                        if numeric is not None:
-                            raw_strikes.append(numeric)
-                    strikes = sorted(set(raw_strikes))
+                    markers = []
+                    key_levels = model.get("key_levels_rows", [])
+                    for row in key_levels:
+                        if not isinstance(row, dict):
+                            continue
+                        price = _to_float(row.get("price") or row.get("Price"))
+                        if price is None:
+                            continue
+                        label = row.get("label") or row.get("Scenario") or row.get("scenario")
+                        label_text = str(label).strip() if label is not None else ""
+                        label_lower = label_text.lower()
+                        if "current market price" in label_lower or label_lower == "spot":
+                            markers.append(
+                                {
+                                    "price": price,
+                                    "label": "Spot",
+                                    "priority": 0,
+                                }
+                            )
+                        elif "breakeven" in label_lower:
+                            label_display = label_text.replace("Breakeven", "BE").replace(" ", "")
+                            markers.append(
+                                {
+                                    "price": price,
+                                    "label": label_display,
+                                    "priority": 1,
+                                }
+                            )
+                        elif "strike" in label_lower:
+                            label_display = label_text.replace("Strike", "K").strip()
+                            markers.append(
+                                {
+                                    "price": price,
+                                    "label": label_display,
+                                    "priority": 2,
+                                }
+                            )
+                    markers = sorted(markers, key=lambda item: (item["priority"], item["price"]))
+                    selected = []
+                    for marker in markers:
+                        if any(abs(marker["price"] - keep["price"]) < 0.01 for keep in selected):
+                            continue
+                        selected.append(marker)
                     label_positions = [
                         "top left",
                         "top right",
                         "bottom left",
                         "bottom right",
                     ]
-                    for idx, strike in enumerate(strikes[:6]):
+                    for idx, marker in enumerate(selected):
                         fig.add_vline(
-                            x=strike,
-                            line_dash="dot",
-                            line_color="#E5E7EB",
-                            annotation_text=f"K{idx + 1}={strike:g}",
-                            annotation_position=label_positions[idx % len(label_positions)],
-                        )
-                    for idx, value in enumerate(payoff.get("breakevens", [])[:4]):
-                        numeric = _to_float(value)
-                        if numeric is None:
-                            continue
-                        fig.add_vline(
-                            x=numeric,
-                            line_dash="dash",
+                            x=marker["price"],
+                            line_dash="dot" if marker["priority"] == 2 else "dash",
                             line_color="#9CA3AF",
-                            annotation_text=f"BE{idx + 1}={numeric:g}",
+                            annotation_text=marker["label"],
                             annotation_position=label_positions[idx % len(label_positions)],
                         )
                     fig.update_layout(

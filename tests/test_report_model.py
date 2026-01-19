@@ -145,6 +145,26 @@ def test_report_model_scenario_analysis_cards():
         assert card.get("body")
 
 
+def test_report_model_payoff_series_passthrough():
+    state = {
+        "analysis_pack": {
+            "payoff": {
+                "price_grid": [90.0, 100.0, 110.0],
+                "options_pnl": [-5.0, 0.0, 5.0],
+                "stock_pnl": [-10.0, 0.0, 10.0],
+                "combined_pnl": [-15.0, 0.0, 15.0],
+                "strikes": [100.0],
+                "breakevens": [100.0],
+            }
+        }
+    }
+    model = build_report_model(state)
+    payoff = model.get("payoff", {})
+    assert payoff.get("options_pnl") == [-5.0, 0.0, 5.0]
+    assert payoff.get("stock_pnl") == [-10.0, 0.0, 10.0]
+    assert payoff.get("combined_pnl") == [-15.0, 0.0, 15.0]
+
+
 def test_report_model_metrics_unlimited_upside():
     state = {
         "analysis_pack": {

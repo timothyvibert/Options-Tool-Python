@@ -525,6 +525,8 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
 
     if pack_payoff:
         price_grid = pack_payoff.get("price_grid", [])
+        options_pnl = pack_payoff.get("options_pnl", pack_payoff.get("option_pnl", []))
+        stock_pnl = pack_payoff.get("stock_pnl", [])
         combined_pnl = pack_payoff.get("combined_pnl", pack_payoff.get("pnl", []))
         breakevens = pack_payoff.get("breakevens", [])
         strikes = pack_payoff.get("strikes", [])
@@ -532,11 +534,15 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         analysis_payoff = state.get("analysis_payoff", {})
         if isinstance(analysis_payoff, Mapping):
             price_grid = analysis_payoff.get("price_grid", [])
+            options_pnl = analysis_payoff.get("options_pnl", analysis_payoff.get("option_pnl", []))
+            stock_pnl = analysis_payoff.get("stock_pnl", [])
             combined_pnl = analysis_payoff.get("combined_pnl", [])
             breakevens = analysis_payoff.get("breakevens", [])
             strikes = analysis_payoff.get("strikes", [])
         else:
             price_grid = []
+            options_pnl = []
+            stock_pnl = []
             combined_pnl = []
             breakevens = []
             strikes = []
@@ -545,6 +551,8 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
 
     payoff = {
         "price_grid": price_grid,
+        "options_pnl": options_pnl,
+        "stock_pnl": stock_pnl,
         "combined_pnl": combined_pnl,
         "strikes": strikes,
         "breakevens": breakevens,

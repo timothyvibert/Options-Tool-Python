@@ -62,6 +62,12 @@ def _format_currency_abs(value: Optional[float]) -> Optional[str]:
     return f"${abs(value):,.2f}"
 
 
+def _format_roi_ratio(value: Optional[float]) -> Optional[str]:
+    if value is None:
+        return None
+    return f"{value * 100.0:.1f}%"
+
+
 def _normalize_label(value: object) -> str:
     if value is None:
         return ""
@@ -121,6 +127,49 @@ def _summary_value(
             parsed = _to_float(value)
             if parsed is not None:
                 return parsed
+    return None
+
+
+def _breakeven_levels(levels: Iterable[Mapping[str, object]]) -> list[dict]:
+    breakevens = []
+    for level in levels:
+        if not isinstance(level, Mapping):
+            continue
+        label = level.get("label")
+        if _is_missing(label):
+            label = level.get("Scenario") or level.get("scenario")
+        label_text = str(label).strip().lower() if label is not None else ""
+        if "breakeven" not in label_text:
+            continue
+        price = _to_float(level.get("price"))
+        if price is None:
+            continue
+        payload = dict(level)
+        payload["_price"] = price
+        breakevens.append(payload)
+    breakevens.sort(key=lambda item: item["_price"])
+    return breakevens
+
+
+def _summary_metric(
+    summary_rows: Optional[List[Mapping[str, object]]],
+    metric_name: str,
+    prefer: str = "combined",
+) -> Optional[float]:
+    if not summary_rows:
+        return None
+    for row in summary_rows:
+        if not isinstance(row, Mapping):
+            continue
+        if row.get("metric") != metric_name:
+            continue
+        if prefer == "options":
+            value = row.get("options") or row.get("combined")
+        else:
+            value = row.get("combined") or row.get("options")
+        parsed = _to_float(value)
+        if parsed is not None:
+            return parsed
     return None
 
 
@@ -249,11 +298,91 @@ def _short_strike_bounds(
     return None, None
 
 
+def _pick_leg_strike(
+    legs: Iterable,
+    kind: str,
+    position_sign: int,
+    prefer: str,
+) -> Optional[float]:
+    strikes = []
+    for leg in legs:
+        if leg.kind.lower() != kind:
+            continue
+        if position_sign < 0 and leg.position >= 0:
+            continue
+        if position_sign > 0 and leg.position <= 0:
+            continue
+        strikes.append(float(leg.strike))
+    if not strikes:
+        return None
+    strikes.sort()
+    return strikes[0] if prefer == "min" else strikes[-1]
+
+
 def _format_signed_currency(value: Optional[float]) -> Optional[str]:
     if value is None:
         return None
     sign = "-" if value < 0 else "+"
     return f"{sign}${abs(value):,.2f}"
+
+
+def _premium_context(
+    strategy_input: StrategyInput,
+    summary_rows: Optional[List[Mapping[str, object]]],
+    contract_count: Optional[int] = None,
+) -> dict:
+    per_share = _summary_metric(summary_rows, "Net Prem/Share", prefer="options")
+    if per_share is None or abs(per_share) < 1e-9:
+        return {"per_share": None, "total": None, "direction": None, "contract_count": None}
+    multiplier = None
+    if strategy_input.legs:
+        multiplier = strategy_input.legs[0].multiplier
+    total = None
+    if multiplier and contract_count:
+        total = per_share * multiplier * contract_count
+    direction = "received" if per_share < 0 else "paid"
+    return {
+        "per_share": per_share,
+        "total": total,
+        "direction": direction,
+        "contract_count": contract_count,
+    }
+
+
+def _premium_sentence(premium_ctx: Mapping[str, object]) -> Optional[str]:
+    per_share = premium_ctx.get("per_share")
+    total = premium_ctx.get("total")
+    direction = premium_ctx.get("direction")
+    contract_count = premium_ctx.get("contract_count")
+    if direction is None:
+        return None
+    if total is not None:
+        base = f"Net option premium (total): {_format_currency_abs(total)}"
+        if contract_count:
+            base = f"{base} on {int(contract_count)} contracts"
+        return f"{base} {direction}."
+    if per_share is not None:
+        return (
+            f"Net option premium: {_format_currency_abs(per_share)} per share {direction}."
+        )
+    return None
+
+
+def _overlay_sentence(kind: str, delta_vs_stock: Optional[float]) -> Optional[str]:
+    delta_text = _format_signed_currency(delta_vs_stock)
+    if delta_text is None:
+        return None
+    if kind == "bear":
+        lead = "Relative to holding the shares alone, the option overlay changes the outcome by"
+    elif kind == "base":
+        lead = "Net effect versus stock-only at this level is"
+    else:
+        lead = "Compared with stock-only, the overlay changes results by"
+    return f"{lead} {delta_text}."
+
+
+def _join_sentences(sentences: Iterable[str]) -> str:
+    return " ".join([sentence.strip() for sentence in sentences if sentence])
 
 
 def _level_value(level: Optional[Mapping[str, object]], keys: Iterable[str]) -> Optional[float]:
@@ -272,23 +401,300 @@ def _pnl_sentence(
     has_stock: bool,
 ) -> str:
     combined = _level_value(level, ["net_pnl", "Net PnL", "combined_pnl"])
-    combined_text = _format_signed_currency(combined)
-    if combined_text is None:
-        return ""
-    sentence = f"Combined P&L at this level: {combined_text}."
+    if has_stock:
+        combined_text = _format_signed_currency(combined)
+        if combined_text is None:
+            return ""
+        sentence = f"Combined P&L at this level: {combined_text}."
+        option_pnl = _level_value(level, ["option_pnl", "Option PnL"])
+        stock_pnl = _level_value(level, ["stock_pnl", "Stock PnL"])
+        if option_pnl is not None or stock_pnl is not None:
+            option_text = (
+                _format_signed_currency(option_pnl) if option_pnl is not None else None
+            )
+            stock_text = (
+                _format_signed_currency(stock_pnl) if stock_pnl is not None else None
+            )
+            details = []
+            if option_text:
+                details.append(f"Options P&L: {option_text}")
+            if stock_text:
+                details.append(f"Stock-only: {stock_text}")
+            if details:
+                sentence = f"{sentence} " + "; ".join(details) + "."
+        return sentence
     option_pnl = _level_value(level, ["option_pnl", "Option PnL"])
-    stock_pnl = _level_value(level, ["stock_pnl", "Stock PnL"])
-    if has_stock and (option_pnl is not None or stock_pnl is not None):
-        option_text = _format_signed_currency(option_pnl) if option_pnl is not None else None
-        stock_text = _format_signed_currency(stock_pnl) if stock_pnl is not None else None
-        details = []
-        if option_text:
-            details.append(f"Options P&L: {option_text}")
-        if stock_text:
-            details.append(f"Stock-only: {stock_text}")
-        if details:
-            sentence = f"{sentence} " + "; ".join(details) + "."
-    return sentence
+    if option_pnl is None:
+        option_pnl = combined
+    option_text = _format_signed_currency(option_pnl)
+    if option_text is None:
+        return ""
+    return f"Options P&L at this level: {option_text}."
+
+
+def _numbers_sentence(
+    kind: str,
+    family: str,
+    has_stock: bool,
+    premium_ctx: Mapping[str, object],
+    max_profit: Optional[float],
+    max_loss: Optional[float],
+    pnl_sentence: str,
+    is_partial: bool,
+    roi_value: Optional[float],
+    breakeven_price: Optional[float],
+    include_breakeven: bool,
+) -> Optional[str]:
+    premium_sentence = _premium_sentence(premium_ctx)
+    max_profit_text = _format_currency(max_profit)
+    max_loss_text = _format_currency_abs(max_loss)
+    roi_text = _format_roi_ratio(roi_value)
+    breakeven_text = _format_price(breakeven_price) if breakeven_price is not None else None
+
+    def strip_period(text: str) -> str:
+        return text[:-1] if text.endswith(".") else text
+
+    if not has_stock:
+        parts: list[str] = []
+        if family in {"condor", "generic"}:
+            if kind == "base" and max_profit_text:
+                parts.append(f"Maximum profit: {max_profit_text}")
+            if kind in {"bear", "bull"} and max_loss_text:
+                parts.append(f"Maximum loss: {max_loss_text}")
+        if kind == "base" and premium_sentence:
+            parts.append(strip_period(premium_sentence))
+        if not parts and pnl_sentence:
+            parts.append(strip_period(pnl_sentence))
+        if roi_text:
+            parts.append(f"ROI at this level: {roi_text}")
+        if include_breakeven and breakeven_text:
+            parts.append(f"Breakeven near {breakeven_text}")
+        if parts:
+            return "; ".join(parts) + "."
+        return None
+    if family == "covered_call":
+        if kind in {"bear", "base"} and premium_sentence:
+            return premium_sentence
+        if kind in {"base", "bull"} and max_profit_text:
+            return f"Maximum combined profit (at expiry): {max_profit_text}."
+        return pnl_sentence or premium_sentence
+    if family == "protective_put":
+        if kind == "bear" and max_loss_text and not is_partial:
+            return f"Maximum combined loss (at expiry): {max_loss_text}."
+        if kind == "base" and premium_sentence:
+            return premium_sentence
+        return pnl_sentence or premium_sentence
+    if family == "collar":
+        if kind == "bear" and max_loss_text and not is_partial:
+            return f"Maximum combined loss (at expiry): {max_loss_text}."
+        if kind == "bull" and max_profit_text and not is_partial:
+            return f"Maximum combined profit (at expiry): {max_profit_text}."
+        if kind == "base" and premium_sentence:
+            return premium_sentence
+        return pnl_sentence or premium_sentence
+    if family == "condor":
+        if kind == "base" and max_profit_text:
+            return f"Maximum profit: {max_profit_text}."
+        if kind in {"bear", "bull"} and max_loss_text:
+            return f"Maximum loss: {max_loss_text}."
+        return pnl_sentence or premium_sentence
+    if premium_sentence:
+        return premium_sentence
+    return pnl_sentence or None
+
+
+def _resolve_family(
+    context: Mapping[str, object],
+    selected_rule: Optional[Mapping[str, object]] = None,
+) -> str:
+    if selected_rule and selected_rule.get("strategy_family"):
+        family = str(selected_rule.get("strategy_family")).lower()
+        if "condor" in family:
+            return "condor"
+        if "covered" in family:
+            return "covered_call"
+        if "protective" in family:
+            return "protective_put"
+        if "collar" in family:
+            return "collar"
+        return family
+    classification = context.get("classification")
+    if classification == "CCOV":
+        return "covered_call"
+    if classification == "PPRT":
+        return "protective_put"
+    if classification == "COL_EQ":
+        return "collar"
+    if context.get("iron_condor"):
+        return "condor"
+    return "generic"
+
+
+def _strike_condition(
+    kind: str,
+    lower_bound: Optional[float],
+    upper_bound: Optional[float],
+    spot_price: Optional[float],
+) -> str:
+    if kind == "bear":
+        if lower_bound is not None:
+            return f"If stock falls below {_format_price(lower_bound)}"
+        if spot_price is not None:
+            return f"If stock falls below {_format_price(spot_price)}"
+    if kind == "bull":
+        if upper_bound is not None:
+            return f"If stock rises above {_format_price(upper_bound)}"
+        if spot_price is not None:
+            return f"If stock rises above {_format_price(spot_price)}"
+    if lower_bound is not None and upper_bound is not None:
+        low = min(lower_bound, upper_bound)
+        high = max(lower_bound, upper_bound)
+        return (
+            f"If stock stays between {_format_price(low)} and {_format_price(high)}"
+        )
+    if spot_price is not None and lower_bound is not None:
+        low = min(spot_price, lower_bound)
+        high = max(spot_price, lower_bound)
+        return (
+            f"If stock stays between {_format_price(low)} and {_format_price(high)}"
+        )
+    if spot_price is not None and upper_bound is not None:
+        low = min(spot_price, upper_bound)
+        high = max(spot_price, upper_bound)
+        return (
+            f"If stock stays between {_format_price(low)} and {_format_price(high)}"
+        )
+    if spot_price is not None:
+        return f"If stock stays near {_format_price(spot_price)}"
+    if lower_bound is not None:
+        return f"If stock stays near {_format_price(lower_bound)}"
+    if upper_bound is not None:
+        return f"If stock stays near {_format_price(upper_bound)}"
+    return "Key level unavailable"
+
+
+def _compute_overlay_coverage(analysis_pack: Mapping[str, object]) -> dict:
+    coverage = {
+        "has_stock_position": False,
+        "shares": 0,
+        "covered_shares_call": None,
+        "protected_shares_put": None,
+        "collared_shares": None,
+        "coverage_ratio": None,
+        "coverage_phrase": None,
+        "coverage_clause": None,
+        "coverage_scope": None,
+        "contract_count": None,
+        "is_partial": False,
+    }
+    if not isinstance(analysis_pack, Mapping):
+        return coverage
+    key_levels = analysis_pack.get("key_levels")
+    meta = {}
+    if isinstance(key_levels, Mapping):
+        meta = key_levels.get("meta") if isinstance(key_levels.get("meta"), Mapping) else key_levels
+    has_stock = bool(meta.get("has_stock_position", False))
+    shares_value = meta.get("shares")
+    if shares_value is None:
+        shares_value = analysis_pack.get("shares")
+    strategy_input = analysis_pack.get("strategy_input")
+    if shares_value is None and isinstance(strategy_input, StrategyInput):
+        shares_value = abs(strategy_input.stock_position)
+        has_stock = bool(strategy_input.stock_position)
+    shares = _to_float(shares_value)
+    if shares is None or shares <= 0:
+        coverage["has_stock_position"] = has_stock
+        return coverage
+    shares_int = int(round(abs(shares)))
+    coverage["has_stock_position"] = has_stock
+    coverage["shares"] = shares_int
+    if not has_stock:
+        return coverage
+
+    legs_data = analysis_pack.get("legs")
+    if not isinstance(legs_data, list) and isinstance(strategy_input, StrategyInput):
+        legs_data = [
+            {
+                "kind": leg.kind,
+                "side": "Short" if leg.position < 0 else "Long",
+                "ratio": abs(leg.position),
+                "multiplier": leg.multiplier,
+            }
+            for leg in strategy_input.legs
+        ]
+
+    short_call_contracts = 0.0
+    long_put_contracts = 0.0
+    if isinstance(legs_data, list):
+        for leg in legs_data:
+            if not isinstance(leg, Mapping):
+                continue
+            kind = str(leg.get("kind") or leg.get("type") or "").lower()
+            side = str(leg.get("side") or "").lower()
+            ratio = _to_float(leg.get("ratio")) or 0.0
+            multiplier = _to_float(leg.get("multiplier")) or 100.0
+            position = leg.get("position")
+            if kind == "":
+                continue
+            if position is not None and _to_float(position) is not None:
+                side = "short" if _to_float(position) < 0 else "long"
+                ratio = abs(_to_float(position))
+            if kind == "call" and ("short" in side):
+                short_call_contracts += ratio
+                coverage["covered_shares_call"] = int(
+                    round(short_call_contracts * multiplier)
+                )
+            if kind == "put" and ("long" in side):
+                long_put_contracts += ratio
+                coverage["protected_shares_put"] = int(
+                    round(long_put_contracts * multiplier)
+                )
+
+    covered_shares = coverage.get("covered_shares_call") or 0
+    protected_shares = coverage.get("protected_shares_put") or 0
+    collared_shares = None
+    if covered_shares and protected_shares:
+        collared_shares = min(covered_shares, protected_shares, shares_int)
+        coverage["collared_shares"] = collared_shares
+    coverage_shares = None
+    contract_count = None
+    if collared_shares:
+        coverage_shares = collared_shares
+        contract_count = int(round(min(short_call_contracts, long_put_contracts)))
+    elif covered_shares:
+        coverage_shares = min(covered_shares, shares_int)
+        contract_count = int(round(short_call_contracts)) if short_call_contracts else None
+    elif protected_shares:
+        coverage_shares = min(protected_shares, shares_int)
+        contract_count = int(round(long_put_contracts)) if long_put_contracts else None
+
+    if coverage_shares:
+        coverage["coverage_ratio"] = coverage_shares / shares_int
+        coverage["contract_count"] = contract_count
+        ratio = coverage["coverage_ratio"]
+        coverage["is_partial"] = ratio is not None and 0 < ratio < 0.99
+        pct = int(round(ratio * 100)) if ratio is not None else None
+        if ratio is not None and ratio >= 0.99:
+            coverage_clause = (
+                f"the full position ({shares_int:,} of {shares_int:,} shares)"
+            )
+            coverage["coverage_phrase"] = f"This overlay applies to {coverage_clause}."
+            coverage["coverage_clause"] = coverage_clause
+            coverage["coverage_scope"] = "the shares"
+        else:
+            coverage_clause = (
+                f"approximately {pct}% of the position "
+                f"({coverage_shares:,} of {shares_int:,} shares)"
+            )
+            coverage["coverage_phrase"] = f"This overlay applies to {coverage_clause}."
+            coverage["coverage_clause"] = coverage_clause
+            coverage["coverage_scope"] = "the covered shares"
+    elif has_stock:
+        coverage_clause = f"the position ({shares_int:,} shares)"
+        coverage["coverage_phrase"] = f"This overlay applies to {coverage_clause}."
+        coverage["coverage_clause"] = coverage_clause
+        coverage["coverage_scope"] = "the shares"
+    return coverage
 
 
 def _fallback_condition(
@@ -297,24 +703,7 @@ def _fallback_condition(
     upper_price: Optional[float],
     spot_price: Optional[float],
 ) -> str:
-    if lower_price is not None and upper_price is not None:
-        if kind == "bear":
-            return f"Below {_format_price(lower_price)}"
-        if kind == "bull":
-            return f"Above {_format_price(upper_price)}"
-        return f"{_format_price(lower_price)}–{_format_price(upper_price)}"
-    if lower_price is not None:
-        if kind == "bear":
-            return f"Below {_format_price(lower_price)}"
-        if kind == "bull":
-            return f"Above {_format_price(lower_price)}"
-    if spot_price is not None:
-        if kind == "bear":
-            return f"Below {_format_price(spot_price)}"
-        if kind == "bull":
-            return f"Above {_format_price(spot_price)}"
-        return f"Near {_format_price(spot_price)}"
-    return "Key level unavailable"
+    return _strike_condition(kind, lower_price, upper_price, spot_price)
 
 
 def _fallback_body(
@@ -355,11 +744,14 @@ def _fallback_body(
 
 def _build_fallback_narratives_from_key_levels(
     levels: List[Mapping[str, object]],
-    has_stock: bool,
+    strategy_input: StrategyInput,
+    summary_rows: Optional[List[Mapping[str, object]]],
+    context: Mapping[str, object],
 ) -> Dict[str, object]:
     label_lookup = _levels_by_label(levels)
     strike_levels = _strike_levels(levels)
     lower_short, upper_short = _short_strike_bounds(strike_levels)
+    breakeven_levels = _breakeven_levels(levels)
     lower_long = _find_level(
         label_lookup, ["Strike (Lowest)", "Lower Strike", "Strike Lowest"]
     )
@@ -367,12 +759,16 @@ def _build_fallback_narratives_from_key_levels(
         label_lookup, ["Strike (Highest)", "Upper Strike", "Strike Highest"]
     )
     spot_level = _find_level(label_lookup, ["Current Market Price", "Spot"])
+    has_stock = bool(context.get("has_stock_position", strategy_input.stock_position != 0))
 
     lower_short_price = _to_float(lower_short.get("price")) if lower_short else None
     upper_short_price = _to_float(upper_short.get("price")) if upper_short else None
     lower_long_price = _to_float(lower_long.get("price")) if lower_long else None
     upper_long_price = _to_float(upper_long.get("price")) if upper_long else None
     spot_price = _to_float(spot_level.get("price")) if spot_level else None
+    breakeven_min = (
+        _to_float(breakeven_levels[0].get("price")) if breakeven_levels else None
+    )
 
     if lower_short is None and strike_levels:
         lower_short = strike_levels[0]
@@ -381,9 +777,84 @@ def _build_fallback_narratives_from_key_levels(
         upper_short = strike_levels[-1]
         upper_short_price = _to_float(upper_short.get("price"))
 
+    family = _resolve_family(context, None)
+    coverage_context = _compute_overlay_coverage(
+        {"key_levels": {"meta": {"has_stock_position": has_stock, "shares": strategy_input.stock_position}}, "strategy_input": strategy_input}
+    )
+    premium_ctx = _premium_context(
+        strategy_input,
+        summary_rows,
+        contract_count=coverage_context.get("contract_count"),
+    )
+    prefer = "combined" if has_stock else "options"
+    max_profit = _summary_metric(summary_rows, "Max Profit", prefer=prefer)
+    max_loss = _summary_metric(summary_rows, "Max Loss", prefer=prefer)
+    coverage_clause = (
+        coverage_context.get("coverage_clause") if has_stock else None
+    ) or ""
+    coverage_scope = (
+        coverage_context.get("coverage_scope") if has_stock else None
+    ) or ("the shares" if has_stock else "")
+    is_partial = bool(coverage_context.get("is_partial")) if has_stock else False
+
+    def _fallback_base_body(kind: str) -> str:
+        if has_stock:
+            intent = "This position keeps equity exposure while using options to shape outcomes."
+            if coverage_clause:
+                intent = (
+                    "This position keeps equity exposure while using options to shape outcomes "
+                    f"and applies to {coverage_clause}."
+                )
+            if kind == "bear":
+                if lower_short_price is not None:
+                    mechanics = (
+                        f"Below {_format_price(lower_short_price)}, the shares drive downside; "
+                        "option premium may cushion results."
+                    )
+                else:
+                    mechanics = (
+                        "Below the key level, the shares drive downside; option premium may cushion results."
+                    )
+            elif kind == "bull":
+                if upper_short_price is not None:
+                    mechanics = (
+                        f"Above {_format_price(upper_short_price)}, gains may be capped by the option overlay."
+                    )
+                else:
+                    mechanics = "Above the key level, gains may be capped by the option overlay."
+            else:
+                mechanics = "Around current levels, the overlay is designed to improve risk-adjusted outcomes."
+            return _join_sentences([intent, mechanics])
+        intent = "This options position seeks a defined outcome around key levels."
+        has_short_strikes = lower_short_price is not None and upper_short_price is not None
+        if has_short_strikes:
+            if kind == "bear":
+                mechanics = "Below the lower strike, losses can increase toward the hedge strike."
+                if lower_long_price is not None:
+                    mechanics = (
+                        "Below the lower strike, losses can increase toward the hedge strike "
+                        f"({_format_price(lower_long_price)})."
+                    )
+            elif kind == "bull":
+                mechanics = "Above the upper strike, losses can increase toward the hedge strike."
+                if upper_long_price is not None:
+                    mechanics = (
+                        "Above the upper strike, losses can increase toward the hedge strike "
+                        f"({_format_price(upper_long_price)})."
+                    )
+            else:
+                mechanics = "Between the strikes, the strategy seeks to retain premium."
+            return _join_sentences([intent, mechanics])
+        if kind == "bear":
+            mechanics = "Below the key level, losses can increase."
+        elif kind == "bull":
+            mechanics = "Above the key level, losses can increase."
+        else:
+            mechanics = "Within the key range, the strategy seeks to perform best."
+        return _join_sentences([intent, mechanics])
+
     anchors_used: dict[str, list[dict]] = {}
     scenarios: dict[str, object] = {}
-    has_short_strikes = lower_short is not None and upper_short is not None
     for kind, title in [
         ("bear", "Bearish Case"),
         ("base", "Stagnant Case"),
@@ -405,18 +876,40 @@ def _build_fallback_narratives_from_key_levels(
             kind, lower_short_price, upper_short_price, spot_price
         )
         pnl_sentence = _pnl_sentence(anchor, has_stock)
-        body = _fallback_body(
+        roi_value = _level_value(anchor, ["net_roi", "Net ROI", "option_roi", "Option ROI"])
+        include_breakeven = kind == "base" and breakeven_min is not None
+        numbers_sentence = _numbers_sentence(
             kind,
-            lower_long_price,
-            upper_long_price,
+            family,
+            has_stock,
+            premium_ctx,
+            max_profit,
+            max_loss,
             pnl_sentence,
-            has_short_strikes,
+            is_partial,
+            roi_value,
+            breakeven_min,
+            include_breakeven,
         )
         overlay_pnl = _level_value(anchor, ["net_pnl", "Net PnL", "combined_pnl"])
-        stock_only_pnl = _level_value(anchor, ["stock_pnl", "Stock PnL"]) if has_stock else 0.0
+        price = _to_float(anchor.get("price")) if isinstance(anchor, Mapping) else None
+        stock_only_pnl = None
+        if has_stock:
+            stock_only_pnl = _level_value(anchor, ["stock_pnl", "Stock PnL"])
+            if stock_only_pnl is None and price is not None:
+                stock_only_pnl = (
+                    strategy_input.stock_position * (price - strategy_input.avg_cost)
+                )
+        else:
+            stock_only_pnl = 0.0
         delta_vs_stock = None
         if overlay_pnl is not None and stock_only_pnl is not None:
             delta_vs_stock = overlay_pnl - stock_only_pnl
+        overlay_sentence = _overlay_sentence(kind, delta_vs_stock) if has_stock else None
+        base_body = _fallback_base_body(kind)
+        body = _join_sentences(
+            [base_body, overlay_sentence or "", numbers_sentence or ""]
+        )
         scenarios[kind] = {
             "title": title,
             "condition": condition,
@@ -439,9 +932,10 @@ def _build_fallback_narratives_from_key_levels(
         "bull": scenarios.get("bull"),
         "trace": {
             "rule_id": "fallback_generic",
-            "version": "fallback_v1",
+            "version": "fallback_v2",
             "reason": "fallback_used_no_matching_rule",
             "anchors_used": anchors_used,
+            "coverage": coverage_context,
         },
     }
 
@@ -495,6 +989,12 @@ def build_narrative_scenarios(
         "iron_condor": iron_condor,
         "defined_risk": defined_risk,
     }
+    coverage_context = _compute_overlay_coverage(
+        {
+            "key_levels": key_levels,
+            "strategy_input": strategy_input,
+        }
+    )
 
     selected_rule = None
     matched_conditions: list[dict] = []
@@ -509,11 +1009,17 @@ def build_narrative_scenarios(
     label_lookup = _levels_by_label(levels)
     inputs_used = dict(context)
     if selected_rule is None:
-        fallback = _build_fallback_narratives_from_key_levels(levels, has_stock)
+        fallback = _build_fallback_narratives_from_key_levels(
+            levels,
+            strategy_input,
+            summary_rows,
+            context,
+        )
         trace = fallback.get("trace", {})
         trace = dict(trace)
         trace["matched_conditions"] = []
         trace["inputs_used"] = inputs_used
+        trace["coverage"] = coverage_context
         fallback["trace"] = trace
         return fallback
 
@@ -527,10 +1033,39 @@ def build_narrative_scenarios(
 
     strike_levels = _strike_levels(levels)
     lower_short, upper_short = _short_strike_bounds(strike_levels)
+    lower_strike = strike_levels[0] if strike_levels else None
+    upper_strike = strike_levels[-1] if strike_levels else None
+    breakeven_levels = _breakeven_levels(levels)
 
-    max_profit = _summary_value(summary_rows, "Max Profit")
-    max_loss = _summary_value(summary_rows, "Max Loss")
-    net_premium = _summary_value(summary_rows, "Net Prem/Share")
+    spot_price = _to_float(spot_level.get("price")) if spot_level else None
+    lower_short_price = _to_float(lower_short.get("price")) if lower_short else None
+    upper_short_price = _to_float(upper_short.get("price")) if upper_short else None
+    lower_long_price = _to_float(lower_long.get("price")) if lower_long else None
+    upper_long_price = _to_float(upper_long.get("price")) if upper_long else None
+    lower_strike_price = _to_float(lower_strike.get("price")) if lower_strike else None
+    upper_strike_price = _to_float(upper_strike.get("price")) if upper_strike else None
+    breakeven_min = (
+        _to_float(breakeven_levels[0].get("price")) if breakeven_levels else None
+    )
+    breakeven_max = (
+        _to_float(breakeven_levels[-1].get("price")) if breakeven_levels else None
+    )
+
+    cap_strike_price = _pick_leg_strike(legs, "call", -1, "min")
+    if cap_strike_price is None:
+        cap_strike_price = upper_short_price or upper_strike_price or lower_short_price
+    put_strike_price = _pick_leg_strike(legs, "put", 1, "max")
+    if put_strike_price is None:
+        put_strike_price = lower_short_price or lower_long_price or lower_strike_price
+
+    prefer = "combined" if has_stock else "options"
+    max_profit = _summary_metric(summary_rows, "Max Profit", prefer=prefer)
+    max_loss = _summary_metric(summary_rows, "Max Loss", prefer=prefer)
+    premium_ctx = _premium_context(
+        strategy_input,
+        summary_rows,
+        contract_count=coverage_context.get("contract_count"),
+    )
 
     if max_profit is None:
         candidate = None
@@ -553,7 +1088,16 @@ def build_narrative_scenarios(
 
     max_profit_text = _format_currency(max_profit)
     max_loss_text = _format_currency_abs(max_loss)
-    net_premium_text = _format_currency(net_premium)
+    family = _resolve_family(context, selected_rule)
+    coverage_clause = (
+        coverage_context.get("coverage_clause") if has_stock else None
+    ) or ""
+    coverage_scope = (
+        coverage_context.get("coverage_scope") if has_stock else None
+    ) or ("the shares" if has_stock else "")
+    is_partial = bool(coverage_context.get("is_partial")) if has_stock else False
+    cap_phrase = "partially capped" if is_partial else "capped"
+    protection_phrase = "partially protected" if is_partial else "protected"
 
     anchors_used: dict[str, list[str]] = {}
     scenarios: dict[str, object] = {}
@@ -569,31 +1113,48 @@ def build_narrative_scenarios(
             anchor_ids = []
         anchors = [level_lookup[a_id] for a_id in anchor_ids if a_id in level_lookup]
         anchors_used[kind] = [anchor.get("id") for anchor in anchors if "id" in anchor]
-        condition = ""
-        if context.get("iron_condor") and lower_short and upper_short:
-            lower_price = _to_float(lower_short.get("price"))
-            upper_price = _to_float(upper_short.get("price"))
-            if lower_price is not None and upper_price is not None:
-                if kind == "bear":
-                    condition = f"If stock falls below {_format_price(lower_price)}"
-                elif kind == "bull":
-                    condition = f"If stock rises above {_format_price(upper_price)}"
-                else:
-                    condition = (
-                        f"If stock stays {_format_price(lower_price)}-"
-                        f"{_format_price(upper_price)}"
-                    )
-        if not condition:
-            condition = _condition_text(kind, anchors, exclude_zero=True)
-        primary = _pick_primary_anchor(anchors)
-        price = _to_float(primary.get("price")) if primary else None
-        overlay_pnl = _to_float(primary.get("net_pnl")) if primary else None
-        if has_stock:
-            stock_only_pnl = (
-                strategy_input.stock_position * (price - strategy_input.avg_cost)
-                if price is not None
-                else None
+
+        lower_bound = None
+        upper_bound = None
+        if has_stock and family == "covered_call":
+            lower_bound = spot_price or lower_strike_price
+            upper_bound = cap_strike_price or upper_strike_price
+        elif has_stock and family == "protective_put":
+            lower_bound = put_strike_price or lower_strike_price
+            upper_bound = spot_price or upper_strike_price
+        elif has_stock and family == "collar":
+            lower_bound = put_strike_price or lower_strike_price
+            upper_bound = cap_strike_price or upper_strike_price
+        else:
+            lower_bound = (
+                lower_short_price
+                or lower_strike_price
+                or breakeven_min
             )
+            upper_bound = (
+                upper_short_price
+                or upper_strike_price
+                or breakeven_max
+            )
+        condition = _strike_condition(kind, lower_bound, upper_bound, spot_price)
+
+        primary = None
+        if kind == "bear":
+            primary = lower_short or lower_strike or (breakeven_levels[0] if breakeven_levels else None) or spot_level
+        elif kind == "bull":
+            primary = upper_short or upper_strike or (breakeven_levels[-1] if breakeven_levels else None) or spot_level
+        else:
+            primary = spot_level or lower_short or upper_short or (breakeven_levels[0] if breakeven_levels else None)
+        primary = primary or _pick_primary_anchor(anchors)
+        price = _to_float(primary.get("price")) if primary else None
+        overlay_pnl = _level_value(primary, ["net_pnl", "Net PnL", "combined_pnl"])
+        stock_only_pnl = None
+        if has_stock:
+            stock_only_pnl = _level_value(primary, ["stock_pnl", "Stock PnL"])
+            if stock_only_pnl is None and price is not None:
+                stock_only_pnl = (
+                    strategy_input.stock_position * (price - strategy_input.avg_cost)
+                )
         else:
             stock_only_pnl = 0.0
         delta_vs_stock = (
@@ -602,31 +1163,61 @@ def build_narrative_scenarios(
             else None
         )
         scenario_pnl_text = _format_signed_currency(overlay_pnl)
-        lower_long_price = _to_float(lower_long.get("price")) if lower_long else None
-        upper_long_price = _to_float(upper_long.get("price")) if upper_long else None
+        roi_value = _level_value(primary, ["net_roi", "Net ROI", "option_roi", "Option ROI"])
+        include_breakeven = kind == "base" and breakeven_min is not None
         context_values = {
+            "spot": _format_price(spot_price) if spot_price is not None else "--",
             "anchor_price": _format_price(price) if price is not None else "--",
             "max_profit": max_profit_text or "--",
             "max_loss": max_loss_text or "--",
-            "net_premium": net_premium_text or "--",
-            "lower_long": _format_price(lower_long_price) if lower_long_price is not None else "--",
-            "upper_long": _format_price(upper_long_price) if upper_long_price is not None else "--",
+            "lower_short": _format_price(lower_short_price)
+            if lower_short_price is not None
+            else "--",
+            "upper_short": _format_price(upper_short_price)
+            if upper_short_price is not None
+            else "--",
+            "lower_long": _format_price(lower_long_price)
+            if lower_long_price is not None
+            else "--",
+            "upper_long": _format_price(upper_long_price)
+            if upper_long_price is not None
+            else "--",
+            "cap_strike": _format_price(cap_strike_price)
+            if cap_strike_price is not None
+            else "--",
+            "put_strike": _format_price(put_strike_price)
+            if put_strike_price is not None
+            else "--",
+            "premium_total": _format_currency_abs(premium_ctx.get("total"))
+            if premium_ctx.get("total") is not None
+            else "--",
             "scenario_pnl": scenario_pnl_text or "--",
+            "coverage_clause": coverage_clause,
+            "coverage_scope": coverage_scope,
+            "cap_phrase": cap_phrase,
+            "protection_phrase": protection_phrase,
         }
-        body = _render_template(templates.get(kind, ""), context_values)
-        if "$" not in body and scenario_pnl_text:
-            if body and body.strip() != "--":
-                body = f"{body} Net P&L at this level is {scenario_pnl_text}."
-            else:
-                body = f"Net P&L at this level is {scenario_pnl_text}."
-        if has_stock:
-            delta_text = _format_signed_currency(delta_vs_stock)
-            if delta_text is not None:
-                overlay_note = (
-                    " Compared with holding the stock alone, this overlay changes "
-                    f"P&L by {delta_text} at this scenario."
-                )
-                body = f"{body}{overlay_note}" if body else overlay_note.strip()
+        base_body = _render_template(templates.get(kind, ""), context_values).strip()
+        if base_body == "--":
+            base_body = ""
+        pnl_sentence = _pnl_sentence(primary, has_stock)
+        numbers_sentence = _numbers_sentence(
+            kind,
+            family,
+            has_stock,
+            premium_ctx,
+            max_profit,
+            max_loss,
+            pnl_sentence,
+            is_partial,
+            roi_value,
+            breakeven_min,
+            include_breakeven,
+        )
+        overlay_sentence = _overlay_sentence(kind, delta_vs_stock) if has_stock else None
+        body = _join_sentences(
+            [base_body, overlay_sentence or "", numbers_sentence or ""]
+        )
         scenarios[kind] = {
             "title": title,
             "condition": condition,
@@ -654,11 +1245,17 @@ def build_narrative_scenarios(
         return False
 
     if any(_missing(scenarios.get(key)) for key in ["bear", "base", "bull"]):
-        fallback = _build_fallback_narratives_from_key_levels(levels, has_stock)
+        fallback = _build_fallback_narratives_from_key_levels(
+            levels,
+            strategy_input,
+            summary_rows,
+            context,
+        )
         trace = fallback.get("trace", {})
         trace = dict(trace)
         trace["matched_conditions"] = matched_conditions
         trace["inputs_used"] = inputs_used
+        trace["coverage"] = coverage_context
         fallback["trace"] = trace
         return fallback
 
@@ -672,5 +1269,6 @@ def build_narrative_scenarios(
             "matched_conditions": matched_conditions,
             "inputs_used": inputs_used,
             "anchors_used": anchors_used,
+            "coverage": coverage_context,
         },
     }

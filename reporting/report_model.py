@@ -193,9 +193,9 @@ def _scenario_row_from_source(row: Mapping[str, object]) -> Dict[str, str]:
         "move_pct": _fmt_percent(pick(["move_pct", "Move %", "move_percent"])),
         "stock_pnl": _fmt_currency(pick(["stock_pnl", "Stock PnL"])),
         "option_pnl": _fmt_currency(pick(["option_pnl", "Option PnL"])),
-        "option_roi": _fmt_percent(pick(["option_roi", "Option ROI"])),
+        "option_roi": _fmt_roi(pick(["option_roi", "Option ROI"])),
         "net_pnl": _fmt_currency(pick(["net_pnl", "combined_pnl", "Net PnL"])),
-        "net_roi": _fmt_percent(pick(["net_roi", "Net ROI"])),
+        "net_roi": _fmt_roi(pick(["net_roi", "Net ROI"])),
     }
 
 
@@ -385,6 +385,7 @@ def _fmt_pnl(value: object) -> str:
 
 
 def _fmt_roi(value: object) -> str:
+    # ROI values are ratios. Display multiplies by 100. Do not apply heuristics.
     if value is None:
         return MISSING
     if isinstance(value, str):
@@ -403,9 +404,7 @@ def _fmt_roi(value: object) -> str:
         return MISSING
     if abs(numeric) < 1e-6:
         numeric = 0.0
-    if abs(numeric) <= 2.0:
-        numeric *= 100.0
-    return f"{numeric:.1f}%"
+    return f"{numeric * 100.0:.1f}%"
 
 
 def _key_level_sort_key(row: Mapping[str, object]) -> tuple[int, int, float]:
@@ -648,13 +647,25 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         for row in pack_rows:
             if not isinstance(row, Mapping):
                 continue
-            metrics_rows.append(
-                {
-                    "metric": _fmt_text(row.get("metric")),
-                    "options": _fmt_text(row.get("options")),
-                    "combined": _fmt_text(row.get("combined")),
-                }
-            )
+            metric_label = _fmt_text(row.get("metric"))
+            if metric_label in {"Max ROI", "Min ROI"}:
+                options_value = row.get("options")
+                combined_value = row.get("combined")
+                metrics_rows.append(
+                    {
+                        "metric": metric_label,
+                        "options": _fmt_roi(options_value),
+                        "combined": _fmt_roi(combined_value),
+                    }
+                )
+            else:
+                metrics_rows.append(
+                    {
+                        "metric": metric_label,
+                        "options": _fmt_text(row.get("options")),
+                        "combined": _fmt_text(row.get("combined")),
+                    }
+                )
     else:
         metrics_map = [
             ("Max Profit", "max_profit_options", "max_profit_combined"),
@@ -669,11 +680,17 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
             ("PoP", "pop_options", "pop_combined"),
         ]
         for label, opt_key, comb_key in metrics_map:
+            if label in {"Max ROI", "Min ROI"}:
+                options_value = _fmt_roi(metric_value(opt_key))
+                combined_value = _fmt_roi(metric_value(comb_key))
+            else:
+                options_value = _fmt_text(metric_value(opt_key))
+                combined_value = _fmt_text(metric_value(comb_key))
             metrics_rows.append(
                 {
                     "metric": label,
-                    "options": _fmt_text(metric_value(opt_key)),
-                    "combined": _fmt_text(metric_value(comb_key)),
+                    "options": options_value,
+                    "combined": combined_value,
                 }
             )
 

@@ -216,7 +216,7 @@ def test_report_model_metrics_capped_by_short_call():
     )
     max_roi = next(row for row in metrics_rows if row.get("metric") == "Max ROI")
     assert max_profit.get("combined") == "10"
-    assert max_roi.get("combined") == "5%"
+    assert max_roi.get("combined") == "5.0%"
 
 
 def test_report_model_metrics_without_infinity():
@@ -242,7 +242,7 @@ def test_report_model_metrics_without_infinity():
     )
     max_roi = next(row for row in metrics_rows if row.get("metric") == "Max ROI")
     assert max_profit.get("combined") == "10"
-    assert max_roi.get("combined") == "5%"
+    assert max_roi.get("combined") == "5.0%"
 
 
 def test_report_model_key_levels_rows():
@@ -284,7 +284,36 @@ def test_report_model_key_levels_display_formatting():
     assert row["Net PnL"] == "0.00"
     assert row["Option ROI"].endswith("%")
     assert row["Option ROI"] == "10.0%"
-    assert row["Net ROI"] == "5.0%"
+    assert row["Net ROI"] == "500.0%"
+
+
+def test_report_model_roi_ratio_display():
+    levels = [
+        {
+            "id": "low",
+            "label": "Low",
+            "price": 10.0,
+            "option_roi": 2.78,
+            "net_roi": 0.36,
+        },
+        {
+            "id": "high",
+            "label": "High",
+            "price": 20.0,
+            "option_roi": 0.045,
+            "net_roi": -1.0,
+        },
+    ]
+    state = {"analysis_pack": {"key_levels": {"levels": levels}}}
+    model = build_report_model(state)
+    display_rows = model.get("key_levels_display_rows_by_price")
+    assert display_rows
+    first = display_rows[0]
+    second = display_rows[1]
+    assert first["Option ROI"] == "278.0%"
+    assert first["Net ROI"] == "36.0%"
+    assert second["Option ROI"] == "4.5%"
+    assert second["Net ROI"] == "-100.0%"
 
 
 def test_report_model_scenario_analysis_missing():

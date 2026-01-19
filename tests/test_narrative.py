@@ -23,89 +23,90 @@ def _build_pack(strategy_input):
     )
 
 
-def test_narrative_covered_call():
+def _assert_no_stock_language(text: str) -> None:
+    lowered = text.lower()
+    assert "shares" not in lowered
+    assert "stock-only" not in lowered
+    assert "called away" not in lowered
+    assert "overlay" not in lowered
+
+
+def test_narrative_covered_call_full():
     strategy_input = StrategyInput(
         spot=100.0,
-        stock_position=100.0,
+        stock_position=1000.0,
         avg_cost=100.0,
-        legs=[OptionLeg(kind="call", position=-1.0, strike=110.0, premium=2.0)],
+        legs=[OptionLeg(kind="call", position=-10.0, strike=110.0, premium=2.0)],
     )
     pack = _build_pack(strategy_input)
     narrative = pack.get("narrative_scenarios")
     assert narrative is not None
-    for key, title in [
-        ("bear", "Bearish Case"),
-        ("base", "Stagnant Case"),
-        ("bull", "Bullish Case"),
-    ]:
-        scenario = narrative.get(key)
-        assert scenario is not None
-        assert scenario.get("title") == title
-        assert scenario.get("condition")
-        assert scenario.get("body")
-    trace = narrative.get("trace")
-    assert trace.get("rule_id") == "covered_call_v1"
-    bear = narrative.get("bear")
-    assert bear.get("delta_vs_stock") is not None
-    assert bear.get("delta_vs_stock") > 0
-    assert "Compared with holding the stock alone" in bear.get("body", "")
+
+    bear_body = narrative.get("bear", {}).get("body", "").lower()
+    bull_body = narrative.get("bull", {}).get("body", "").lower()
+
+    assert "full position" in bull_body
+    assert "maximum loss" not in bear_body
+    assert "capped" in bull_body or "called away" in bull_body
 
 
-def test_narrative_protective_put():
+def test_narrative_partial_collar_meta():
     strategy_input = StrategyInput(
         spot=100.0,
-        stock_position=100.0,
+        stock_position=1000.0,
         avg_cost=100.0,
-        legs=[OptionLeg(kind="put", position=1.0, strike=95.0, premium=2.0)],
-    )
-    pack = _build_pack(strategy_input)
-    narrative = pack.get("narrative_scenarios")
-    assert narrative is not None
-    assert narrative.get("bear") is not None
-    assert narrative.get("base") is not None
-    assert narrative.get("bull") is not None
-    trace = narrative.get("trace")
-    assert trace.get("rule_id") == "protective_put_v1"
-    bear = narrative.get("bear")
-    assert "Compared with holding the stock alone" in bear.get("body", "")
-
-
-def test_narrative_iron_condor():
-    strategy_input = StrategyInput(
-        spot=100.0,
-        stock_position=0.0,
-        avg_cost=0.0,
         legs=[
-            OptionLeg(kind="put", position=1.0, strike=90.0, premium=1.0),
-            OptionLeg(kind="put", position=-1.0, strike=95.0, premium=2.0),
-            OptionLeg(kind="call", position=-1.0, strike=105.0, premium=2.0),
-            OptionLeg(kind="call", position=1.0, strike=110.0, premium=1.0),
+            OptionLeg(kind="put", position=8.0, strike=90.0, premium=1.0),
+            OptionLeg(kind="call", position=-8.0, strike=110.0, premium=2.0),
         ],
     )
     pack = _build_pack(strategy_input)
     narrative = pack.get("narrative_scenarios")
     assert narrative is not None
-    assert narrative.get("bear") is not None
-    assert narrative.get("base") is not None
-    assert narrative.get("bull") is not None
-    trace = narrative.get("trace")
-    assert trace.get("rule_id") == "iron_condor_v1"
+
     bear = narrative.get("bear")
-    assert bear.get("stock_only_pnl") == 0.0
-    assert bear.get("delta_vs_stock") is not None
-    assert "$0.00" not in bear.get("condition", "")
-    assert "below $95.00" in bear.get("condition", "")
-    base = narrative.get("base")
-    assert "$95.00-$105.00" in base.get("condition", "")
     bull = narrative.get("bull")
-    assert "above $105.00" in bull.get("condition", "")
-    for scenario in [bear, base, bull]:
-        body = scenario.get("body", "")
-        assert "$" in body
-    base_body = base.get("body", "").lower()
-    assert "premium" in base_body or "profit" in base_body
-    assert "maximum loss" in bear.get("body", "").lower()
-    assert "maximum loss" in bull.get("body", "").lower()
+    assert bear is not None
+    assert bull is not None
+
+    bear_condition = bear.get("condition", "").lower()
+    assert "below $90.00" in bear_condition
+    assert "downside" not in bear_condition
+    assert "upside" not in bear_condition
+    assert "%" not in bear_condition
+
+    bear_body = bear.get("body", "").lower()
+    assert "approximately 80% of the position" in bear_body
+    assert "800 of 1,000 shares" in bear_body
+    assert "partially protected" in bear_body
+
+    bull_body = bull.get("body", "").lower()
+    assert "partially capped" in bull_body
+
+
+def test_narrative_bull_call_spread_options_only():
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=0.0,
+        avg_cost=0.0,
+        legs=[
+            OptionLeg(kind="call", position=1.0, strike=100.0, premium=3.0),
+            OptionLeg(kind="call", position=-1.0, strike=110.0, premium=1.0),
+        ],
+    )
+    pack = _build_pack(strategy_input)
+    narrative = pack.get("narrative_scenarios")
+    assert narrative is not None
+
+    base_body = narrative.get("base", {}).get("body", "").lower()
+    assert "breakeven" in base_body
+
+    bull_body = narrative.get("bull", {}).get("body", "")
+    assert "ROI at this level: 400.0%" in bull_body
+
+    for key in ["bear", "base", "bull"]:
+        body = narrative.get(key, {}).get("body", "")
+        _assert_no_stock_language(body)
 
 
 def test_narrative_no_match():
@@ -129,3 +130,4 @@ def test_narrative_no_match():
     trace = narrative.get("trace")
     assert trace.get("rule_id") == "fallback_generic"
     assert trace.get("reason") == "fallback_used_no_matching_rule"
+

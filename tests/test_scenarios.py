@@ -132,3 +132,35 @@ def test_scenario_labels_non_empty():
     assert "Current Market Price" in labels
     assert "Lower Strike" in labels
     assert "Upper Strike" in labels
+
+
+def test_scenario_labels_for_four_strikes_unique():
+    strategy = StrategyInput(
+        spot=100.0,
+        legs=[
+            OptionLeg(kind="put", position=1, strike=90.0, premium=1.0),
+            OptionLeg(kind="put", position=-1, strike=95.0, premium=2.0),
+            OptionLeg(kind="call", position=-1, strike=105.0, premium=2.0),
+            OptionLeg(kind="call", position=1, strike=110.0, premium=1.0),
+        ],
+    )
+    payoff = compute_payoff(strategy)
+    points = build_scenario_points(strategy, payoff, mode="STANDARD")
+    table = compute_scenario_table(
+        strategy,
+        points,
+        payoff_result=payoff,
+        roi_policy=NET_PREMIUM,
+    )
+    labels = {
+        table.loc[table["price"] == 90.0].iloc[0]["scenario"],
+        table.loc[table["price"] == 95.0].iloc[0]["scenario"],
+        table.loc[table["price"] == 105.0].iloc[0]["scenario"],
+        table.loc[table["price"] == 110.0].iloc[0]["scenario"],
+    }
+    assert labels == {
+        "Strike (Lowest)",
+        "Strike (Lower Middle)",
+        "Strike (Upper Middle)",
+        "Strike (Highest)",
+    }

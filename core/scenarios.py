@@ -39,6 +39,13 @@ def _strike_label_map(strikes: list[float]) -> dict[float, str]:
         return {ordered[0]: "Strike"}
     if len(ordered) == 2:
         return {ordered[0]: "Lower Strike", ordered[1]: "Upper Strike"}
+    if len(ordered) == 4:
+        return {
+            ordered[0]: "Strike (Lowest)",
+            ordered[1]: "Strike (Lower Middle)",
+            ordered[2]: "Strike (Upper Middle)",
+            ordered[3]: "Strike (Highest)",
+        }
     labels = {ordered[0]: "Strike (Lowest)", ordered[-1]: "Strike (Highest)"}
     for strike in ordered[1:-1]:
         labels[strike] = "Strike (Middle)"

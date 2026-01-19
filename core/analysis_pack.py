@@ -9,6 +9,7 @@ import pandas as pd
 
 from core.margin import classify_strategy, compute_margin_proxy
 from core.models import StrategyInput
+from core.narrative import build_narrative_scenarios
 from core.payoff import _compute_pnl_for_price, compute_payoff
 from core.probability import strategy_pop
 from core.roi import capital_basis, combined_capital_basis, compute_net_premium
@@ -600,4 +601,9 @@ def build_analysis_pack(
         "commentary_blocks": commentary_blocks,
     }
     analysis_pack["key_levels"] = key_levels
+    analysis_pack["narrative_scenarios"] = build_narrative_scenarios(
+        strategy_input=strategy_input,
+        key_levels=key_levels,
+        payoff_result=payoff_result,
+    )
     return analysis_pack

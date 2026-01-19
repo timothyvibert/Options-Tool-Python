@@ -52,6 +52,8 @@ from core.strategy_map import get_strategy, list_groups, list_strategies, list_s
 from ui_state import reset_leg_state_on_context_change
 
 
+DEBUG_UI = False
+
 st.set_page_config(page_title="Options Strategy Builder", layout="wide")
 
 def render_dashboard():
@@ -913,6 +915,7 @@ def render_dashboard():
                 downside_tgt=downside_tgt,
                 upside_tgt=upside_tgt,
             )
+            assert "key_levels" in analysis_pack
             st.session_state["analysis_pack"] = analysis_pack
 
             payoff_cols = st.columns([1.6, 1.0])
@@ -1223,6 +1226,7 @@ def render_dashboard():
         st.info("Run Analysis to view scenario results.")
     else:
         display_cols = [
+            "scenario",
             "price",
             "option_pnl",
             "stock_pnl",
@@ -1232,6 +1236,7 @@ def render_dashboard():
         ]
         scenario_display = scenario_table[display_cols].rename(
             columns={
+                "scenario": "Scenario",
                 "price": "Scenario Price",
                 "option_pnl": "Option PnL",
                 "stock_pnl": "Stock PnL",
@@ -1327,6 +1332,22 @@ def render_bloomberg_data():
         else:
             st.write("Underlying snapshot present: False")
         st.json(debug_payload)
+
+    with st.expander("Key Levels (analysis_pack)"):
+        has_pack = "analysis_pack" in st.session_state
+        st.write("analysis_pack present:", has_pack)
+        if has_pack:
+            analysis_pack = st.session_state.get("analysis_pack")
+            has_key_levels = (
+                isinstance(analysis_pack, dict) and "key_levels" in analysis_pack
+            )
+            st.write("key_levels present:", has_key_levels)
+            if has_key_levels:
+                st.json(analysis_pack.get("key_levels"))
+            else:
+                st.warning("analysis_pack has no key_levels")
+        else:
+            st.warning("No analysis_pack in session_state")
 
     st.caption("Option Legs Snapshot")
     snapshot = st.session_state.get("bbg_snapshot_df")

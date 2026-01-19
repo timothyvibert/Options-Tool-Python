@@ -324,6 +324,39 @@ def test_report_model_option_roi_not_inferred_with_stock():
     assert row["Net ROI"] == "100.0%"
 
 
+def test_report_model_option_roi_with_stock_basis():
+    levels = [
+        {"id": "spot", "label": "Spot", "price": 100.0, "option_pnl": 250.0}
+    ]
+    state = {
+        "analysis_pack": {
+            "key_levels": {"levels": levels, "meta": {"has_stock_position": True}},
+            "summary": {"rows": [{"metric": "Capital Basis", "options": 1000.0}]},
+        }
+    }
+    model = build_report_model(state)
+    display_rows = model.get("key_levels_display_rows_by_price")
+    assert display_rows
+    row = display_rows[0]
+    assert row["Option ROI"] == "25.0%"
+
+
+def test_report_model_option_roi_with_stock_missing_basis():
+    levels = [
+        {"id": "spot", "label": "Spot", "price": 100.0, "option_pnl": 250.0}
+    ]
+    state = {
+        "analysis_pack": {
+            "key_levels": {"levels": levels, "meta": {"has_stock_position": True}}
+        }
+    }
+    model = build_report_model(state)
+    display_rows = model.get("key_levels_display_rows_by_price")
+    assert display_rows
+    row = display_rows[0]
+    assert row["Option ROI"] == "--"
+
+
 def test_report_model_scenario_analysis_cards_list_shape():
     state = {
         "analysis_pack": {

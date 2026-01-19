@@ -201,6 +201,44 @@ def _coerce_float(value: object) -> Optional[float]:
     return None
 
 
+def _get_option_basis(
+    analysis_pack: Optional[Mapping[str, object]],
+    row: Mapping[str, object],
+) -> Optional[float]:
+    for key in [
+        "option_capital_basis",
+        "options_capital_basis",
+        "option_basis",
+        "capital_basis_options",
+    ]:
+        if key in row:
+            value = _coerce_float(row.get(key))
+            if value is not None:
+                return value
+
+    if not isinstance(analysis_pack, Mapping):
+        return None
+    metrics = analysis_pack.get("metrics")
+    if isinstance(metrics, Mapping):
+        for key in ["capital_basis_options", "option_capital_basis", "option_basis"]:
+            if key in metrics:
+                value = _coerce_float(metrics.get(key))
+                if value is not None:
+                    return value
+    summary = analysis_pack.get("summary")
+    if isinstance(summary, Mapping):
+        rows = summary.get("rows")
+        if isinstance(rows, list):
+            for metric_row in rows:
+                if not isinstance(metric_row, Mapping):
+                    continue
+                if metric_row.get("metric") == "Capital Basis":
+                    value = _coerce_float(metric_row.get("options"))
+                    if value is not None:
+                        return value
+    return None
+
+
 def _fmt_price(value: object) -> str:
     numeric = _coerce_float(value)
     if numeric is None:
@@ -609,6 +647,17 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
             and not _is_missing(net_roi_value)
         ):
             option_roi_value = net_roi_value
+        if (
+            has_stock_position
+            and _is_missing(option_roi_value)
+        ):
+            option_pnl_value = _coerce_float(row.get("option_pnl", row.get("Option PnL")))
+            option_basis_value = _get_option_basis(analysis_pack, row)
+            if (
+                option_pnl_value is not None
+                and option_basis_value not in (None, 0.0)
+            ):
+                option_roi_value = option_pnl_value / option_basis_value
         key_levels_display_rows_by_price.append(
             {
                 "Scenario": label_text,

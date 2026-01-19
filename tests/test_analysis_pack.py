@@ -30,6 +30,11 @@ def test_build_analysis_pack_minimal():
             "DVD_EX_DT": "2026-02-01",
             "projected_dividend": 0.88,
             "dividend_status": "Projected",
+            "HIGH_52WEEK": 260.0,
+            "LOW_52WEEK": 180.0,
+            "HIGH_DT_52WEEK": "2025-01-02",
+            "LOW_DT_52WEEK": "2024-08-09",
+            "CHG_PCT_YTD": 12.3,
         },
         bbg_leg_snapshots=None,
         scenario_mode="STANDARD",
@@ -109,6 +114,12 @@ def test_build_analysis_pack_minimal():
     assert dividend_risk["before_expiry"] is True
     assert dividend_risk["projected_dividend"] == 0.88
     assert dividend_risk["dividend_status"] == "Projected"
+    underlying = pack["underlying"]
+    assert underlying["high_52week"] == 260.0
+    assert underlying["low_52week"] == 180.0
+    assert underlying["high_dt_52week"] == "2025-01-02"
+    assert underlying["low_dt_52week"] == "2024-08-09"
+    assert underlying["chg_pct_ytd"] == 12.3
 
 
 def test_build_analysis_pack_no_dividend_data():

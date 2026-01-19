@@ -126,6 +126,18 @@ def build_report_pdf(
             week_52_range = stock_banner.get("week_52_range")
             if week_52_range and week_52_range != "--":
                 header_rows.append(["52W High/Low", week_52_range])
+            high_dt_52week = stock_banner.get("high_dt_52week")
+            if high_dt_52week and high_dt_52week != "--":
+                header_rows.append(["52W High Date", high_dt_52week])
+            low_dt_52week = stock_banner.get("low_dt_52week")
+            if low_dt_52week and low_dt_52week != "--":
+                header_rows.append(["52W Low Date", low_dt_52week])
+            chg_pct_ytd = stock_banner.get("chg_pct_ytd")
+            if chg_pct_ytd and chg_pct_ytd != "--":
+                header_rows.append(["YTD Change", chg_pct_ytd])
+            earnings_date = stock_banner.get("earnings_date")
+            if earnings_date and earnings_date != "--":
+                header_rows.append(["Earnings Date", earnings_date])
             if stock_banner.get("has_stock_position"):
                 shares = stock_banner.get("shares")
                 avg_cost = stock_banner.get("avg_cost")

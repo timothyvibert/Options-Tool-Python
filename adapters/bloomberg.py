@@ -34,16 +34,27 @@ UNDERLYING_FIELDS = [
     "NAME",
     "GICS_SECTOR_NAME",
     "INDUSTRY_SECTOR",
-    "PX_52W_HIGH",
-    "PX_52W_LOW",
     "52WK_HIGH",
     "52WK_LOW",
+    "HIGH_52WEEK",
+    "LOW_52WEEK",
+    "HIGH_DT_52WEEK",
+    "LOW_DT_52WEEK",
+    "CHG_PCT_1YR",
+    "EQY_TRR_PCT_1YR",
+    "CHG_PCT_5D",
+    "CHG_PCT_3M",
+    "CHG_PCT_YTD",
+    "VOL_PERCENTILE",
+    "3MTH_IMPVOL_100.0%MNY_DF",
+    "EARNINGS_RELATED_IMPLIED_MOVE",
     "DVD_YLD",
     "EQY_DVD_YLD_IND",
     "DVD_EX_DT",
     "EQY_DVD_EX_DT",
     "DVD_EX_DATE",
     "EQY_DVD_EX_DATE",
+    "EXPECTED_REPORT_DT",
     "EARNINGS_ANNOUNCEMENT_DATE",
 ]
 DIVIDEND_FIELDS = [
@@ -117,14 +128,36 @@ def fetch_underlying_snapshot(ticker: str) -> pd.Series:
     if row.empty:
         row = df.iloc[[0]]
     record = row.iloc[0].copy()
-    week_52_high = record.get("PX_52W_HIGH")
-    if pd.isna(week_52_high):
-        week_52_high = record.get("52WK_HIGH")
-    week_52_low = record.get("PX_52W_LOW")
-    if pd.isna(week_52_low):
-        week_52_low = record.get("52WK_LOW")
-    record["week_52_high"] = None if pd.isna(week_52_high) else week_52_high
-    record["week_52_low"] = None if pd.isna(week_52_low) else week_52_low
+    def _clean_value(value: object) -> object:
+        try:
+            if pd.isna(value):
+                return None
+        except Exception:
+            pass
+        return value
+
+    high_52week = record.get("HIGH_52WEEK")
+    if pd.isna(high_52week):
+        high_52week = record.get("52WK_HIGH")
+    low_52week = record.get("LOW_52WEEK")
+    if pd.isna(low_52week):
+        low_52week = record.get("52WK_LOW")
+    record["high_52week"] = _clean_value(high_52week)
+    record["low_52week"] = _clean_value(low_52week)
+    record["week_52_high"] = record.get("high_52week")
+    record["week_52_low"] = record.get("low_52week")
+    record["high_dt_52week"] = _clean_value(record.get("HIGH_DT_52WEEK"))
+    record["low_dt_52week"] = _clean_value(record.get("LOW_DT_52WEEK"))
+    record["chg_pct_1yr"] = _clean_value(record.get("CHG_PCT_1YR"))
+    record["eqy_trr_pct_1yr"] = _clean_value(record.get("EQY_TRR_PCT_1YR"))
+    record["chg_pct_5d"] = _clean_value(record.get("CHG_PCT_5D"))
+    record["chg_pct_3m"] = _clean_value(record.get("CHG_PCT_3M"))
+    record["chg_pct_ytd"] = _clean_value(record.get("CHG_PCT_YTD"))
+    record["vol_percentile"] = _clean_value(record.get("VOL_PERCENTILE"))
+    record["impvol_3m_atm"] = _clean_value(record.get("3MTH_IMPVOL_100.0%MNY_DF"))
+    record["earnings_related_implied_move"] = _clean_value(
+        record.get("EARNINGS_RELATED_IMPLIED_MOVE")
+    )
     bds_dividend = fetch_projected_dividend(ticker)
     bdp_ex_div_date = get_next_dividend_date(ticker, snapshot=record.to_dict())
     ex_div_date = bds_dividend.get("ex_div_date") or bdp_ex_div_date

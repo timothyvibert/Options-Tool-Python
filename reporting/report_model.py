@@ -41,6 +41,30 @@ def _fmt_date(value: object) -> str:
     return str(value)
 
 
+def _fmt_snapshot_date(value: object) -> str:
+    if _is_missing(value):
+        return MISSING
+    if isinstance(value, datetime):
+        return value.strftime("%Y-%m-%d")
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return MISSING
+        try:
+            parsed = datetime.fromisoformat(text[:10])
+            return parsed.strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+        try:
+            parsed = datetime.strptime(text[:10], "%m/%d/%Y")
+            return parsed.strftime("%Y-%m-%d")
+        except ValueError:
+            return text
+    return str(value)
+
+
 def _fmt_long_date(value: object) -> str:
     if _is_missing(value):
         return MISSING
@@ -77,6 +101,13 @@ def _fmt_percent(value: object) -> str:
     if isinstance(value, (int, float)):
         return f"{value:.2f}%"
     return str(value)
+
+
+def _fmt_percent_point(value: object) -> str:
+    numeric = _coerce_float(value)
+    if numeric is None:
+        return MISSING
+    return f"{numeric:.1f}%"
 
 
 def _fmt_dividend_yield(value: object) -> str:
@@ -452,12 +483,28 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         profile_source, ["EQY_DVD_YLD_IND", "DVD_YLD", "DVD_YLD_IND", "EQY_DVD_YLD"]
     )
     dividend_yield_text = _fmt_dividend_yield(raw_dividend_yield)
+    raw_earnings_date = pack_underlying.get("earnings_date")
+    if _is_missing(raw_earnings_date):
+        raw_earnings_date = _get_from_snapshot(
+            profile_source,
+            ["earnings_date", "EXPECTED_REPORT_DT", "EARNINGS_ANNOUNCEMENT_DATE"],
+        )
+    earnings_date_text = _fmt_snapshot_date(raw_earnings_date)
     week_52_high = _get_from_snapshot(
-        profile_source, ["week_52_high", "PX_52W_HIGH", "52WK_HIGH"]
+        profile_source,
+        ["high_52week", "HIGH_52WEEK", "week_52_high", "PX_52W_HIGH", "52WK_HIGH"],
     )
     week_52_low = _get_from_snapshot(
-        profile_source, ["week_52_low", "PX_52W_LOW", "52WK_LOW"]
+        profile_source,
+        ["low_52week", "LOW_52WEEK", "week_52_low", "PX_52W_LOW", "52WK_LOW"],
     )
+    high_dt_52week = _get_from_snapshot(
+        profile_source, ["high_dt_52week", "HIGH_DT_52WEEK"]
+    )
+    low_dt_52week = _get_from_snapshot(
+        profile_source, ["low_dt_52week", "LOW_DT_52WEEK"]
+    )
+    chg_pct_ytd = _get_from_snapshot(profile_source, ["chg_pct_ytd", "CHG_PCT_YTD"])
     week_52_range = _fmt_range(week_52_low, week_52_high)
 
     header = {
@@ -493,10 +540,11 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         ),
         "high_52w": _fmt_currency(week_52_high),
         "low_52w": _fmt_currency(week_52_low),
+        "high_dt_52w": _fmt_date(high_dt_52week),
+        "low_dt_52w": _fmt_date(low_dt_52week),
+        "chg_pct_ytd": _fmt_percent_point(chg_pct_ytd),
         "dividend_yield": dividend_yield_text,
-        "earnings_date": _fmt_text(
-            _get_from_snapshot(profile_source, ["EARNINGS_ANNOUNCEMENT_DATE"])
-        ),
+        "earnings_date": earnings_date_text,
         "policies": _fmt_text(policy_value),
         "title": _fmt_text(state.get("title")),
     }
@@ -836,6 +884,10 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
     stock_banner = {
         "dividend_yield": dividend_yield_text,
         "week_52_range": week_52_range,
+        "high_dt_52week": _fmt_date(high_dt_52week),
+        "low_dt_52week": _fmt_date(low_dt_52week),
+        "chg_pct_ytd": _fmt_percent_point(chg_pct_ytd),
+        "earnings_date": earnings_date_text,
         "has_stock_position": has_stock_position,
         "shares": "",
         "avg_cost": "",

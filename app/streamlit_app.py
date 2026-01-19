@@ -1262,28 +1262,69 @@ def render_bloomberg_data():
     st.title("Bloomberg Data")
 
     st.caption("Underlying Snapshot")
-    underlying_rows = [
-        {"Field": "Underlying", "Value": st.session_state.get("underlying_ticker", "")}
-    ]
-    resolved = st.session_state.get("resolved_underlying", "")
-    if resolved:
-        underlying_rows.append({"Field": "Resolved", "Value": resolved})
-    underlying_rows.append(
-        {
-            "Field": "Spot",
-            "Value": st.session_state.get("spot_value", ""),
+    analysis_pack = st.session_state.get("analysis_pack")
+    underlying_payload = None
+    if isinstance(analysis_pack, dict):
+        underlying_payload = analysis_pack.get("underlying")
+    if isinstance(underlying_payload, pd.Series):
+        underlying_payload = underlying_payload.to_dict()
+    if isinstance(underlying_payload, dict) and underlying_payload:
+        percent_fields = {
+            "chg_pct_1yr",
+            "eqy_trr_pct_1yr",
+            "chg_pct_5d",
+            "chg_pct_3m",
+            "chg_pct_ytd",
+            "vol_percentile",
+            "impvol_3m_atm",
+            "dividend_yield",
         }
-    )
-    underlying_rows.append(
-        {
-            "Field": "Last Spot Refresh",
-            "Value": st.session_state.get("last_spot_refresh", "Never"),
-        }
-    )
-    st.table(pd.DataFrame(underlying_rows))
+
+        def _format_underlying_value(field: str, value: object) -> str:
+            if value is None:
+                return "--"
+            try:
+                if pd.isna(value):
+                    return "--"
+            except Exception:
+                pass
+            if isinstance(value, datetime):
+                return value.date().isoformat()
+            if isinstance(value, date):
+                return value.isoformat()
+            if field in percent_fields:
+                numeric = pd.to_numeric(value, errors="coerce")
+                if not pd.isna(numeric):
+                    return f"{numeric:g}%"
+            return str(value)
+
+        underlying_rows = [
+            {"Field": key, "Value": _format_underlying_value(key, underlying_payload[key])}
+            for key in sorted(underlying_payload.keys())
+        ]
+        st.table(pd.DataFrame(underlying_rows))
+    else:
+        underlying_rows = [
+            {"Field": "Underlying", "Value": st.session_state.get("underlying_ticker", "")}
+        ]
+        resolved = st.session_state.get("resolved_underlying", "")
+        if resolved:
+            underlying_rows.append({"Field": "Resolved", "Value": resolved})
+        underlying_rows.append(
+            {
+                "Field": "Spot",
+                "Value": st.session_state.get("spot_value", ""),
+            }
+        )
+        underlying_rows.append(
+            {
+                "Field": "Last Spot Refresh",
+                "Value": st.session_state.get("last_spot_refresh", "Never"),
+            }
+        )
+        st.table(pd.DataFrame(underlying_rows))
 
     st.caption("Dividend risk")
-    analysis_pack = st.session_state.get("analysis_pack")
     dividend_risk = {}
     if isinstance(analysis_pack, dict):
         underlying_info = analysis_pack.get("underlying")
@@ -1645,6 +1686,9 @@ def render_client_report():
             week_52_value = (
                 f"{_as_text(header.get('high_52w'))} / {_as_text(header.get('low_52w'))}"
             )
+        high_dt_52week_value = stock_banner.get("high_dt_52week", "--")
+        low_dt_52week_value = stock_banner.get("low_dt_52week", "--")
+        chg_pct_ytd_value = stock_banner.get("chg_pct_ytd", "--")
         shares_value = (
             stock_banner.get("shares")
             if "shares" in stock_banner
@@ -1680,10 +1724,17 @@ def render_client_report():
             )
             _header_cell(row2[5], "Dividend Yield", header.get("dividend_yield", "--"))
 
-            row3 = st.columns([1.2, 2.0, 2.8])
-            _header_cell(row3[0], "Earnings Date", header.get("earnings_date", "--"))
-            _header_cell(row3[1], "Policies", header.get("policies", "--"))
-            _header_cell(row3[2], "Title", header.get("title", "--"))
+            row3 = st.columns([1.0, 1.0, 1.0, 1.0, 1.6, 2.0])
+            _header_cell(
+                row3[0],
+                "Earnings Date",
+                stock_banner.get("earnings_date", header.get("earnings_date", "--")),
+            )
+            _header_cell(row3[1], "52W High Date", high_dt_52week_value)
+            _header_cell(row3[2], "52W Low Date", low_dt_52week_value)
+            _header_cell(row3[3], "YTD Change", chg_pct_ytd_value)
+            _header_cell(row3[4], "Policies", header.get("policies", "--"))
+            _header_cell(row3[5], "Title", header.get("title", "--"))
 
         body_cols = st.columns([1.1, 1.6])
         structure = model.get("structure", {})

@@ -190,16 +190,53 @@ def build_analysis_pack(
         profile_value = {}
     normalized_profile = {str(key).upper(): value for key, value in profile_value.items()}
     ex_div_date = _extract_dividend_date(profile_value)
-    week_52_high = normalized_profile.get("WEEK_52_HIGH")
-    if week_52_high is None:
-        week_52_high = normalized_profile.get("PX_52W_HIGH") or normalized_profile.get(
-            "52WK_HIGH"
+    def _clean_value(value: object) -> object:
+        try:
+            if pd.isna(value):
+                return None
+        except Exception:
+            pass
+        return value
+
+    high_52week = normalized_profile.get("HIGH_52WEEK")
+    if high_52week is None:
+        high_52week = (
+            normalized_profile.get("WEEK_52_HIGH")
+            or normalized_profile.get("PX_52W_HIGH")
+            or normalized_profile.get("52WK_HIGH")
         )
-    week_52_low = normalized_profile.get("WEEK_52_LOW")
-    if week_52_low is None:
-        week_52_low = normalized_profile.get("PX_52W_LOW") or normalized_profile.get(
-            "52WK_LOW"
+    low_52week = normalized_profile.get("LOW_52WEEK")
+    if low_52week is None:
+        low_52week = (
+            normalized_profile.get("WEEK_52_LOW")
+            or normalized_profile.get("PX_52W_LOW")
+            or normalized_profile.get("52WK_LOW")
         )
+    high_dt_52week = normalized_profile.get("HIGH_DT_52WEEK")
+    low_dt_52week = normalized_profile.get("LOW_DT_52WEEK")
+    chg_pct_1yr = normalized_profile.get("CHG_PCT_1YR")
+    eqy_trr_pct_1yr = normalized_profile.get("EQY_TRR_PCT_1YR")
+    chg_pct_5d = normalized_profile.get("CHG_PCT_5D")
+    chg_pct_3m = normalized_profile.get("CHG_PCT_3M")
+    chg_pct_ytd = normalized_profile.get("CHG_PCT_YTD")
+    vol_percentile = normalized_profile.get("VOL_PERCENTILE")
+    impvol_3m_atm = normalized_profile.get("3MTH_IMPVOL_100.0%MNY_DF")
+    earnings_related_implied_move = normalized_profile.get(
+        "EARNINGS_RELATED_IMPLIED_MOVE"
+    )
+    expected_report_raw = normalized_profile.get("EXPECTED_REPORT_DT")
+    expected_report_date = _parse_date(expected_report_raw)
+    if expected_report_date is None and isinstance(expected_report_raw, str):
+        text = expected_report_raw.strip()
+        if text:
+            try:
+                expected_report_date = datetime.strptime(text[:10], "%m/%d/%Y").date()
+            except ValueError:
+                expected_report_date = None
+    if expected_report_date is None and expected_report_raw:
+        expected_report_value: object = expected_report_raw
+    else:
+        expected_report_value = expected_report_date
     projected_dividend = pd.to_numeric(
         normalized_profile.get("PROJECTED_DIVIDEND"), errors="coerce"
     )
@@ -564,8 +601,23 @@ def build_analysis_pack(
             "ticker": meta.get("underlying_ticker"),
             "resolved": meta.get("resolved_underlying"),
             "spot": strategy_input.spot,
-            "week_52_high": week_52_high,
-            "week_52_low": week_52_low,
+            "high_52week": _clean_value(high_52week),
+            "low_52week": _clean_value(low_52week),
+            "week_52_high": _clean_value(high_52week),
+            "week_52_low": _clean_value(low_52week),
+            "high_dt_52week": _clean_value(high_dt_52week),
+            "low_dt_52week": _clean_value(low_dt_52week),
+            "chg_pct_ytd": _clean_value(chg_pct_ytd),
+            "chg_pct_1yr": _clean_value(chg_pct_1yr),
+            "chg_pct_5d": _clean_value(chg_pct_5d),
+            "chg_pct_3m": _clean_value(chg_pct_3m),
+            "eqy_trr_pct_1yr": _clean_value(eqy_trr_pct_1yr),
+            "vol_percentile": _clean_value(vol_percentile),
+            "impvol_3m_atm": _clean_value(impvol_3m_atm),
+            "earnings_related_implied_move": _clean_value(
+                earnings_related_implied_move
+            ),
+            "earnings_date": expected_report_value,
             "profile": profile_value,
             "dividend_risk": {
                 "ex_div_date": ex_div_date,

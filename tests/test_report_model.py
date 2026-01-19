@@ -1,3 +1,5 @@
+from datetime import date
+
 import pandas as pd
 
 from reporting.report_model import build_report_model
@@ -540,9 +542,18 @@ def test_report_model_stock_banner_with_stock_position():
     state = {
         "analysis_pack": {
             "underlying": {
-                "week_52_high": 210.0,
-                "week_52_low": 140.0,
-                "profile": {"week_52_high": 210.0, "week_52_low": 140.0},
+                "high_52week": 260.0,
+                "low_52week": 180.0,
+                "high_dt_52week": date(2025, 1, 2),
+                "low_dt_52week": date(2024, 8, 9),
+                "chg_pct_ytd": 12.3,
+                "profile": {
+                    "high_52week": 260.0,
+                    "low_52week": 180.0,
+                    "high_dt_52week": date(2025, 1, 2),
+                    "low_dt_52week": date(2024, 8, 9),
+                    "chg_pct_ytd": 12.3,
+                },
             },
             "key_levels": {
                 "levels": [],
@@ -554,7 +565,10 @@ def test_report_model_stock_banner_with_stock_position():
     banner = model.get("stock_banner", {})
     assert banner.get("shares") == "300"
     assert banner.get("avg_cost") == "$160.00"
-    assert banner.get("week_52_range") == "$140.00 / $210.00"
+    assert banner.get("week_52_range") == "$180.00 / $260.00"
+    assert banner.get("high_dt_52week") == "2025-01-02"
+    assert banner.get("low_dt_52week") == "2024-08-09"
+    assert banner.get("chg_pct_ytd") == "12.3%"
     assert banner.get("stock_cost_basis") == "$48,000.00"
 
 
@@ -568,3 +582,24 @@ def test_report_model_stock_banner_without_stock_position():
     banner = model.get("stock_banner", {})
     assert banner.get("shares") == ""
     assert banner.get("avg_cost") == ""
+
+
+def test_report_model_stock_banner_earnings_date():
+    state = {
+        "analysis_pack": {
+            "underlying": {
+                "earnings_date": "02/10/2026",
+                "profile": {"EXPECTED_REPORT_DT": "02/10/2026"},
+            }
+        }
+    }
+    model = build_report_model(state)
+    banner = model.get("stock_banner", {})
+    assert banner.get("earnings_date") == "2026-02-10"
+
+
+def test_report_model_stock_banner_earnings_date_missing():
+    state = {"analysis_pack": {"underlying": {"profile": {}}}}
+    model = build_report_model(state)
+    banner = model.get("stock_banner", {})
+    assert banner.get("earnings_date") == "--"

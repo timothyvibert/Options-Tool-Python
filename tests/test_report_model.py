@@ -145,6 +145,84 @@ def test_report_model_scenario_analysis_cards():
         assert card.get("body")
 
 
+def test_report_model_metrics_unlimited_upside():
+    state = {
+        "analysis_pack": {
+            "summary": {
+                "rows": [
+                    {"metric": "Max Profit", "options": "10", "combined": "10"},
+                    {"metric": "Max ROI", "options": "5%", "combined": "5%"},
+                ]
+            },
+            "key_levels": {
+                "levels": [{"id": "infinity", "label": "Stock to Infinity"}],
+                "meta": {"has_stock_position": True},
+            },
+            "legs": [],
+        }
+    }
+    model = build_report_model(state)
+    metrics_rows = model.get("metrics", {}).get("rows", [])
+    max_profit = next(
+        row for row in metrics_rows if row.get("metric") == "Max Profit"
+    )
+    max_roi = next(row for row in metrics_rows if row.get("metric") == "Max ROI")
+    assert max_profit.get("combined") == "Unlimited"
+    assert max_roi.get("combined") == "Unlimited"
+
+
+def test_report_model_metrics_capped_by_short_call():
+    state = {
+        "analysis_pack": {
+            "summary": {
+                "rows": [
+                    {"metric": "Max Profit", "options": "10", "combined": "10"},
+                    {"metric": "Max ROI", "options": "5%", "combined": "5%"},
+                ]
+            },
+            "key_levels": {
+                "levels": [{"id": "infinity", "label": "Stock to Infinity"}],
+                "meta": {"has_stock_position": True},
+            },
+            "legs": [{"kind": "CALL", "side": "Short"}],
+        }
+    }
+    model = build_report_model(state)
+    metrics_rows = model.get("metrics", {}).get("rows", [])
+    max_profit = next(
+        row for row in metrics_rows if row.get("metric") == "Max Profit"
+    )
+    max_roi = next(row for row in metrics_rows if row.get("metric") == "Max ROI")
+    assert max_profit.get("combined") == "10"
+    assert max_roi.get("combined") == "5%"
+
+
+def test_report_model_metrics_without_infinity():
+    state = {
+        "analysis_pack": {
+            "summary": {
+                "rows": [
+                    {"metric": "Max Profit", "options": "10", "combined": "10"},
+                    {"metric": "Max ROI", "options": "5%", "combined": "5%"},
+                ]
+            },
+            "key_levels": {
+                "levels": [{"id": "spot", "label": "Current Market Price"}],
+                "meta": {"has_stock_position": True},
+            },
+            "legs": [],
+        }
+    }
+    model = build_report_model(state)
+    metrics_rows = model.get("metrics", {}).get("rows", [])
+    max_profit = next(
+        row for row in metrics_rows if row.get("metric") == "Max Profit"
+    )
+    max_roi = next(row for row in metrics_rows if row.get("metric") == "Max ROI")
+    assert max_profit.get("combined") == "10"
+    assert max_roi.get("combined") == "5%"
+
+
 def test_report_model_key_levels_rows():
     levels = [
         {"id": "spot", "label": "Spot", "price": 100.0},

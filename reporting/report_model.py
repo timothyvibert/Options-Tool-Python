@@ -180,6 +180,73 @@ def _extract_scenario_value(scenario: Mapping[str, object], keys: Iterable[str])
     return ""
 
 
+def _normalize_leg_kind(value: object) -> str:
+    if value is None:
+        return ""
+    text = str(value).strip().upper()
+    if text in {"C", "CALL"}:
+        return "CALL"
+    if text in {"P", "PUT"}:
+        return "PUT"
+    return text
+
+
+def _normalize_leg_side(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (int, float)):
+        if value > 0:
+            return "LONG"
+        if value < 0:
+            return "SHORT"
+        return ""
+    text = str(value).strip().upper()
+    if text.startswith("S"):
+        return "SHORT"
+    if text.startswith("L"):
+        return "LONG"
+    return text
+
+
+def _call_leg_flags(analysis_pack: Optional[Mapping[str, object]]) -> tuple[bool, bool]:
+    if not isinstance(analysis_pack, Mapping):
+        return False, False
+    legs = analysis_pack.get("legs")
+    if not isinstance(legs, list):
+        return False, False
+    has_short_call = False
+    has_long_call = False
+    for leg in legs:
+        if not isinstance(leg, Mapping):
+            continue
+        kind = _normalize_leg_kind(leg.get("kind") or leg.get("type"))
+        if kind != "CALL":
+            continue
+        side = _normalize_leg_side(leg.get("side") or leg.get("position"))
+        if side == "SHORT":
+            has_short_call = True
+        elif side == "LONG":
+            has_long_call = True
+    return has_short_call, has_long_call
+
+
+def _has_infinity_level(levels: Iterable[Mapping[str, object]]) -> bool:
+    for level in levels:
+        if not isinstance(level, Mapping):
+            continue
+        level_id = level.get("id")
+        if isinstance(level_id, str) and level_id.strip().lower() == "infinity":
+            return True
+        label = level.get("label")
+        if _is_missing(label):
+            label = level.get("Scenario") or level.get("scenario")
+        if isinstance(label, str) and "infinity" in label.lower():
+            return True
+        if level.get("is_infinity") is True:
+            return True
+    return False
+
+
 def _coerce_float(value: object) -> Optional[float]:
     if value is None:
         return None
@@ -630,6 +697,18 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         has_stock_position = bool(key_levels_block.get("has_stock_position", False))
     else:
         has_stock_position = False
+    unbounded_combined = False
+    if has_stock_position and _has_infinity_level(key_levels_rows):
+        has_short_call, has_long_call = _call_leg_flags(analysis_pack)
+        if not (has_short_call and not has_long_call):
+            unbounded_combined = True
+    if unbounded_combined:
+        for row in metrics_rows:
+            if not isinstance(row, Mapping):
+                continue
+            metric_label = row.get("metric")
+            if metric_label == "Max Profit" or metric_label == "Max ROI":
+                row["combined"] = "Unlimited"
     key_levels_rows_by_price = sorted(key_levels_rows, key=_key_level_sort_key)
     key_levels_display_rows_by_price: List[Dict[str, str]] = []
     for row in key_levels_rows_by_price:

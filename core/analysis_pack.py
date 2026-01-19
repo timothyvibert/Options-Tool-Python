@@ -133,6 +133,37 @@ def _extract_commentary(row: Optional[pd.Series]) -> Optional[str]:
     return text_value if text_value else None
 
 
+def _label_from_row(row: Optional[pd.Series], fallback: str) -> str:
+    if row is None:
+        return fallback
+    label = row.get("scenario")
+    if label is None or (isinstance(label, float) and math.isnan(label)):
+        return fallback
+    text = str(label).strip()
+    return text if text else fallback
+
+
+def _row_by_price(df: pd.DataFrame, price: float) -> Optional[pd.Series]:
+    if df.empty or "price" not in df.columns:
+        return None
+    prices = pd.to_numeric(df["price"], errors="coerce")
+    mask = (prices - float(price)).abs() <= 1e-6
+    if not mask.any():
+        return None
+    return df.loc[mask].iloc[0]
+
+
+def _move_label(prefix: str, spot: float, price: float) -> str:
+    if spot == 0:
+        return f"{prefix} (--%)"
+    pct = abs((price / spot - 1.0) * 100.0)
+    return f"{prefix} ({int(round(pct))}%)"
+
+
+def _fallback_label(price: float) -> str:
+    return f"Scenario @ {price:.2f}"
+
+
 def build_analysis_pack(
     strategy_input: StrategyInput,
     strategy_meta: dict,
@@ -364,22 +395,29 @@ def build_analysis_pack(
     key_rows = []
     spot = float(strategy_input.spot)
     spot_row = _closest_row(scenario_df, spot)
-    key_rows.append(_key_row("Current Market Price", spot_row, spot))
+    spot_label = _label_from_row(spot_row, "Current Market Price")
+    key_rows.append(_key_row(spot_label, spot_row, spot))
 
     for idx, strike in enumerate(strikes):
         row = _closest_row(scenario_df, strike)
-        key_rows.append(_key_row(f"Strike {idx + 1}", row, spot))
+        strike_label = _label_from_row(row, f"Strike {idx + 1}")
+        key_rows.append(_key_row(strike_label, row, spot))
 
     for idx, breakeven in enumerate(breakevens):
         row = _closest_row(scenario_df, breakeven)
-        key_rows.append(_key_row(f"Breakeven {idx + 1}", row, spot))
+        breakeven_label = _label_from_row(row, f"Breakeven {idx + 1}")
+        key_rows.append(_key_row(breakeven_label, row, spot))
 
     price_values = pd.to_numeric(scenario_df["price"], errors="coerce").dropna()
     if not price_values.empty:
         low_price = float(price_values.min())
         high_price = float(price_values.max())
-        key_rows.append(_key_row("Low", _closest_row(scenario_df, low_price), spot))
-        key_rows.append(_key_row("High", _closest_row(scenario_df, high_price), spot))
+        low_row = _closest_row(scenario_df, low_price)
+        high_row = _closest_row(scenario_df, high_price)
+        low_label = _label_from_row(low_row, "Low")
+        high_label = _label_from_row(high_row, "High")
+        key_rows.append(_key_row(low_label, low_row, spot))
+        key_rows.append(_key_row(high_label, high_row, spot))
 
     spot_texts = [text for text in [_extract_commentary(spot_row)] if text]
     strike_texts = []
@@ -413,7 +451,103 @@ def build_analysis_pack(
         {"level": "High", "text": high_text or "--"},
     ]
 
-    return {
+    key_levels = {
+        "meta": {
+            "as_of": as_of_date,
+            "expiry": expiry_date,
+            "spot": spot,
+            "has_stock_position": bool(strategy_input.stock_position),
+            "shares": int(strategy_input.stock_position)
+            if strategy_input.stock_position
+            else None,
+            "avg_cost": (
+                float(strategy_input.avg_cost)
+                if strategy_input.stock_position
+                else None
+            ),
+        },
+        "levels": [],
+    }
+
+    def add_level(
+        level_id: str,
+        label: str,
+        row: Optional[pd.Series],
+        price: Optional[float],
+        source: str,
+    ) -> None:
+        move_pct = None
+        if price is not None and spot:
+            move_pct = (float(price) / spot - 1.0) * 100.0
+        key_levels["levels"].append(
+            {
+                "id": level_id,
+                "label": label,
+                "price": price,
+                "move_pct": move_pct,
+                "stock_pnl": row.get("stock_pnl") if row is not None else None,
+                "option_pnl": row.get("option_pnl") if row is not None else None,
+                "net_pnl": row.get("combined_pnl") if row is not None else None,
+                "net_roi": row.get("net_roi") if row is not None else None,
+                "source": source,
+            }
+        )
+
+    def _row_for_price(price: float) -> pd.Series:
+        row = _row_by_price(scenario_df, price)
+        if row is not None:
+            return row
+        option_pnl = _compute_pnl_for_price(option_only, price)
+        combined_pnl = _compute_pnl_for_price(strategy_input, price)
+        stock_pnl = combined_pnl - option_pnl
+        option_roi = option_pnl / option_basis if option_basis else None
+        net_roi = combined_pnl / total_basis if total_basis else None
+        return pd.Series(
+            {
+                "price": price,
+                "option_pnl": option_pnl,
+                "stock_pnl": stock_pnl,
+                "combined_pnl": combined_pnl,
+                "option_roi": option_roi,
+                "net_roi": net_roi,
+            }
+        )
+
+    spot_row_exact = _row_by_price(scenario_df, spot)
+    add_level(
+        "spot",
+        _label_from_row(spot_row_exact, "Current Market Price"),
+        spot_row_exact,
+        spot,
+        "spot",
+    )
+
+    if not price_values.empty:
+        downside_price = float(price_values.min())
+        downside_row = _row_by_price(scenario_df, downside_price)
+        downside_label = _move_label("Downside", spot, downside_price)
+        add_level("downside", downside_label, downside_row, downside_price, "downside")
+
+        upside_price = float(price_values.max())
+        upside_row = _row_by_price(scenario_df, upside_price)
+        upside_label = _move_label("Upside", spot, upside_price)
+        add_level("upside", upside_label, upside_row, upside_price, "upside")
+
+    for idx, strike in enumerate(strikes, start=1):
+        row = _row_by_price(scenario_df, strike)
+        label = _label_from_row(row, f"Strike {idx}")
+        add_level(f"strike_{idx}", label, row, strike, "strike")
+
+    for idx, breakeven in enumerate(breakevens, start=1):
+        row = _row_for_price(breakeven)
+        label = f"Breakeven {idx}"
+        add_level(f"breakeven_{idx}", label, row, breakeven, "breakeven")
+
+    zero_row = _row_by_price(scenario_df, 0.0)
+    add_level("zero", "Stock to Zero", zero_row, 0.0, "sentinel")
+    add_level("infinity", "Stock to Infinity", None, None, "sentinel")
+
+    analysis_pack = {
         "as_of": as_of,
         "underlying": {
             "ticker": meta.get("underlying_ticker"),
@@ -465,3 +599,5 @@ def build_analysis_pack(
         },
         "commentary_blocks": commentary_blocks,
     }
+    analysis_pack["key_levels"] = key_levels
+    return analysis_pack

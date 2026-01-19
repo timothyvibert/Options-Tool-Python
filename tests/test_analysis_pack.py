@@ -59,6 +59,44 @@ def test_build_analysis_pack_minimal():
     assert not scenario["df"].empty
     assert scenario["top10"] is not None
 
+    key_levels = pack.get("key_levels")
+    assert isinstance(key_levels, dict)
+    assert "meta" in key_levels
+    assert "levels" in key_levels
+    for field in [
+        "as_of",
+        "expiry",
+        "spot",
+        "has_stock_position",
+        "shares",
+        "avg_cost",
+    ]:
+        assert field in key_levels["meta"]
+    levels = key_levels["levels"]
+    assert levels
+    ids = [level.get("id") for level in levels]
+    assert len(ids) == len(set(ids))
+    assert "spot" in ids
+    assert any(level_id.startswith("strike_") for level_id in ids if level_id)
+    assert any(level_id.startswith("breakeven_") for level_id in ids if level_id)
+    assert all(
+        isinstance(level.get("label"), str) and level["label"].strip()
+        for level in levels
+    )
+    level_map = {level.get("id"): level for level in levels}
+    breakevens = pack["payoff"]["breakevens"]
+    if breakevens:
+        breakeven_level = level_map.get("breakeven_1")
+        assert breakeven_level is not None
+        assert breakeven_level["label"] == "Breakeven 1"
+        assert abs(breakeven_level["price"] - breakevens[0]) < 1e-6
+    downside_level = level_map.get("downside")
+    assert downside_level is not None
+    assert str(downside_level["label"]).startswith("Downside")
+    upside_level = level_map.get("upside")
+    assert upside_level is not None
+    assert str(upside_level["label"]).startswith("Upside")
+
     summary_rows = pack["summary"]["rows"]
     assert summary_rows
     assert any(
@@ -103,3 +141,12 @@ def test_build_analysis_pack_no_dividend_data():
     assert dividend_risk["before_expiry"] is None
     assert dividend_risk["projected_dividend"] is None
     assert dividend_risk["dividend_status"] is None
+
+    key_levels = pack.get("key_levels")
+    assert isinstance(key_levels, dict)
+    levels = key_levels.get("levels", [])
+    assert any(level.get("id") == "spot" for level in levels)
+    assert all(
+        isinstance(level.get("label"), str) and level["label"].strip()
+        for level in levels
+    )

@@ -15,6 +15,24 @@ def _to_float(value: object) -> Optional[float]:
         if isinstance(value, float) and math.isnan(value):
             return None
         return float(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if text == "":
+            return None
+        sign = 1.0
+        if text.startswith("(") and text.endswith(")"):
+            sign = -1.0
+            text = text[1:-1].strip()
+        if text.endswith("%"):
+            text = text[:-1].strip()
+        if text.lower().startswith(("credit", "debit")):
+            parts = text.split()
+            text = parts[-1] if parts else ""
+        text = text.replace("$", "").replace(",", "")
+        try:
+            return sign * float(text)
+        except ValueError:
+            return None
     return None
 
 
@@ -30,6 +48,80 @@ def _format_price(value: Optional[float]) -> str:
     if value is None:
         return "--"
     return f"${value:,.2f}"
+
+
+def _format_currency(value: Optional[float]) -> Optional[str]:
+    if value is None:
+        return None
+    return f"${value:,.2f}"
+
+
+def _format_currency_abs(value: Optional[float]) -> Optional[str]:
+    if value is None:
+        return None
+    return f"${abs(value):,.2f}"
+
+
+def _normalize_label(value: object) -> str:
+    if value is None:
+        return ""
+    text = str(value).lower().strip()
+    for ch in [" ", "-", "_", "(", ")", "/"]:
+        text = text.replace(ch, "")
+    return text
+
+
+def _levels_by_label(levels: Iterable[Mapping[str, object]]) -> dict[str, dict]:
+    mapping: dict[str, dict] = {}
+    for level in levels:
+        if not isinstance(level, Mapping):
+            continue
+        label = level.get("label")
+        if _is_missing(label):
+            label = level.get("Scenario") or level.get("scenario")
+        key = _normalize_label(label)
+        if key and key not in mapping:
+            mapping[key] = dict(level)
+    return mapping
+
+
+def _find_level(
+    label_map: Mapping[str, Mapping[str, object]],
+    labels: List[str],
+) -> Optional[Mapping[str, object]]:
+    for label in labels:
+        key = _normalize_label(label)
+        if key in label_map:
+            return label_map[key]
+    return None
+
+
+def _level_net_pnl(level: Optional[Mapping[str, object]]) -> Optional[float]:
+    if not isinstance(level, Mapping):
+        return None
+    for key in ["net_pnl", "Net PnL", "combined_pnl"]:
+        if key in level:
+            value = _to_float(level.get(key))
+            if value is not None:
+                return value
+    return None
+
+
+def _summary_value(
+    summary_rows: Optional[List[Mapping[str, object]]],
+    metric_name: str,
+) -> Optional[float]:
+    if not summary_rows:
+        return None
+    for row in summary_rows:
+        if not isinstance(row, Mapping):
+            continue
+        if row.get("metric") == metric_name:
+            value = row.get("combined") or row.get("options")
+            parsed = _to_float(value)
+            if parsed is not None:
+                return parsed
+    return None
 
 
 def _condition_text(
@@ -177,6 +269,7 @@ def build_narrative_scenarios(
     strategy_input: StrategyInput,
     key_levels: Mapping[str, object],
     payoff_result: Optional[Mapping[str, object]] = None,
+    summary_rows: Optional[List[Mapping[str, object]]] = None,
 ) -> Dict[str, object]:
     levels = key_levels.get("levels") if isinstance(key_levels, Mapping) else None
     if not isinstance(levels, list):
@@ -223,6 +316,7 @@ def build_narrative_scenarios(
             break
 
     level_lookup = _level_map(levels)
+    label_lookup = _levels_by_label(levels)
     inputs_used = dict(context)
     if selected_rule is None:
         return {
@@ -239,12 +333,48 @@ def build_narrative_scenarios(
             },
         }
 
+    spot_level = _find_level(label_lookup, ["Current Market Price", "Spot"])
+    lower_long = _find_level(
+        label_lookup, ["Strike (Lowest)", "Lower Strike", "Strike Lowest"]
+    )
+    upper_long = _find_level(
+        label_lookup, ["Strike (Highest)", "Upper Strike", "Strike Highest"]
+    )
+
+    strike_levels = _strike_levels(levels)
+    lower_short, upper_short = _short_strike_bounds(strike_levels)
+
+    max_profit = _summary_value(summary_rows, "Max Profit")
+    max_loss = _summary_value(summary_rows, "Max Loss")
+    net_premium = _summary_value(summary_rows, "Net Prem/Share")
+
+    if max_profit is None:
+        candidate = None
+        if lower_short is not None:
+            candidate = _level_net_pnl(lower_short)
+        if candidate is None and spot_level is not None:
+            candidate = _level_net_pnl(spot_level)
+        if candidate is None:
+            candidate = _level_net_pnl(lower_long) or _level_net_pnl(upper_long)
+        max_profit = candidate
+
+    if max_loss is None:
+        candidates = []
+        for level in [lower_long, upper_long]:
+            value = _level_net_pnl(level)
+            if value is not None:
+                candidates.append(value)
+        if candidates:
+            max_loss = min(candidates)
+
+    max_profit_text = _format_currency(max_profit)
+    max_loss_text = _format_currency_abs(max_loss)
+    net_premium_text = _format_currency(net_premium)
+
     anchors_used: dict[str, list[str]] = {}
     scenarios: dict[str, object] = {}
     templates = selected_rule.get("templates", {})
     scenario_anchors = selected_rule.get("scenario_anchors", {})
-    strike_levels = _strike_levels(levels)
-    lower_short, upper_short = _short_strike_bounds(strike_levels)
     for kind, title in [
         ("bear", "Bearish Case"),
         ("base", "Stagnant Case"),
@@ -287,9 +417,24 @@ def build_narrative_scenarios(
             if overlay_pnl is not None and stock_only_pnl is not None
             else None
         )
-        body = _render_template(
-            templates.get(kind, ""), {"anchor_price": _format_price(price)}
-        )
+        scenario_pnl_text = _format_signed_currency(overlay_pnl)
+        lower_long_price = _to_float(lower_long.get("price")) if lower_long else None
+        upper_long_price = _to_float(upper_long.get("price")) if upper_long else None
+        context_values = {
+            "anchor_price": _format_price(price) if price is not None else "--",
+            "max_profit": max_profit_text or "--",
+            "max_loss": max_loss_text or "--",
+            "net_premium": net_premium_text or "--",
+            "lower_long": _format_price(lower_long_price) if lower_long_price is not None else "--",
+            "upper_long": _format_price(upper_long_price) if upper_long_price is not None else "--",
+            "scenario_pnl": scenario_pnl_text or "--",
+        }
+        body = _render_template(templates.get(kind, ""), context_values)
+        if "$" not in body and scenario_pnl_text:
+            if body and body.strip() != "--":
+                body = f"{body} Net P&L at this level is {scenario_pnl_text}."
+            else:
+                body = f"Net P&L at this level is {scenario_pnl_text}."
         if has_stock:
             delta_text = _format_signed_currency(delta_vs_stock)
             if delta_text is not None:

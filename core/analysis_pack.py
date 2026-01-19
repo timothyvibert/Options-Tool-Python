@@ -605,5 +605,6 @@ def build_analysis_pack(
         strategy_input=strategy_input,
         key_levels=key_levels,
         payoff_result=payoff_result,
+        summary_rows=summary_rows,
     )
     return analysis_pack

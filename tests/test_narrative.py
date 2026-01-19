@@ -99,6 +99,13 @@ def test_narrative_iron_condor():
     assert "$95.00-$105.00" in base.get("condition", "")
     bull = narrative.get("bull")
     assert "above $105.00" in bull.get("condition", "")
+    for scenario in [bear, base, bull]:
+        body = scenario.get("body", "")
+        assert "$" in body
+    base_body = base.get("body", "").lower()
+    assert "premium" in base_body or "profit" in base_body
+    assert "maximum loss" in bear.get("body", "").lower()
+    assert "maximum loss" in bull.get("body", "").lower()
 
 
 def test_narrative_no_match():

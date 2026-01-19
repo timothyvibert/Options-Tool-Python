@@ -64,28 +64,36 @@ RULES = [
 
 TEMPLATES = {
     "ccov_bear_v1": (
-        "Downside still participates with the stock, but option premium cushions losses."
+        "Downside still participates with the stock, but option premium cushions losses. "
+        "Maximum loss is {max_loss}."
     ),
     "ccov_base_v1": (
-        "If shares stay below the call strike, premium is retained and shares are kept."
+        "If shares stay below the call strike, premium is retained and shares are kept. "
+        "Maximum profit is {max_profit}."
     ),
     "ccov_bull_v1": (
-        "Upside is capped above the call strike; gains beyond that level are given up."
+        "Upside is capped above the call strike; gains beyond that level are given up. "
+        "Maximum profit is {max_profit}."
     ),
     "pprt_bear_v1": (
-        "The long put defines a floor near the strike, limiting downside versus stock-only."
+        "The long put defines a floor near the strike, limiting downside versus stock-only. "
+        "Maximum loss is {max_loss}."
     ),
     "pprt_base_v1": (
-        "If shares stay near current levels, the put premium is a cost of protection."
+        "If shares stay near current levels, the put premium is a cost of protection. "
+        "Net premium is {net_premium}."
     ),
     "pprt_bull_v1": "Upside remains open; the put may expire worthless.",
     "condor_bear_v1": (
-        "If price falls below the lower strike, losses increase toward the long put."
+        "If price falls below the lower short strike, losses increase toward the lower long strike "
+        "({lower_long}). Maximum loss is {max_loss}."
     ),
     "condor_base_v1": (
-        "Between the short strikes, the strategy seeks to retain premium."
+        "Between the short strikes, the strategy seeks to retain the premium. "
+        "Maximum profit is {max_profit}."
     ),
     "condor_bull_v1": (
-        "If price rises above the upper strike, losses increase toward the long call."
+        "If price rises above the upper short strike, losses increase toward the upper long strike "
+        "({upper_long}). Maximum loss is {max_loss}."
     ),
 }

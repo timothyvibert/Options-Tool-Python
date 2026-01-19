@@ -534,3 +534,37 @@ def test_report_model_dividend_yield_missing():
     model = build_report_model(state)
     banner = model.get("stock_banner", {})
     assert banner.get("dividend_yield") == "--"
+
+
+def test_report_model_stock_banner_with_stock_position():
+    state = {
+        "analysis_pack": {
+            "underlying": {
+                "week_52_high": 210.0,
+                "week_52_low": 140.0,
+                "profile": {"week_52_high": 210.0, "week_52_low": 140.0},
+            },
+            "key_levels": {
+                "levels": [],
+                "meta": {"has_stock_position": True, "shares": 300, "avg_cost": 160.0},
+            },
+        }
+    }
+    model = build_report_model(state)
+    banner = model.get("stock_banner", {})
+    assert banner.get("shares") == "300"
+    assert banner.get("avg_cost") == "$160.00"
+    assert banner.get("week_52_range") == "$140.00 / $210.00"
+    assert banner.get("stock_cost_basis") == "$48,000.00"
+
+
+def test_report_model_stock_banner_without_stock_position():
+    state = {
+        "analysis_pack": {
+            "key_levels": {"levels": [], "meta": {"has_stock_position": False}},
+        }
+    }
+    model = build_report_model(state)
+    banner = model.get("stock_banner", {})
+    assert banner.get("shares") == ""
+    assert banner.get("avg_cost") == ""

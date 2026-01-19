@@ -190,6 +190,16 @@ def build_analysis_pack(
         profile_value = {}
     normalized_profile = {str(key).upper(): value for key, value in profile_value.items()}
     ex_div_date = _extract_dividend_date(profile_value)
+    week_52_high = normalized_profile.get("WEEK_52_HIGH")
+    if week_52_high is None:
+        week_52_high = normalized_profile.get("PX_52W_HIGH") or normalized_profile.get(
+            "52WK_HIGH"
+        )
+    week_52_low = normalized_profile.get("WEEK_52_LOW")
+    if week_52_low is None:
+        week_52_low = normalized_profile.get("PX_52W_LOW") or normalized_profile.get(
+            "52WK_LOW"
+        )
     projected_dividend = pd.to_numeric(
         normalized_profile.get("PROJECTED_DIVIDEND"), errors="coerce"
     )
@@ -554,6 +564,8 @@ def build_analysis_pack(
             "ticker": meta.get("underlying_ticker"),
             "resolved": meta.get("resolved_underlying"),
             "spot": strategy_input.spot,
+            "week_52_high": week_52_high,
+            "week_52_low": week_52_low,
             "profile": profile_value,
             "dividend_risk": {
                 "ex_div_date": ex_div_date,

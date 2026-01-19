@@ -123,6 +123,16 @@ def build_report_pdf(
             dividend_yield = stock_banner.get("dividend_yield")
             if dividend_yield:
                 header_rows.append(["Dividend Yield", dividend_yield])
+            week_52_range = stock_banner.get("week_52_range")
+            if week_52_range and week_52_range != "--":
+                header_rows.append(["52W High/Low", week_52_range])
+            if stock_banner.get("has_stock_position"):
+                shares = stock_banner.get("shares")
+                avg_cost = stock_banner.get("avg_cost")
+                if shares and shares != "--":
+                    header_rows.append(["Shares", shares])
+                if avg_cost and avg_cost != "--":
+                    header_rows.append(["Avg Cost", avg_cost])
     story.append(_build_key_value_table(header_rows))
     story.append(Spacer(1, 0.2 * inch))
 

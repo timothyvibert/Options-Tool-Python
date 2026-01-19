@@ -1500,10 +1500,20 @@ def render_client_report():
         text = str(value).strip()
         return text if text else "--"
 
-    def _header_cell(col, label: str, value: object, value_class: str = "report-value") -> None:
+    def _header_cell(
+        col,
+        label: str,
+        value: object,
+        value_class: str = "report-value",
+        allow_blank: bool = False,
+    ) -> None:
         col.markdown(f"<div class='report-label'>{label}</div>", unsafe_allow_html=True)
+        if allow_blank and (value is None or str(value).strip() == ""):
+            value_text = ""
+        else:
+            value_text = _as_text(value)
         col.markdown(
-            f"<div class='{value_class}'>{_as_text(value)}</div>",
+            f"<div class='{value_class}'>{value_text}</div>",
             unsafe_allow_html=True,
         )
 
@@ -1626,6 +1636,25 @@ def render_client_report():
         st.markdown("<div class='report-page-label'>Page 1</div>", unsafe_allow_html=True)
 
         header = model.get("header", {})
+        stock_banner = model.get("stock_banner", {})
+        if not isinstance(stock_banner, dict):
+            stock_banner = {}
+        if "week_52_range" in stock_banner:
+            week_52_value = stock_banner.get("week_52_range")
+        else:
+            week_52_value = (
+                f"{_as_text(header.get('high_52w'))} / {_as_text(header.get('low_52w'))}"
+            )
+        shares_value = (
+            stock_banner.get("shares")
+            if "shares" in stock_banner
+            else header.get("shares", "--")
+        )
+        avg_cost_value = (
+            stock_banner.get("avg_cost")
+            if "avg_cost" in stock_banner
+            else header.get("avg_cost", "--")
+        )
         with st.container(border=True):
             row1 = st.columns([1.1, 1.4, 1.0, 1.5, 1.0])
             _header_cell(row1[0], "Report Time", header.get("report_time", "--"))
@@ -1640,14 +1669,14 @@ def render_client_report():
             _header_cell(row1[4], "Expiry", header.get("expiry", "--"))
 
             row2 = st.columns([1.0, 1.1, 1.5, 1.2, 1.2, 1.2])
-            _header_cell(row2[0], "Shares", header.get("shares", "--"))
-            _header_cell(row2[1], "Avg Cost", header.get("avg_cost", "--"))
+            _header_cell(row2[0], "Shares", shares_value, allow_blank=True)
+            _header_cell(row2[1], "Avg Cost", avg_cost_value, allow_blank=True)
             _header_cell(row2[2], "Name", header.get("name", "--"))
             _header_cell(row2[3], "Sector", header.get("sector", "--"))
             _header_cell(
                 row2[4],
                 "52W High/Low",
-                f"{_as_text(header.get('high_52w'))} / {_as_text(header.get('low_52w'))}",
+                week_52_value,
             )
             _header_cell(row2[5], "Dividend Yield", header.get("dividend_yield", "--"))
 

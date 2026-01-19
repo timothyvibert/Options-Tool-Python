@@ -89,6 +89,30 @@ def _fmt_dividend_yield(value: object) -> str:
     return f"{numeric:.1f}%"
 
 
+def _fmt_currency_symbol(value: object) -> str:
+    numeric = _coerce_float(value)
+    if numeric is None:
+        return MISSING
+    return f"${numeric:,.2f}"
+
+
+def _fmt_shares(value: object) -> str:
+    numeric = _coerce_float(value)
+    if numeric is None:
+        return MISSING
+    if abs(numeric - round(numeric)) < 1e-6:
+        return f"{int(round(numeric)):,}"
+    return f"{numeric:,.2f}"
+
+
+def _fmt_range(low: object, high: object) -> str:
+    low_val = _coerce_float(low)
+    high_val = _coerce_float(high)
+    if low_val is None or high_val is None:
+        return MISSING
+    return f"${low_val:,.2f} / ${high_val:,.2f}"
+
+
 def _get_from_snapshot(snapshot: Optional[Mapping[str, object]], keys: Iterable[str]) -> object:
     if snapshot is None:
         return None
@@ -428,6 +452,13 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         profile_source, ["EQY_DVD_YLD_IND", "DVD_YLD", "DVD_YLD_IND", "EQY_DVD_YLD"]
     )
     dividend_yield_text = _fmt_dividend_yield(raw_dividend_yield)
+    week_52_high = _get_from_snapshot(
+        profile_source, ["week_52_high", "PX_52W_HIGH", "52WK_HIGH"]
+    )
+    week_52_low = _get_from_snapshot(
+        profile_source, ["week_52_low", "PX_52W_LOW", "52WK_LOW"]
+    )
+    week_52_range = _fmt_range(week_52_low, week_52_high)
 
     header = {
         "report_time": _fmt_text(
@@ -460,8 +491,8 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         "sector": _fmt_text(
             _get_from_snapshot(profile_source, ["GICS_SECTOR_NAME", "INDUSTRY_SECTOR"])
         ),
-        "high_52w": _fmt_currency(_get_from_snapshot(profile_source, ["52WK_HIGH"])),
-        "low_52w": _fmt_currency(_get_from_snapshot(profile_source, ["52WK_LOW"])),
+        "high_52w": _fmt_currency(week_52_high),
+        "low_52w": _fmt_currency(week_52_low),
         "dividend_yield": dividend_yield_text,
         "earnings_date": _fmt_text(
             _get_from_snapshot(profile_source, ["EARNINGS_ANNOUNCEMENT_DATE"])
@@ -788,6 +819,15 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
     else:
         disclaimer_list = [MISSING]
 
+    shares_value = None
+    avg_cost_value = None
+    if key_levels_meta:
+        shares_value = _coerce_float(key_levels_meta.get("shares"))
+        avg_cost_value = _coerce_float(key_levels_meta.get("avg_cost"))
+    stock_cost_basis = None
+    if shares_value is not None and avg_cost_value is not None:
+        stock_cost_basis = shares_value * avg_cost_value
+
     page_meta = {
         "size": {"width_pt": 612, "height_pt": 792},
         "margin": {"left_pt": 30, "right_pt": 30, "top_pt": 24, "bottom_pt": 18},
@@ -795,7 +835,24 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
 
     stock_banner = {
         "dividend_yield": dividend_yield_text,
+        "week_52_range": week_52_range,
+        "has_stock_position": has_stock_position,
+        "shares": "",
+        "avg_cost": "",
+        "stock_cost_basis": "",
     }
+    if has_stock_position:
+        stock_banner.update(
+            {
+                "shares": _fmt_shares(shares_value) if shares_value is not None else MISSING,
+                "avg_cost": _fmt_currency_symbol(avg_cost_value)
+                if avg_cost_value is not None
+                else MISSING,
+                "stock_cost_basis": _fmt_currency_symbol(stock_cost_basis)
+                if stock_cost_basis is not None
+                else MISSING,
+            }
+        )
 
     return {
         "page_meta": page_meta,

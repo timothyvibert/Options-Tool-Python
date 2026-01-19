@@ -34,6 +34,8 @@ UNDERLYING_FIELDS = [
     "NAME",
     "GICS_SECTOR_NAME",
     "INDUSTRY_SECTOR",
+    "PX_52W_HIGH",
+    "PX_52W_LOW",
     "52WK_HIGH",
     "52WK_LOW",
     "DVD_YLD",
@@ -115,6 +117,14 @@ def fetch_underlying_snapshot(ticker: str) -> pd.Series:
     if row.empty:
         row = df.iloc[[0]]
     record = row.iloc[0].copy()
+    week_52_high = record.get("PX_52W_HIGH")
+    if pd.isna(week_52_high):
+        week_52_high = record.get("52WK_HIGH")
+    week_52_low = record.get("PX_52W_LOW")
+    if pd.isna(week_52_low):
+        week_52_low = record.get("52WK_LOW")
+    record["week_52_high"] = None if pd.isna(week_52_high) else week_52_high
+    record["week_52_low"] = None if pd.isna(week_52_low) else week_52_low
     bds_dividend = fetch_projected_dividend(ticker)
     bdp_ex_div_date = get_next_dividend_date(ticker, snapshot=record.to_dict())
     ex_div_date = bds_dividend.get("ex_div_date") or bdp_ex_div_date

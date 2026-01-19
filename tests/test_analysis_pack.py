@@ -150,3 +150,67 @@ def test_build_analysis_pack_no_dividend_data():
         isinstance(level.get("label"), str) and level["label"].strip()
         for level in levels
     )
+
+
+def test_key_levels_zero_level_has_pnl():
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=100.0,
+        avg_cost=100.0,
+        legs=[OptionLeg(kind="call", position=-1.0, strike=110.0, premium=2.0)],
+    )
+    pack = build_analysis_pack(
+        strategy_input=strategy_input,
+        strategy_meta={
+            "strategy_name": "Covered Call",
+            "as_of": "2026-01-18",
+            "expiry": "2026-03-20",
+        },
+        pricing_mode="MID",
+        roi_policy=NET_PREMIUM,
+        vol_mode="ATM",
+        atm_iv=0.2,
+        underlying_profile=None,
+        bbg_leg_snapshots=None,
+        scenario_mode="STANDARD",
+        downside_tgt=0.9,
+        upside_tgt=1.1,
+    )
+    levels = pack.get("key_levels", {}).get("levels", [])
+    zero_level = next(
+        (level for level in levels if level.get("id") == "zero"), None
+    )
+    assert zero_level is not None
+    assert zero_level.get("net_pnl") is not None
+
+
+def test_key_levels_zero_level_stock_pnl_no_stock():
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=0.0,
+        avg_cost=0.0,
+        legs=[OptionLeg(kind="call", position=-1.0, strike=110.0, premium=2.0)],
+    )
+    pack = build_analysis_pack(
+        strategy_input=strategy_input,
+        strategy_meta={
+            "strategy_name": "Short Call",
+            "as_of": "2026-01-18",
+            "expiry": "2026-03-20",
+        },
+        pricing_mode="MID",
+        roi_policy=NET_PREMIUM,
+        vol_mode="ATM",
+        atm_iv=0.2,
+        underlying_profile=None,
+        bbg_leg_snapshots=None,
+        scenario_mode="STANDARD",
+        downside_tgt=0.9,
+        upside_tgt=1.1,
+    )
+    levels = pack.get("key_levels", {}).get("levels", [])
+    zero_level = next(
+        (level for level in levels if level.get("id") == "zero"), None
+    )
+    assert zero_level is not None
+    assert zero_level.get("stock_pnl") == 0.0

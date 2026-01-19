@@ -544,7 +544,7 @@ def build_analysis_pack(
         label = f"Breakeven {idx}"
         add_level(f"breakeven_{idx}", label, row, breakeven, "breakeven")
 
-    zero_row = _row_by_price(scenario_df, 0.0)
+    zero_row = _row_for_price(0.0)
     add_level("zero", "Stock to Zero", zero_row, 0.0, "sentinel")
     add_level("infinity", "Stock to Infinity", None, None, "sentinel")
 

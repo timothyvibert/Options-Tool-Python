@@ -1,5 +1,6 @@
 from datetime import date, datetime
 import math
+import os
 import tempfile
 from typing import Optional, Tuple
 
@@ -1481,6 +1482,9 @@ def render_client_report():
     from reporting.report_model import build_report_model
 
     model = build_report_model(st.session_state)
+    debug_mode = bool(st.session_state.get("debug_mode")) or bool(
+        os.getenv("OPTIONS_TOOL_DEBUG_REPORT", "")
+    )
 
     analysis_payoff = st.session_state.get("analysis_payoff", {})
     price_grid = analysis_payoff.get("price_grid", []) if isinstance(analysis_payoff, dict) else []
@@ -1817,18 +1821,19 @@ def render_client_report():
         st.markdown("<div class='report-page-label'>Page 2</div>", unsafe_allow_html=True)
 
         scenario_blocks = list(model.get("scenario_analysis_cards") or [])
-        analysis_pack = st.session_state.get("analysis_pack")
-        with st.expander("DEBUG: analysis_pack.narrative_scenarios", expanded=False):
-            if isinstance(analysis_pack, dict):
-                st.json(analysis_pack.get("narrative_scenarios"))
-            else:
-                st.json(None)
-        with st.expander("Debug: Scenario Analysis Cards", expanded=False):
-            st.json(scenario_blocks)
-            if not scenario_blocks:
-                st.warning(
-                    "Scenario narratives unavailable — check analysis_pack.narrative_scenarios"
-                )
+        if debug_mode:
+            analysis_pack = st.session_state.get("analysis_pack")
+            with st.expander("DEBUG: analysis_pack.narrative_scenarios", expanded=False):
+                if isinstance(analysis_pack, dict):
+                    st.json(analysis_pack.get("narrative_scenarios"))
+                else:
+                    st.json(None)
+            with st.expander("Debug: Scenario Analysis Cards", expanded=False):
+                st.json(scenario_blocks)
+                if not scenario_blocks:
+                    st.warning(
+                        "Scenario narratives unavailable — check analysis_pack.narrative_scenarios"
+                    )
         while len(scenario_blocks) < 3:
             scenario_blocks.append({"title": "--", "condition": "", "body": "--"})
         scenario_cols = st.columns(3)

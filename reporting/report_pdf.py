@@ -117,6 +117,12 @@ def build_report_pdf(
         ["Pricing Mode", inputs.get("pricing_mode", "")],
         ["As Of", as_of],
     ]
+    if isinstance(report_model, dict):
+        stock_banner = report_model.get("stock_banner")
+        if isinstance(stock_banner, dict):
+            dividend_yield = stock_banner.get("dividend_yield")
+            if dividend_yield:
+                header_rows.append(["Dividend Yield", dividend_yield])
     story.append(_build_key_value_table(header_rows))
     story.append(Spacer(1, 0.2 * inch))
 

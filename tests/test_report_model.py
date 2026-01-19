@@ -141,6 +141,8 @@ def test_report_model_scenario_analysis_cards():
         assert isinstance(card.get("title"), str)
         assert isinstance(card.get("condition"), str)
         assert isinstance(card.get("body"), str)
+        assert card.get("condition")
+        assert card.get("body")
 
 
 def test_report_model_key_levels_rows():
@@ -320,3 +322,84 @@ def test_report_model_option_roi_not_inferred_with_stock():
     row = display_rows[0]
     assert row["Option ROI"] == "--"
     assert row["Net ROI"] == "100.0%"
+
+
+def test_report_model_scenario_analysis_cards_list_shape():
+    state = {
+        "analysis_pack": {
+            "narrative_scenarios": [
+                {
+                    "title": "Bearish Case",
+                    "condition": "If stock falls",
+                    "body": "Downside narrative.",
+                },
+                {
+                    "title": "Stagnant Case",
+                    "condition": "If stock stays",
+                    "body": "Neutral narrative.",
+                },
+                {
+                    "title": "Bullish Case",
+                    "condition": "If stock rises",
+                    "body": "Upside narrative.",
+                },
+            ]
+        }
+    }
+    model = build_report_model(state)
+    cards = model.get("scenario_analysis_cards")
+    assert isinstance(cards, list)
+    assert len(cards) == 3
+    for card in cards:
+        assert card.get("condition")
+        assert card.get("body")
+
+
+def test_report_model_dividend_yield_percent_points():
+    state = {
+        "analysis_pack": {
+            "underlying": {
+                "profile": {"EQY_DVD_YLD_IND": 1.7},
+            }
+        }
+    }
+    model = build_report_model(state)
+    banner = model.get("stock_banner", {})
+    assert banner.get("dividend_yield") == "1.7%"
+
+
+def test_report_model_dividend_yield_string():
+    state = {
+        "analysis_pack": {
+            "underlying": {
+                "profile": {"EQY_DVD_YLD_IND": "1.7"},
+            }
+        }
+    }
+    model = build_report_model(state)
+    banner = model.get("stock_banner", {})
+    assert banner.get("dividend_yield") == "1.7%"
+
+
+def test_report_model_dividend_yield_fraction():
+    state = {
+        "analysis_pack": {
+            "underlying": {
+                "profile": {"EQY_DVD_YLD_IND": 0.017},
+            }
+        }
+    }
+    model = build_report_model(state)
+    banner = model.get("stock_banner", {})
+    assert banner.get("dividend_yield") == "1.7%"
+
+
+def test_report_model_dividend_yield_missing():
+    state = {
+        "analysis_pack": {
+            "underlying": {"profile": {}},
+        }
+    }
+    model = build_report_model(state)
+    banner = model.get("stock_banner", {})
+    assert banner.get("dividend_yield") == "--"

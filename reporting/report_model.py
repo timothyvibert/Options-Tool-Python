@@ -79,17 +79,39 @@ def _fmt_percent(value: object) -> str:
     return str(value)
 
 
+def _fmt_dividend_yield(value: object) -> str:
+    numeric = _coerce_float(value)
+    if numeric is None:
+        return MISSING
+    # Bloomberg fields may arrive as percent points (1.7) or fractions (0.017).
+    if 0 < abs(numeric) <= 0.2:
+        numeric *= 100.0
+    return f"{numeric:.1f}%"
+
+
 def _get_from_snapshot(snapshot: Optional[Mapping[str, object]], keys: Iterable[str]) -> object:
     if snapshot is None:
         return None
     for key in keys:
         if isinstance(snapshot, Mapping) and key in snapshot:
-            return snapshot.get(key)
+            value = snapshot.get(key)
+            if not _is_missing(value):
+                return value
         if hasattr(snapshot, "get"):
             try:
-                return snapshot.get(key)  # type: ignore[call-arg]
+                value = snapshot.get(key)  # type: ignore[call-arg]
             except Exception:
                 continue
+            if not _is_missing(value):
+                return value
+    if isinstance(snapshot, Mapping):
+        lowered = {str(k).lower(): k for k in snapshot.keys()}
+        for key in keys:
+            lowered_key = str(key).lower()
+            if lowered_key in lowered:
+                value = snapshot.get(lowered[lowered_key])
+                if not _is_missing(value):
+                    return value
     return None
 
 
@@ -126,6 +148,36 @@ def _scenario_card_text(value: object) -> str:
     if _is_missing(value):
         return ""
     return str(value)
+
+
+def _normalize_scenario_key(value: object) -> str:
+    if value is None:
+        return ""
+    text = str(value).strip().lower()
+    for ch in [" ", "-", "_"]:
+        text = text.replace(ch, "")
+    if text.startswith("bear"):
+        return "bearish"
+    if text.startswith("bull"):
+        return "bullish"
+    if text.startswith("stag") or text.startswith("base") or text.startswith("neutral"):
+        return "stagnant"
+    return text
+
+
+def _extract_scenario_value(scenario: Mapping[str, object], keys: Iterable[str]) -> str:
+    for key in keys:
+        if key in scenario:
+            value = scenario.get(key)
+            if isinstance(value, Mapping):
+                value = (
+                    value.get("text")
+                    or value.get("value")
+                    or value.get("label")
+                    or value.get("content")
+                )
+            return _scenario_card_text(value)
+    return ""
 
 
 def _coerce_float(value: object) -> Optional[float]:
@@ -267,6 +319,11 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
     if not isinstance(profile_source, Mapping):
         profile_source = snapshot
 
+    raw_dividend_yield = _get_from_snapshot(
+        profile_source, ["EQY_DVD_YLD_IND", "DVD_YLD", "DVD_YLD_IND", "EQY_DVD_YLD"]
+    )
+    dividend_yield_text = _fmt_dividend_yield(raw_dividend_yield)
+
     header = {
         "report_time": _fmt_text(
             (analysis_pack or {}).get("as_of")
@@ -300,9 +357,7 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         ),
         "high_52w": _fmt_currency(_get_from_snapshot(profile_source, ["52WK_HIGH"])),
         "low_52w": _fmt_currency(_get_from_snapshot(profile_source, ["52WK_LOW"])),
-        "dividend_yield": _fmt_percent(
-            _get_from_snapshot(profile_source, ["DVD_YLD", "EQY_DVD_YLD_IND"])
-        ),
+        "dividend_yield": dividend_yield_text,
         "earnings_date": _fmt_text(
             _get_from_snapshot(profile_source, ["EARNINGS_ANNOUNCEMENT_DATE"])
         ),
@@ -470,33 +525,53 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
 
     scenario_analysis_cards: List[Dict[str, str]] = []
     narrative_scenarios = analysis_pack.get("narrative_scenarios") if analysis_pack else None
-    if isinstance(narrative_scenarios, Mapping):
-        def pick_scenario(keys: List[str]) -> Optional[Mapping[str, object]]:
-            for key in keys:
-                if key in narrative_scenarios:
-                    scenario = narrative_scenarios.get(key)
-                    if isinstance(scenario, Mapping):
-                        return scenario
-                    return None
-            return None
+    scenario_map: Dict[str, Mapping[str, object]] = {}
+    scenario_list: List[Mapping[str, object]] = []
+    if isinstance(narrative_scenarios, list):
+        scenario_list = [
+            item for item in narrative_scenarios if isinstance(item, Mapping)
+        ]
+    elif isinstance(narrative_scenarios, Mapping):
+        scenarios_value = narrative_scenarios.get("scenarios")
+        if isinstance(scenarios_value, list):
+            scenario_list = [
+                item for item in scenarios_value if isinstance(item, Mapping)
+            ]
+        else:
+            for key, value in narrative_scenarios.items():
+                if isinstance(value, Mapping):
+                    normalized_key = _normalize_scenario_key(key)
+                    if normalized_key and normalized_key not in scenario_map:
+                        scenario_map[normalized_key] = value
 
-        for label, keys in [
-            ("Bearish", ["bearish", "Bearish", "bear", "Bear"]),
-            ("Stagnant", ["stagnant", "Stagnant", "base", "Base"]),
-            ("Bullish", ["bullish", "Bullish", "bull", "Bull"]),
+    for scenario in scenario_list:
+        title_value = (
+            scenario.get("title")
+            or scenario.get("name")
+            or scenario.get("label")
+        )
+        normalized_key = _normalize_scenario_key(title_value)
+        if normalized_key and normalized_key not in scenario_map:
+            scenario_map[normalized_key] = scenario
+
+    if scenario_map:
+        for label, key in [
+            ("Bearish", "bearish"),
+            ("Stagnant", "stagnant"),
+            ("Bullish", "bullish"),
         ]:
-            scenario = pick_scenario(keys)
-            title = _scenario_card_text(scenario.get("title") if scenario else None) or label
-            condition = _scenario_card_text(
-                (scenario.get("condition") if scenario else None)
-                or (scenario.get("conditions") if scenario else None)
+            scenario = scenario_map.get(key)
+            if not isinstance(scenario, Mapping):
+                continue
+            title = _scenario_card_text(scenario.get("title") or label)
+            condition = _extract_scenario_value(
+                scenario, ["condition", "conditions", "condition_str"]
             )
-            body = _scenario_card_text(
-                (scenario.get("body") if scenario else None)
-                or (scenario.get("narrative") if scenario else None)
+            body = _extract_scenario_value(
+                scenario, ["body", "narrative", "text", "body_str"]
             )
             scenario_analysis_cards.append(
-                {"title": title, "condition": condition, "body": body}
+                {"title": title or label, "condition": condition, "body": body}
             )
 
     key_levels_rows: List[Dict[str, object]] = []
@@ -582,6 +657,10 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         "margin": {"left_pt": 30, "right_pt": 30, "top_pt": 24, "bottom_pt": 18},
     }
 
+    stock_banner = {
+        "dividend_yield": dividend_yield_text,
+    }
+
     return {
         "page_meta": page_meta,
         "header": header,
@@ -594,6 +673,7 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         "key_levels_display_rows": key_levels_display_rows,
         "key_levels_display_rows_by_price": key_levels_display_rows_by_price,
         "has_stock_position": has_stock_position,
+        "stock_banner": stock_banner,
         "scenario_table": scenario_table,
         "scenario_analysis_cards": scenario_analysis_cards,
         "commentary_blocks": commentary_blocks,

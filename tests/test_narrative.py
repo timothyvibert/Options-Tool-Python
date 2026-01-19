@@ -113,12 +113,19 @@ def test_narrative_no_match():
         spot=100.0,
         stock_position=0.0,
         avg_cost=0.0,
-        legs=[OptionLeg(kind="call", position=1.0, strike=110.0, premium=2.0)],
+        legs=[
+            OptionLeg(kind="call", position=1.0, strike=110.0, premium=2.0),
+            OptionLeg(kind="put", position=1.0, strike=90.0, premium=2.0),
+        ],
     )
     pack = _build_pack(strategy_input)
     narrative = pack.get("narrative_scenarios")
     assert narrative is not None
-    assert narrative.get("bear") is None
+    for key in ["bear", "base", "bull"]:
+        scenario = narrative.get(key)
+        assert scenario is not None
+        assert scenario.get("condition")
+        assert scenario.get("body")
     trace = narrative.get("trace")
-    assert trace.get("rule_id") is None
-    assert trace.get("reason") == "no matching rule"
+    assert trace.get("rule_id") == "fallback_generic"
+    assert trace.get("reason") == "fallback_used_no_matching_rule"

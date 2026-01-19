@@ -256,6 +256,196 @@ def _format_signed_currency(value: Optional[float]) -> Optional[str]:
     return f"{sign}${abs(value):,.2f}"
 
 
+def _level_value(level: Optional[Mapping[str, object]], keys: Iterable[str]) -> Optional[float]:
+    if not isinstance(level, Mapping):
+        return None
+    for key in keys:
+        if key in level:
+            value = _to_float(level.get(key))
+            if value is not None:
+                return value
+    return None
+
+
+def _pnl_sentence(
+    level: Optional[Mapping[str, object]],
+    has_stock: bool,
+) -> str:
+    combined = _level_value(level, ["net_pnl", "Net PnL", "combined_pnl"])
+    combined_text = _format_signed_currency(combined)
+    if combined_text is None:
+        return ""
+    sentence = f"Combined P&L at this level: {combined_text}."
+    option_pnl = _level_value(level, ["option_pnl", "Option PnL"])
+    stock_pnl = _level_value(level, ["stock_pnl", "Stock PnL"])
+    if has_stock and (option_pnl is not None or stock_pnl is not None):
+        option_text = _format_signed_currency(option_pnl) if option_pnl is not None else None
+        stock_text = _format_signed_currency(stock_pnl) if stock_pnl is not None else None
+        details = []
+        if option_text:
+            details.append(f"Options P&L: {option_text}")
+        if stock_text:
+            details.append(f"Stock-only: {stock_text}")
+        if details:
+            sentence = f"{sentence} " + "; ".join(details) + "."
+    return sentence
+
+
+def _fallback_condition(
+    kind: str,
+    lower_price: Optional[float],
+    upper_price: Optional[float],
+    spot_price: Optional[float],
+) -> str:
+    if lower_price is not None and upper_price is not None:
+        if kind == "bear":
+            return f"Below {_format_price(lower_price)}"
+        if kind == "bull":
+            return f"Above {_format_price(upper_price)}"
+        return f"{_format_price(lower_price)}–{_format_price(upper_price)}"
+    if lower_price is not None:
+        if kind == "bear":
+            return f"Below {_format_price(lower_price)}"
+        if kind == "bull":
+            return f"Above {_format_price(lower_price)}"
+    if spot_price is not None:
+        if kind == "bear":
+            return f"Below {_format_price(spot_price)}"
+        if kind == "bull":
+            return f"Above {_format_price(spot_price)}"
+        return f"Near {_format_price(spot_price)}"
+    return "Key level unavailable"
+
+
+def _fallback_body(
+    kind: str,
+    lower_long_price: Optional[float],
+    upper_long_price: Optional[float],
+    pnl_sentence: str,
+    has_short_strikes: bool,
+) -> str:
+    if has_short_strikes:
+        if kind == "bear":
+            base = "Below the lower strike, losses typically increase toward the hedge strike."
+            if lower_long_price is not None:
+                base = (
+                    "Below the lower strike, losses typically increase toward the hedge strike "
+                    f"({_format_price(lower_long_price)})."
+                )
+        elif kind == "bull":
+            base = "Above the upper strike, losses typically increase toward the hedge strike."
+            if upper_long_price is not None:
+                base = (
+                    "Above the upper strike, losses typically increase toward the hedge strike "
+                    f"({_format_price(upper_long_price)})."
+                )
+        else:
+            base = "Between the strikes, the strategy seeks to perform best."
+    else:
+        if kind == "bear":
+            base = "Below the key strike, losses can increase."
+        elif kind == "bull":
+            base = "Above the key strike, losses can increase."
+        else:
+            base = "Within the key range, the strategy seeks to perform best."
+    if pnl_sentence:
+        return f"{base} {pnl_sentence}".strip()
+    return base
+
+
+def _build_fallback_narratives_from_key_levels(
+    levels: List[Mapping[str, object]],
+    has_stock: bool,
+) -> Dict[str, object]:
+    label_lookup = _levels_by_label(levels)
+    strike_levels = _strike_levels(levels)
+    lower_short, upper_short = _short_strike_bounds(strike_levels)
+    lower_long = _find_level(
+        label_lookup, ["Strike (Lowest)", "Lower Strike", "Strike Lowest"]
+    )
+    upper_long = _find_level(
+        label_lookup, ["Strike (Highest)", "Upper Strike", "Strike Highest"]
+    )
+    spot_level = _find_level(label_lookup, ["Current Market Price", "Spot"])
+
+    lower_short_price = _to_float(lower_short.get("price")) if lower_short else None
+    upper_short_price = _to_float(upper_short.get("price")) if upper_short else None
+    lower_long_price = _to_float(lower_long.get("price")) if lower_long else None
+    upper_long_price = _to_float(upper_long.get("price")) if upper_long else None
+    spot_price = _to_float(spot_level.get("price")) if spot_level else None
+
+    if lower_short is None and strike_levels:
+        lower_short = strike_levels[0]
+        lower_short_price = _to_float(lower_short.get("price"))
+    if upper_short is None and strike_levels:
+        upper_short = strike_levels[-1]
+        upper_short_price = _to_float(upper_short.get("price"))
+
+    anchors_used: dict[str, list[dict]] = {}
+    scenarios: dict[str, object] = {}
+    has_short_strikes = lower_short is not None and upper_short is not None
+    for kind, title in [
+        ("bear", "Bearish Case"),
+        ("base", "Stagnant Case"),
+        ("bull", "Bullish Case"),
+    ]:
+        if kind == "bear":
+            anchor = lower_short or spot_level
+        elif kind == "bull":
+            anchor = upper_short or spot_level
+        else:
+            anchor = spot_level or lower_short or upper_short
+        anchor_list = [anchor] if anchor is not None else []
+        anchors_used[kind] = [
+            {"label": row.get("label"), "price": row.get("price")}
+            for row in anchor_list
+            if isinstance(row, Mapping)
+        ]
+        condition = _fallback_condition(
+            kind, lower_short_price, upper_short_price, spot_price
+        )
+        pnl_sentence = _pnl_sentence(anchor, has_stock)
+        body = _fallback_body(
+            kind,
+            lower_long_price,
+            upper_long_price,
+            pnl_sentence,
+            has_short_strikes,
+        )
+        overlay_pnl = _level_value(anchor, ["net_pnl", "Net PnL", "combined_pnl"])
+        stock_only_pnl = _level_value(anchor, ["stock_pnl", "Stock PnL"]) if has_stock else 0.0
+        delta_vs_stock = None
+        if overlay_pnl is not None and stock_only_pnl is not None:
+            delta_vs_stock = overlay_pnl - stock_only_pnl
+        scenarios[kind] = {
+            "title": title,
+            "condition": condition,
+            "body": body,
+            "anchors": [
+                {
+                    "label": row.get("label"),
+                    "price": row.get("price"),
+                }
+                for row in anchor_list
+                if isinstance(row, Mapping)
+            ],
+            "overlay_pnl": overlay_pnl,
+            "stock_only_pnl": stock_only_pnl,
+            "delta_vs_stock": delta_vs_stock,
+        }
+    return {
+        "bear": scenarios.get("bear"),
+        "base": scenarios.get("base"),
+        "bull": scenarios.get("bull"),
+        "trace": {
+            "rule_id": "fallback_generic",
+            "version": "fallback_v1",
+            "reason": "fallback_used_no_matching_rule",
+            "anchors_used": anchors_used,
+        },
+    }
+
+
 def _pick_primary_anchor(
     anchors: List[Mapping[str, object]],
 ) -> Optional[Mapping[str, object]]:
@@ -319,19 +509,13 @@ def build_narrative_scenarios(
     label_lookup = _levels_by_label(levels)
     inputs_used = dict(context)
     if selected_rule is None:
-        return {
-            "bear": None,
-            "base": None,
-            "bull": None,
-            "trace": {
-                "rule_id": None,
-                "version": None,
-                "matched_conditions": [],
-                "inputs_used": inputs_used,
-                "anchors_used": {},
-                "reason": "no matching rule",
-            },
-        }
+        fallback = _build_fallback_narratives_from_key_levels(levels, has_stock)
+        trace = fallback.get("trace", {})
+        trace = dict(trace)
+        trace["matched_conditions"] = []
+        trace["inputs_used"] = inputs_used
+        fallback["trace"] = trace
+        return fallback
 
     spot_level = _find_level(label_lookup, ["Current Market Price", "Spot"])
     lower_long = _find_level(
@@ -459,6 +643,24 @@ def build_narrative_scenarios(
             "stock_only_pnl": stock_only_pnl,
             "delta_vs_stock": delta_vs_stock,
         }
+
+    def _missing(scenario: Optional[Mapping[str, object]]) -> bool:
+        if not isinstance(scenario, Mapping):
+            return True
+        condition = scenario.get("condition")
+        body = scenario.get("body")
+        if _is_missing(condition) or _is_missing(body):
+            return True
+        return False
+
+    if any(_missing(scenarios.get(key)) for key in ["bear", "base", "bull"]):
+        fallback = _build_fallback_narratives_from_key_levels(levels, has_stock)
+        trace = fallback.get("trace", {})
+        trace = dict(trace)
+        trace["matched_conditions"] = matched_conditions
+        trace["inputs_used"] = inputs_used
+        fallback["trace"] = trace
+        return fallback
 
     return {
         "bear": scenarios.get("bear"),

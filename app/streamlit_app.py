@@ -1767,10 +1767,19 @@ def render_client_report():
         st.divider()
         st.markdown("<div class='report-page-label'>Page 2</div>", unsafe_allow_html=True)
 
-        commentary_blocks = model.get("commentary_blocks", [])
-        scenario_blocks = list(model.get("scenario_analysis_cards", []))
-        if not scenario_blocks:
-            scenario_blocks = list(commentary_blocks)
+        scenario_blocks = list(model.get("scenario_analysis_cards") or [])
+        analysis_pack = st.session_state.get("analysis_pack")
+        with st.expander("DEBUG: analysis_pack.narrative_scenarios", expanded=False):
+            if isinstance(analysis_pack, dict):
+                st.json(analysis_pack.get("narrative_scenarios"))
+            else:
+                st.json(None)
+        with st.expander("Debug: Scenario Analysis Cards", expanded=False):
+            st.json(scenario_blocks)
+            if not scenario_blocks:
+                st.warning(
+                    "Scenario narratives unavailable — check analysis_pack.narrative_scenarios"
+                )
         while len(scenario_blocks) < 3:
             scenario_blocks.append({"title": "--", "condition": "", "body": "--"})
         scenario_cols = st.columns(3)

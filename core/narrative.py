@@ -479,7 +479,7 @@ def _pnl_sentence(
         combined_text = _format_signed_currency(combined)
         if combined_text is None:
             return ""
-        sentence = f"At {price_text}, combined P&L would be {combined_text}."
+        sentence = f"At {price_text}, combined P&L would be {combined_text}"
         option_pnl = _level_value(level, ["option_pnl", "Option PnL"])
         stock_pnl = _level_value(level, ["stock_pnl", "Stock PnL"])
         if option_pnl is not None or stock_pnl is not None:
@@ -495,8 +495,8 @@ def _pnl_sentence(
             if stock_text:
                 details.append(f"the shares contribute {stock_text}")
             if details:
-                sentence = f"{sentence} For context, at this price " + " and ".join(details) + "."
-        return sentence
+                sentence = f"{sentence} (" + "; ".join(details) + ")"
+        return f"{sentence}."
     option_pnl = _level_value(level, ["option_pnl", "Option PnL"])
     if option_pnl is None:
         option_pnl = combined
@@ -618,6 +618,11 @@ def _numbers_sentence(
         if kind == "bull" and max_profit_text and not is_partial:
             return f"Maximum combined profit (at expiry): {max_profit_text}."
         if kind == "base" and premium_sentence:
+            if premium_ctx.get("direction") == "paid":
+                return (
+                    premium_sentence.rstrip(".")
+                    + " — the cost of the downside floor, partially offset by call income."
+                )
             return premium_sentence
         return pnl_sentence or premium_sentence
     if family == "condor":
@@ -1100,10 +1105,8 @@ def _build_fallback_narratives_from_key_levels(
     coverage_tail_bull = ""
     coverage_tail_bear = ""
     if has_stock and is_partial:
-        if family in {"covered_call", "collar"}:
-            coverage_tail_bull = " Uncovered shares continue to participate."
-        if family in {"protective_put", "collar"}:
-            coverage_tail_bear = " Unprotected shares still participate in downside."
+        coverage_tail_bull = ""
+        coverage_tail_bear = ""
 
     def _fallback_base_body(kind: str) -> str:
         if has_stock:
@@ -1111,21 +1114,21 @@ def _build_fallback_narratives_from_key_levels(
             if kind == "bear":
                 anchor = lower_short_price or spot_price
                 anchor_text = _format_price(anchor) if anchor is not None else "the key level"
-                opener = f"Below {anchor_text}, downside is the focus{coverage_text}."
+                opener = f"Below {anchor_text}, losses track the shares{coverage_text}."
             elif kind == "bull":
                 anchor = upper_short_price or spot_price
                 anchor_text = _format_price(anchor) if anchor is not None else "the key level"
-                opener = f"Above {anchor_text}, upside is the focus{coverage_text}."
+                opener = f"Above {anchor_text}, gains track the shares{coverage_text}."
             else:
                 low = lower_short_price or spot_price
                 high = upper_short_price or spot_price
                 if low is not None and high is not None:
                     opener = (
                         f"Between {_format_price(min(low, high))} and {_format_price(max(low, high))}, "
-                        f"outcomes are stock-driven{coverage_text}."
+                        f"results follow the shares{coverage_text}."
                     )
                 else:
-                    opener = "Around current levels, outcomes are stock-driven."
+                    opener = "Around current levels, results follow the shares."
 
             if family == "covered_call":
                 strike_text = _format_price(upper_short_price) if upper_short_price is not None else "the call strike"
@@ -1185,16 +1188,16 @@ def _build_fallback_narratives_from_key_levels(
             )
             return _join_sentences([opener, mechanics])
         has_short_strikes = lower_short_price is not None and upper_short_price is not None
-        opener = "Around the key level, the range is defined by the strikes."
+        opener = "Around the strikes, outcomes depend on where the stock settles."
         if has_short_strikes:
             if kind == "bear":
-                opener = f"Below {_format_price(lower_short_price)}, downside is the focus."
+                opener = f"Below {_format_price(lower_short_price)}, losses can increase."
             elif kind == "bull":
-                opener = f"Above {_format_price(upper_short_price)}, upside is the focus."
+                opener = f"Above {_format_price(upper_short_price)}, losses can increase."
             else:
                 opener = (
                     f"Between {_format_price(lower_short_price)} and {_format_price(upper_short_price)}, "
-                    "the range is defined by the strikes."
+                    "outcomes depend on where the stock settles."
                 )
         if option_structure in {"call_spread", "put_spread"} and has_short_strikes:
             lower_text = _format_price(lower_short_price) if lower_short_price is not None else "--"
@@ -1285,9 +1288,9 @@ def _build_fallback_narratives_from_key_levels(
             return _join_sentences([opener, mechanics])
 
         if kind == "bear":
-            mechanics = "At expiry below the key level, losses can increase."
+            mechanics = "At expiry below this price, losses can increase."
         elif kind == "bull":
-            mechanics = "At expiry above the key level, losses can increase."
+            mechanics = "At expiry above this price, losses can increase."
         else:
             mechanics = "At expiry within the key range, the strategy seeks to perform best."
         return _join_sentences([opener, mechanics])
@@ -1557,10 +1560,8 @@ def build_narrative_scenarios(
     coverage_tail_bull = ""
     coverage_tail_bear = ""
     if has_stock and is_partial:
-        if family in {"covered_call", "collar"}:
-            coverage_tail_bull = " Uncovered shares continue to participate."
-        if family in {"protective_put", "collar"}:
-            coverage_tail_bear = " Unprotected shares still participate in downside."
+        coverage_tail_bull = ""
+        coverage_tail_bear = ""
 
     is_credit = narrative_ctx.get("is_credit")
     is_debit = narrative_ctx.get("is_debit")

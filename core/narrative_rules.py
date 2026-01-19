@@ -108,11 +108,11 @@ RULES = [
 
 TEMPLATES = {
     "ccov_bear_v3": (
-        "Below {cap_strike}, the call strike is the key level for {coverage_clause}. "
+        "Below {cap_strike}, downside follows the shares for {coverage_clause}. "
         "At expiry below {cap_strike}, the call expires worthless on {coverage_scope}."
     ),
     "ccov_base_v3": (
-        "Between {spot} and {cap_strike}, results are driven by the shares for {coverage_clause}. "
+        "Between {spot} and {cap_strike}, gains follow the shares for {coverage_clause}. "
         "At expiry in this range, the call expires worthless on {coverage_scope}."
     ),
     "ccov_bull_v3": (
@@ -120,11 +120,11 @@ TEMPLATES = {
         "At expiry above {cap_strike}, shares may be called away at the strike and upside is {cap_phrase} on {coverage_scope}.{coverage_tail_bull}"
     ),
     "pprt_bear_v3": (
-        "Below {put_strike}, the put strike defines the floor for {coverage_clause}. "
+        "Below {put_strike}, the put establishes the floor for {coverage_clause}. "
         "At expiry below {put_strike}, the put settles at intrinsic value and downside is {protection_phrase} on {coverage_scope}.{coverage_tail_bear}"
     ),
     "pprt_base_v3": (
-        "Between {put_strike} and {spot}, the shares drive results for {coverage_clause}. "
+        "Between {put_strike} and {spot}, results follow the shares for {coverage_clause}. "
         "At expiry in this range, protection remains in place on {coverage_scope}."
     ),
     "pprt_bull_v3": (
@@ -132,39 +132,36 @@ TEMPLATES = {
         "At expiry above {spot}, the put expires worthless and gains follow the shares on {coverage_scope}."
     ),
     "collar_bear_v3": (
-        "Below {put_strike}, the put strike defines the floor for {coverage_clause}. "
+        "Below {put_strike}, the put sets the floor for {coverage_clause}. "
         "At expiry below {put_strike}, downside is {protection_phrase} on {coverage_scope}.{coverage_tail_bear}"
     ),
     "collar_base_v3": (
-        "Between {put_strike} and {cap_strike}, the strike band defines outcomes for {coverage_clause}. "
-        "At expiry in this range, the put expires worthless and the call stays out of the money on {coverage_scope}."
+        "Between {put_strike} and {cap_strike}, P&L is primarily driven by the shares for {coverage_clause}. "
+        "At expiry in this range, the collar legs expire worthless on {coverage_scope}."
     ),
     "collar_bull_v3": (
         "Above {cap_strike}, upside is limited by the call strike for {coverage_clause}. "
         "At expiry above {cap_strike}, shares may be called away at the strike and upside is {cap_phrase} on {coverage_scope}.{coverage_tail_bull}"
     ),
     "condor_bear_v3": (
-        "Below {lower_short}, the downside short strike is the key level. "
+        "Below {lower_short}, losses build toward the lower hedge at {lower_long}. "
         "At expiry below {lower_short}, losses increase toward the lower hedge at {lower_long}."
     ),
     "condor_base_v3": (
-        "Between {lower_short} and {upper_short}, the short strikes frame the range. "
+        "Between {lower_short} and {upper_short}, the short options stay out of the money. "
         "At expiry in this range, the short options expire worthless and the strategy retains the net credit."
     ),
     "condor_bull_v3": (
-        "Above {upper_short}, the upside short strike is the key level. "
+        "Above {upper_short}, losses build toward the upper hedge at {upper_long}. "
         "At expiry above {upper_short}, losses increase toward the upper hedge at {upper_long}."
     ),
     "call_spread_debit_bear_v1": (
-        "Below {lower_short}, the lower strike is the key level. "
-        "At expiry below {lower_short}, both calls expire worthless."
+        "At expiry below {lower_short}, both calls expire worthless and the position loses the debit paid."
     ),
     "call_spread_debit_base_v1": (
-        "Between {lower_short} and {upper_short}, the strike band defines outcomes. "
-        "At expiry between {lower_short} and {upper_short}, intrinsic value increases as price rises."
+        "At expiry between {lower_short} and {upper_short}, intrinsic value increases as price rises toward the upper strike."
     ),
     "call_spread_debit_bull_v1": (
-        "Above {upper_short}, the upper strike is the key level. "
         "At expiry above {upper_short}, gains are capped at maximum profit."
     ),
 }

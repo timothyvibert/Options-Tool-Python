@@ -41,13 +41,18 @@ def test_narrative_covered_call_full():
     pack = _build_pack(strategy_input)
     narrative = pack.get("narrative_scenarios")
     assert narrative is not None
+    trace = narrative.get("trace", {})
+    assert trace.get("rule_id") == "covered_call_v3"
 
     bear_body = narrative.get("bear", {}).get("body", "").lower()
-    bull_body = narrative.get("bull", {}).get("body", "").lower()
+    bull = narrative.get("bull", {})
+    bull_body = bull.get("body", "").lower()
 
     assert "full position" in bull_body
     assert "maximum loss" not in bear_body
     assert "capped" in bull_body or "called away" in bull_body
+    assert "at expiry" in bull_body
+    assert "above $110.00" in bull.get("condition", "").lower()
 
 
 def test_narrative_partial_collar_meta():
@@ -76,12 +81,15 @@ def test_narrative_partial_collar_meta():
     assert "%" not in bear_condition
 
     bear_body = bear.get("body", "").lower()
-    assert "approximately 80% of the position" in bear_body
+    assert "~80% of the position" in bear_body
     assert "800 of 1,000 shares" in bear_body
     assert "partially protected" in bear_body
+    assert "at expiry" in bear_body
 
     bull_body = bull.get("body", "").lower()
     assert "partially capped" in bull_body
+    assert "at expiry" in bull_body
+    assert "above $110.00" in bull.get("condition", "").lower()
 
 
 def test_narrative_bull_call_spread_options_only():
@@ -100,9 +108,14 @@ def test_narrative_bull_call_spread_options_only():
 
     base_body = narrative.get("base", {}).get("body", "").lower()
     assert "breakeven" in base_body
+    assert "retain premium" not in base_body
+    assert "at expiry" in base_body
 
     bull_body = narrative.get("bull", {}).get("body", "")
-    assert "ROI at this level: 400.0%" in bull_body
+    assert "gains are capped" in bull_body.lower()
+    assert "maximum profit" in bull_body.lower()
+    assert "at expiry" in bull_body.lower()
+    assert "ROI at $110.00 is 400.0%" in bull_body
 
     for key in ["bear", "base", "bull"]:
         body = narrative.get(key, {}).get("body", "")
@@ -126,8 +139,33 @@ def test_narrative_no_match():
         scenario = narrative.get(key)
         assert scenario is not None
         assert scenario.get("condition")
-        assert scenario.get("body")
+        assert "at expiry" in scenario.get("body", "").lower()
     trace = narrative.get("trace")
     assert trace.get("rule_id") == "fallback_generic"
     assert trace.get("reason") == "fallback_used_no_matching_rule"
 
+
+def test_narrative_credit_condor_options_only():
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=0.0,
+        avg_cost=0.0,
+        legs=[
+            OptionLeg(kind="put", position=1.0, strike=90.0, premium=1.0),
+            OptionLeg(kind="put", position=-1.0, strike=95.0, premium=2.0),
+            OptionLeg(kind="call", position=-1.0, strike=105.0, premium=2.0),
+            OptionLeg(kind="call", position=1.0, strike=110.0, premium=1.0),
+        ],
+    )
+    pack = _build_pack(strategy_input)
+    narrative = pack.get("narrative_scenarios")
+    assert narrative is not None
+    base_body = narrative.get("base", {}).get("body", "").lower()
+    assert "retains the net credit" in base_body
+    bear_body = narrative.get("bear", {}).get("body", "").lower()
+    bull_body = narrative.get("bull", {}).get("body", "").lower()
+    assert "losses increase" in bear_body
+    assert "losses increase" in bull_body
+    for key in ["bear", "base", "bull"]:
+        body = narrative.get(key, {}).get("body", "")
+        _assert_no_stock_language(body)

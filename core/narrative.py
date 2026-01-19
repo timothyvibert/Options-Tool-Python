@@ -248,6 +248,7 @@ def _level_map(levels: Iterable[Mapping[str, object]]) -> dict[str, dict]:
 
 def _strike_levels(levels: Iterable[Mapping[str, object]]) -> list[dict]:
     strikes = []
+    seen_prices = set()
     for level in levels:
         if not isinstance(level, Mapping):
             continue
@@ -260,6 +261,9 @@ def _strike_levels(levels: Iterable[Mapping[str, object]]) -> list[dict]:
         price = _to_float(level.get("price"))
         if price is None:
             continue
+        if price in seen_prices:
+            continue
+        seen_prices.add(price)
         payload = dict(level)
         payload["_label_text"] = label_text
         payload["_price"] = price
@@ -399,13 +403,18 @@ def _level_value(level: Optional[Mapping[str, object]], keys: Iterable[str]) -> 
 def _pnl_sentence(
     level: Optional[Mapping[str, object]],
     has_stock: bool,
+    anchor_price: Optional[float],
 ) -> str:
+    price_value = anchor_price
+    if price_value is None and isinstance(level, Mapping):
+        price_value = _to_float(level.get("price"))
+    price_text = _format_price(price_value) if price_value is not None else "this price"
     combined = _level_value(level, ["net_pnl", "Net PnL", "combined_pnl"])
     if has_stock:
         combined_text = _format_signed_currency(combined)
         if combined_text is None:
             return ""
-        sentence = f"Combined P&L at this level: {combined_text}."
+        sentence = f"At {price_text}, combined P&L would be {combined_text}."
         option_pnl = _level_value(level, ["option_pnl", "Option PnL"])
         stock_pnl = _level_value(level, ["stock_pnl", "Stock PnL"])
         if option_pnl is not None or stock_pnl is not None:
@@ -417,11 +426,11 @@ def _pnl_sentence(
             )
             details = []
             if option_text:
-                details.append(f"Options P&L: {option_text}")
+                details.append(f"options contribute {option_text}")
             if stock_text:
-                details.append(f"Stock-only: {stock_text}")
+                details.append(f"the shares contribute {stock_text}")
             if details:
-                sentence = f"{sentence} " + "; ".join(details) + "."
+                sentence = f"{sentence} For context, at this price " + " and ".join(details) + "."
         return sentence
     option_pnl = _level_value(level, ["option_pnl", "Option PnL"])
     if option_pnl is None:
@@ -429,7 +438,7 @@ def _pnl_sentence(
     option_text = _format_signed_currency(option_pnl)
     if option_text is None:
         return ""
-    return f"Options P&L at this level: {option_text}."
+    return f"At {price_text}, options P&L would be {option_text}."
 
 
 def _numbers_sentence(
@@ -444,6 +453,12 @@ def _numbers_sentence(
     roi_value: Optional[float],
     breakeven_price: Optional[float],
     include_breakeven: bool,
+    anchor_price: Optional[float],
+    is_credit: Optional[bool],
+    is_debit: Optional[bool],
+    option_structure: str,
+    is_capped_profit: bool,
+    is_defined_risk: bool,
 ) -> Optional[str]:
     premium_sentence = _premium_sentence(premium_ctx)
     max_profit_text = _format_currency(max_profit)
@@ -456,21 +471,57 @@ def _numbers_sentence(
 
     if not has_stock:
         parts: list[str] = []
-        if family in {"condor", "generic"}:
-            if kind == "base" and max_profit_text:
-                parts.append(f"Maximum profit: {max_profit_text}")
-            if kind in {"bear", "bull"} and max_loss_text:
-                parts.append(f"Maximum loss: {max_loss_text}")
-        if kind == "base" and premium_sentence:
-            parts.append(strip_period(premium_sentence))
+        anchor_text = _format_price(anchor_price) if anchor_price is not None else None
+        debit_text = None
+        if premium_ctx.get("direction") == "paid":
+            total = premium_ctx.get("total")
+            per_share = premium_ctx.get("per_share")
+            if total is not None:
+                debit_text = _format_currency_abs(total)
+            elif per_share is not None:
+                debit_text = f"{_format_currency_abs(per_share)} per share"
+        if is_debit and option_structure in {"call_spread", "put_spread"}:
+            if kind == "bear":
+                if debit_text:
+                    parts.append(f"Maximum loss equals the debit paid: {debit_text}.")
+                elif max_loss_text and is_defined_risk:
+                    parts.append(f"Maximum loss is {max_loss_text}.")
+                if roi_text and anchor_text:
+                    parts.append(f"ROI at {anchor_text} is {roi_text}.")
+            elif kind == "base":
+                if include_breakeven and breakeven_text:
+                    parts.append(f"Breakeven is around {breakeven_text}.")
+            else:
+                if max_profit_text and is_capped_profit:
+                    parts.append(f"Maximum profit is {max_profit_text}.")
+                if roi_text and anchor_text:
+                    parts.append(f"ROI at {anchor_text} is {roi_text}.")
+            if parts:
+                return " ".join(parts)
+            return None
+
+        if is_credit:
+            if kind == "base" and premium_sentence:
+                parts.append(strip_period(premium_sentence))
+            if kind in {"bear", "bull"} and max_loss_text and is_defined_risk:
+                parts.append(f"Maximum loss is {max_loss_text}.")
+            if include_breakeven and breakeven_text:
+                parts.append(f"Breakeven is around {breakeven_text}.")
+            if parts:
+                return " ".join(parts)
+
+        if kind == "base" and max_profit_text and not is_debit:
+            parts.append(f"Maximum profit is {max_profit_text}.")
+        if kind in {"bear", "bull"} and max_loss_text and is_defined_risk:
+            parts.append(f"Maximum loss is {max_loss_text}.")
+        if include_breakeven and breakeven_text:
+            parts.append(f"Breakeven is around {breakeven_text}.")
+        if roi_text and anchor_text and kind != "base":
+            parts.append(f"ROI at {anchor_text} is {roi_text}.")
         if not parts and pnl_sentence:
             parts.append(strip_period(pnl_sentence))
-        if roi_text:
-            parts.append(f"ROI at this level: {roi_text}")
-        if include_breakeven and breakeven_text:
-            parts.append(f"Breakeven near {breakeven_text}")
         if parts:
-            return "; ".join(parts) + "."
+            return " ".join(parts)
         return None
     if family == "covered_call":
         if kind in {"bear", "base"} and premium_sentence:
@@ -658,13 +709,17 @@ def _compute_overlay_coverage(analysis_pack: Mapping[str, object]) -> dict:
         coverage["collared_shares"] = collared_shares
     coverage_shares = None
     contract_count = None
+    coverage_scope = "the shares"
     if collared_shares:
+        coverage_scope = "the collared shares"
         coverage_shares = collared_shares
         contract_count = int(round(min(short_call_contracts, long_put_contracts)))
     elif covered_shares:
+        coverage_scope = "the covered shares"
         coverage_shares = min(covered_shares, shares_int)
         contract_count = int(round(short_call_contracts)) if short_call_contracts else None
     elif protected_shares:
+        coverage_scope = "the protected shares"
         coverage_shares = min(protected_shares, shares_int)
         contract_count = int(round(long_put_contracts)) if long_put_contracts else None
 
@@ -680,21 +735,179 @@ def _compute_overlay_coverage(analysis_pack: Mapping[str, object]) -> dict:
             )
             coverage["coverage_phrase"] = f"This overlay applies to {coverage_clause}."
             coverage["coverage_clause"] = coverage_clause
-            coverage["coverage_scope"] = "the shares"
+            coverage["coverage_scope"] = coverage_scope
         else:
             coverage_clause = (
-                f"approximately {pct}% of the position "
+                f"~{pct}% of the position "
                 f"({coverage_shares:,} of {shares_int:,} shares)"
             )
             coverage["coverage_phrase"] = f"This overlay applies to {coverage_clause}."
             coverage["coverage_clause"] = coverage_clause
-            coverage["coverage_scope"] = "the covered shares"
+            coverage["coverage_scope"] = coverage_scope
     elif has_stock:
         coverage_clause = f"the position ({shares_int:,} shares)"
         coverage["coverage_phrase"] = f"This overlay applies to {coverage_clause}."
         coverage["coverage_clause"] = coverage_clause
         coverage["coverage_scope"] = "the shares"
     return coverage
+
+
+def _build_narrative_context(analysis_pack: Mapping[str, object]) -> dict:
+    context = {
+        "has_stock_position": False,
+        "shares": 0,
+        "overlay_type": "none",
+        "coverage_ratio": None,
+        "coverage_clause": None,
+        "coverage_scope": None,
+        "is_partial": False,
+        "contract_count": None,
+        "is_credit": None,
+        "is_debit": None,
+        "option_structure": "mixed",
+        "is_capped_profit": False,
+        "is_defined_risk": False,
+    }
+    if not isinstance(analysis_pack, Mapping):
+        return context
+
+    key_levels = analysis_pack.get("key_levels")
+    meta = {}
+    if isinstance(key_levels, Mapping):
+        meta = key_levels.get("meta") if isinstance(key_levels.get("meta"), Mapping) else key_levels
+    strategy_input = analysis_pack.get("strategy_input")
+    has_stock = bool(meta.get("has_stock_position", False))
+    shares_value = meta.get("shares")
+    if shares_value is None and isinstance(strategy_input, StrategyInput):
+        shares_value = abs(strategy_input.stock_position)
+        has_stock = bool(strategy_input.stock_position)
+    shares = _to_float(shares_value)
+    context["has_stock_position"] = has_stock
+    if shares is not None:
+        context["shares"] = int(round(abs(shares)))
+
+    coverage_context = _compute_overlay_coverage(analysis_pack)
+    context["coverage_ratio"] = coverage_context.get("coverage_ratio")
+    context["coverage_clause"] = coverage_context.get("coverage_clause")
+    context["coverage_scope"] = coverage_context.get("coverage_scope")
+    context["is_partial"] = bool(coverage_context.get("is_partial"))
+    context["contract_count"] = coverage_context.get("contract_count")
+    if not has_stock:
+        context["coverage_ratio"] = None
+        context["coverage_clause"] = None
+        context["coverage_scope"] = None
+        context["contract_count"] = None
+        context["is_partial"] = False
+
+    legs_data = []
+    if isinstance(strategy_input, StrategyInput):
+        for leg in strategy_input.legs:
+            legs_data.append(
+                {
+                    "kind": leg.kind,
+                    "position": leg.position,
+                    "side": "Short" if leg.position < 0 else "Long",
+                }
+            )
+    elif isinstance(analysis_pack.get("legs"), list):
+        legs_data = analysis_pack.get("legs")
+
+    has_calls = False
+    has_puts = False
+    has_short_call = False
+    has_long_call = False
+    has_short_put = False
+    has_long_put = False
+    for leg in legs_data:
+        if not isinstance(leg, Mapping):
+            continue
+        kind = str(leg.get("kind") or leg.get("type") or "").lower()
+        side = str(leg.get("side") or "").lower()
+        position = _to_float(leg.get("position"))
+        if position is not None:
+            side = "short" if position < 0 else "long"
+        if kind == "call":
+            has_calls = True
+            if "short" in side:
+                has_short_call = True
+            if "long" in side:
+                has_long_call = True
+        if kind == "put":
+            has_puts = True
+            if "short" in side:
+                has_short_put = True
+            if "long" in side:
+                has_long_put = True
+
+    if has_stock:
+        if has_short_call and has_long_put:
+            context["overlay_type"] = "collar"
+        elif has_short_call:
+            context["overlay_type"] = "covered_call"
+        elif has_long_put:
+            context["overlay_type"] = "protective_put"
+
+    option_structure = "mixed"
+    if not has_stock:
+        if has_calls and not has_puts:
+            if has_short_call and has_long_call:
+                option_structure = "call_spread"
+            elif has_short_call:
+                option_structure = "short_call"
+            elif has_long_call:
+                option_structure = "long_call"
+        elif has_puts and not has_calls:
+            if has_short_put and has_long_put:
+                option_structure = "put_spread"
+            elif has_short_put:
+                option_structure = "short_put"
+            elif has_long_put:
+                option_structure = "long_put"
+        elif has_calls and has_puts:
+            if has_short_call and has_long_call and has_short_put and has_long_put:
+                option_structure = "condor"
+            else:
+                option_structure = "mixed"
+    context["option_structure"] = option_structure
+
+    summary_rows = analysis_pack.get("summary_rows")
+    if summary_rows is None:
+        summary = analysis_pack.get("summary")
+        if isinstance(summary, Mapping):
+            summary_rows = summary.get("rows")
+
+    cost_credit = None
+    if isinstance(summary_rows, list):
+        for row in summary_rows:
+            if not isinstance(row, Mapping):
+                continue
+            if row.get("metric") == "Cost/Credit":
+                cost_credit = row.get("options") or row.get("combined")
+                break
+    if isinstance(cost_credit, str):
+        lowered = cost_credit.lower()
+        if "credit" in lowered:
+            context["is_credit"] = True
+            context["is_debit"] = False
+        elif "debit" in lowered:
+            context["is_credit"] = False
+            context["is_debit"] = True
+
+    if context["is_credit"] is None and context["is_debit"] is None:
+        net_premium = _summary_metric(summary_rows, "Net Prem/Share", prefer="options")
+        if net_premium is not None:
+            context["is_credit"] = net_premium < 0
+            context["is_debit"] = net_premium > 0
+
+    max_profit = _summary_metric(summary_rows, "Max Profit", prefer="options")
+    max_loss = _summary_metric(summary_rows, "Max Loss", prefer="options")
+    context["is_defined_risk"] = max_loss is not None
+    context["is_capped_profit"] = (
+        not has_stock
+        and option_structure in {"call_spread", "put_spread", "condor"}
+        and max_profit is not None
+    )
+    return context
 
 
 def _fallback_condition(
@@ -778,80 +991,227 @@ def _build_fallback_narratives_from_key_levels(
         upper_short_price = _to_float(upper_short.get("price"))
 
     family = _resolve_family(context, None)
-    coverage_context = _compute_overlay_coverage(
-        {"key_levels": {"meta": {"has_stock_position": has_stock, "shares": strategy_input.stock_position}}, "strategy_input": strategy_input}
+    narrative_ctx = _build_narrative_context(
+        {
+            "key_levels": {"meta": {"has_stock_position": has_stock, "shares": strategy_input.stock_position}},
+            "strategy_input": strategy_input,
+            "summary_rows": summary_rows,
+        }
     )
     premium_ctx = _premium_context(
         strategy_input,
         summary_rows,
-        contract_count=coverage_context.get("contract_count"),
+        contract_count=narrative_ctx.get("contract_count"),
     )
     prefer = "combined" if has_stock else "options"
     max_profit = _summary_metric(summary_rows, "Max Profit", prefer=prefer)
     max_loss = _summary_metric(summary_rows, "Max Loss", prefer=prefer)
     coverage_clause = (
-        coverage_context.get("coverage_clause") if has_stock else None
+        narrative_ctx.get("coverage_clause") if has_stock else None
     ) or ""
     coverage_scope = (
-        coverage_context.get("coverage_scope") if has_stock else None
+        narrative_ctx.get("coverage_scope") if has_stock else None
     ) or ("the shares" if has_stock else "")
-    is_partial = bool(coverage_context.get("is_partial")) if has_stock else False
+    is_partial = bool(narrative_ctx.get("is_partial")) if has_stock else False
+
+    is_credit = narrative_ctx.get("is_credit")
+    is_debit = narrative_ctx.get("is_debit")
+    option_structure = narrative_ctx.get("option_structure", "mixed")
+
+    coverage_tail_bull = ""
+    coverage_tail_bear = ""
+    if has_stock and is_partial:
+        if family in {"covered_call", "collar"}:
+            coverage_tail_bull = " Uncovered shares continue to participate."
+        if family in {"protective_put", "collar"}:
+            coverage_tail_bear = " Unprotected shares still participate in downside."
 
     def _fallback_base_body(kind: str) -> str:
         if has_stock:
-            intent = "This position keeps equity exposure while using options to shape outcomes."
-            if coverage_clause:
-                intent = (
-                    "This position keeps equity exposure while using options to shape outcomes "
-                    f"and applies to {coverage_clause}."
-                )
+            coverage_text = f" for {coverage_clause}" if coverage_clause else ""
             if kind == "bear":
-                if lower_short_price is not None:
-                    mechanics = (
-                        f"Below {_format_price(lower_short_price)}, the shares drive downside; "
-                        "option premium may cushion results."
-                    )
-                else:
-                    mechanics = (
-                        "Below the key level, the shares drive downside; option premium may cushion results."
-                    )
+                anchor = lower_short_price or spot_price
+                anchor_text = _format_price(anchor) if anchor is not None else "the key level"
+                opener = f"Below {anchor_text}, downside is the focus{coverage_text}."
             elif kind == "bull":
-                if upper_short_price is not None:
-                    mechanics = (
-                        f"Above {_format_price(upper_short_price)}, gains may be capped by the option overlay."
+                anchor = upper_short_price or spot_price
+                anchor_text = _format_price(anchor) if anchor is not None else "the key level"
+                opener = f"Above {anchor_text}, upside is the focus{coverage_text}."
+            else:
+                low = lower_short_price or spot_price
+                high = upper_short_price or spot_price
+                if low is not None and high is not None:
+                    opener = (
+                        f"Between {_format_price(min(low, high))} and {_format_price(max(low, high))}, "
+                        f"outcomes are stock-driven{coverage_text}."
                     )
                 else:
-                    mechanics = "Above the key level, gains may be capped by the option overlay."
-            else:
-                mechanics = "Around current levels, the overlay is designed to improve risk-adjusted outcomes."
-            return _join_sentences([intent, mechanics])
-        intent = "This options position seeks a defined outcome around key levels."
+                    opener = "Around current levels, outcomes are stock-driven."
+
+            if family == "covered_call":
+                strike_text = _format_price(upper_short_price) if upper_short_price is not None else "the call strike"
+                if kind == "bear":
+                    mechanics = (
+                        f"At expiry below {strike_text}, the call expires worthless and premium cushions downside on {coverage_scope}."
+                    )
+                elif kind == "bull":
+                    mechanics = (
+                        f"At expiry above {strike_text}, shares may be called away at the strike and upside is capped on {coverage_scope}.{coverage_tail_bull}"
+                    )
+                else:
+                    mechanics = (
+                        f"At expiry between { _format_price(spot_price) if spot_price is not None else strike_text } and {strike_text}, "
+                        f"the call expires worthless and the premium is retained on {coverage_scope}."
+                    )
+                return _join_sentences([opener, mechanics])
+
+            if family == "protective_put":
+                strike_text = _format_price(lower_short_price) if lower_short_price is not None else "the put strike"
+                if kind == "bear":
+                    mechanics = (
+                        f"At expiry below {strike_text}, the put settles at intrinsic value and downside is protected on {coverage_scope}.{coverage_tail_bear}"
+                    )
+                elif kind == "bull":
+                    mechanics = (
+                        f"At expiry above {_format_price(spot_price) if spot_price is not None else strike_text}, "
+                        f"the put expires worthless and gains follow the shares on {coverage_scope}."
+                    )
+                else:
+                    mechanics = (
+                        f"At expiry between {strike_text} and {_format_price(spot_price) if spot_price is not None else strike_text}, "
+                        f"protection remains in place while the premium is the cost of insurance on {coverage_scope}."
+                    )
+                return _join_sentences([opener, mechanics])
+
+            if family == "collar":
+                put_text = _format_price(lower_short_price) if lower_short_price is not None else "the put strike"
+                call_text = _format_price(upper_short_price) if upper_short_price is not None else "the call strike"
+                if kind == "bear":
+                    mechanics = (
+                        f"At expiry below {put_text}, downside is protected on {coverage_scope}.{coverage_tail_bear}"
+                    )
+                elif kind == "bull":
+                    mechanics = (
+                        f"At expiry above {call_text}, shares may be called away at the strike and upside is capped on {coverage_scope}.{coverage_tail_bull}"
+                    )
+                else:
+                    mechanics = (
+                        f"At expiry between {put_text} and {call_text}, the put expires worthless and the call stays out of the money; "
+                        f"the net option premium is realized on {coverage_scope}."
+                    )
+                return _join_sentences([opener, mechanics])
+
+            mechanics = (
+                "At expiry, option payoffs settle to intrinsic value and are applied to the shares."
+            )
+            return _join_sentences([opener, mechanics])
         has_short_strikes = lower_short_price is not None and upper_short_price is not None
+        opener = "Around the key level, the range is defined by the strikes."
         if has_short_strikes:
             if kind == "bear":
-                mechanics = "Below the lower strike, losses can increase toward the hedge strike."
+                opener = f"Below {_format_price(lower_short_price)}, downside is the focus."
+            elif kind == "bull":
+                opener = f"Above {_format_price(upper_short_price)}, upside is the focus."
+            else:
+                opener = (
+                    f"Between {_format_price(lower_short_price)} and {_format_price(upper_short_price)}, "
+                    "the range is defined by the strikes."
+                )
+        if option_structure in {"call_spread", "put_spread"} and has_short_strikes:
+            lower_text = _format_price(lower_short_price) if lower_short_price is not None else "--"
+            upper_text = _format_price(upper_short_price) if upper_short_price is not None else "--"
+            if option_structure == "call_spread":
+                if is_debit:
+                    if kind == "bear":
+                        mechanics = (
+                            f"At expiry below {lower_text}, both calls expire worthless."
+                        )
+                    elif kind == "bull":
+                        mechanics = (
+                            f"At expiry above {upper_text}, gains are capped at maximum profit."
+                        )
+                    else:
+                        mechanics = (
+                            f"At expiry between {lower_text} and {upper_text}, intrinsic value builds toward maximum profit."
+                        )
+                else:
+                    if kind == "bull":
+                        mechanics = (
+                            "At expiry above the short strike, losses increase toward the hedge strike."
+                        )
+                        if upper_long_price is not None:
+                            mechanics = (
+                                "At expiry above the short strike, losses increase toward the hedge strike "
+                                f"({_format_price(upper_long_price)})."
+                            )
+                    else:
+                        mechanics = (
+                            f"At expiry below {lower_text}, the spread seeks to retain the net credit."
+                            if kind == "bear"
+                            else f"At expiry between {lower_text} and {upper_text}, the spread seeks to retain the net credit."
+                        )
+                return _join_sentences([opener, mechanics])
+            if option_structure == "put_spread":
+                if is_debit:
+                    if kind == "bear":
+                        mechanics = (
+                            f"At expiry below {lower_text}, gains are capped at maximum profit."
+                        )
+                    elif kind == "bull":
+                        mechanics = (
+                            f"At expiry above {upper_text}, both puts expire worthless."
+                        )
+                    else:
+                        mechanics = (
+                            f"At expiry between {lower_text} and {upper_text}, intrinsic value builds toward maximum profit."
+                        )
+                else:
+                    if kind == "bear":
+                        mechanics = (
+                            "At expiry below the short strike, losses increase toward the hedge strike."
+                        )
+                        if lower_long_price is not None:
+                            mechanics = (
+                                "At expiry below the short strike, losses increase toward the hedge strike "
+                                f"({_format_price(lower_long_price)})."
+                            )
+                    else:
+                        mechanics = (
+                            f"At expiry above {upper_text}, the spread seeks to retain the net credit."
+                            if kind == "bull"
+                            else f"At expiry between {lower_text} and {upper_text}, the spread seeks to retain the net credit."
+                        )
+                return _join_sentences([opener, mechanics])
+
+        if has_short_strikes:
+            if kind == "bear":
+                mechanics = "At expiry below the lower strike, losses increase toward the hedge strike."
                 if lower_long_price is not None:
                     mechanics = (
-                        "Below the lower strike, losses can increase toward the hedge strike "
+                        "At expiry below the lower strike, losses increase toward the hedge strike "
                         f"({_format_price(lower_long_price)})."
                     )
             elif kind == "bull":
-                mechanics = "Above the upper strike, losses can increase toward the hedge strike."
+                mechanics = "At expiry above the upper strike, losses increase toward the hedge strike."
                 if upper_long_price is not None:
                     mechanics = (
-                        "Above the upper strike, losses can increase toward the hedge strike "
+                        "At expiry above the upper strike, losses increase toward the hedge strike "
                         f"({_format_price(upper_long_price)})."
                     )
             else:
-                mechanics = "Between the strikes, the strategy seeks to retain premium."
-            return _join_sentences([intent, mechanics])
+                if is_debit:
+                    mechanics = "At expiry between the strikes, intrinsic value builds toward maximum profit."
+                else:
+                    mechanics = "At expiry between the strikes, the strategy seeks to retain the net credit."
+            return _join_sentences([opener, mechanics])
+
         if kind == "bear":
-            mechanics = "Below the key level, losses can increase."
+            mechanics = "At expiry below the key level, losses can increase."
         elif kind == "bull":
-            mechanics = "Above the key level, losses can increase."
+            mechanics = "At expiry above the key level, losses can increase."
         else:
-            mechanics = "Within the key range, the strategy seeks to perform best."
-        return _join_sentences([intent, mechanics])
+            mechanics = "At expiry within the key range, the strategy seeks to perform best."
+        return _join_sentences([opener, mechanics])
 
     anchors_used: dict[str, list[dict]] = {}
     scenarios: dict[str, object] = {}
@@ -875,7 +1235,7 @@ def _build_fallback_narratives_from_key_levels(
         condition = _fallback_condition(
             kind, lower_short_price, upper_short_price, spot_price
         )
-        pnl_sentence = _pnl_sentence(anchor, has_stock)
+        pnl_sentence = _pnl_sentence(anchor, has_stock, _to_float(anchor.get("price")) if isinstance(anchor, Mapping) else None)
         roi_value = _level_value(anchor, ["net_roi", "Net ROI", "option_roi", "Option ROI"])
         include_breakeven = kind == "base" and breakeven_min is not None
         numbers_sentence = _numbers_sentence(
@@ -890,6 +1250,12 @@ def _build_fallback_narratives_from_key_levels(
             roi_value,
             breakeven_min,
             include_breakeven,
+            _to_float(anchor.get("price")) if isinstance(anchor, Mapping) else None,
+            narrative_ctx.get("is_credit") if isinstance(narrative_ctx, Mapping) else None,
+            narrative_ctx.get("is_debit") if isinstance(narrative_ctx, Mapping) else None,
+            narrative_ctx.get("option_structure") if isinstance(narrative_ctx, Mapping) else "mixed",
+            bool(narrative_ctx.get("is_capped_profit")) if isinstance(narrative_ctx, Mapping) else False,
+            bool(narrative_ctx.get("is_defined_risk")) if isinstance(narrative_ctx, Mapping) else False,
         )
         overlay_pnl = _level_value(anchor, ["net_pnl", "Net PnL", "combined_pnl"])
         price = _to_float(anchor.get("price")) if isinstance(anchor, Mapping) else None
@@ -935,7 +1301,7 @@ def _build_fallback_narratives_from_key_levels(
             "version": "fallback_v2",
             "reason": "fallback_used_no_matching_rule",
             "anchors_used": anchors_used,
-            "coverage": coverage_context,
+            "coverage": narrative_ctx,
         },
     }
 
@@ -989,12 +1355,16 @@ def build_narrative_scenarios(
         "iron_condor": iron_condor,
         "defined_risk": defined_risk,
     }
-    coverage_context = _compute_overlay_coverage(
+    narrative_ctx = _build_narrative_context(
         {
             "key_levels": key_levels,
             "strategy_input": strategy_input,
+            "summary_rows": summary_rows,
         }
     )
+    context["is_credit"] = narrative_ctx.get("is_credit")
+    context["is_debit"] = narrative_ctx.get("is_debit")
+    context["option_structure"] = narrative_ctx.get("option_structure")
 
     selected_rule = None
     matched_conditions: list[dict] = []
@@ -1019,7 +1389,7 @@ def build_narrative_scenarios(
         trace = dict(trace)
         trace["matched_conditions"] = []
         trace["inputs_used"] = inputs_used
-        trace["coverage"] = coverage_context
+        trace["coverage"] = narrative_ctx
         fallback["trace"] = trace
         return fallback
 
@@ -1064,7 +1434,7 @@ def build_narrative_scenarios(
     premium_ctx = _premium_context(
         strategy_input,
         summary_rows,
-        contract_count=coverage_context.get("contract_count"),
+        contract_count=narrative_ctx.get("contract_count"),
     )
 
     if max_profit is None:
@@ -1090,14 +1460,38 @@ def build_narrative_scenarios(
     max_loss_text = _format_currency_abs(max_loss)
     family = _resolve_family(context, selected_rule)
     coverage_clause = (
-        coverage_context.get("coverage_clause") if has_stock else None
+        narrative_ctx.get("coverage_clause") if has_stock else None
     ) or ""
     coverage_scope = (
-        coverage_context.get("coverage_scope") if has_stock else None
+        narrative_ctx.get("coverage_scope") if has_stock else None
     ) or ("the shares" if has_stock else "")
-    is_partial = bool(coverage_context.get("is_partial")) if has_stock else False
+    is_partial = bool(narrative_ctx.get("is_partial")) if has_stock else False
     cap_phrase = "partially capped" if is_partial else "capped"
     protection_phrase = "partially protected" if is_partial else "protected"
+    coverage_tail_bull = ""
+    coverage_tail_bear = ""
+    if has_stock and is_partial:
+        if family in {"covered_call", "collar"}:
+            coverage_tail_bull = " Uncovered shares continue to participate."
+        if family in {"protective_put", "collar"}:
+            coverage_tail_bear = " Unprotected shares still participate in downside."
+
+    is_credit = narrative_ctx.get("is_credit")
+    is_debit = narrative_ctx.get("is_debit")
+    option_structure = narrative_ctx.get("option_structure", "mixed")
+    is_capped_profit = bool(narrative_ctx.get("is_capped_profit"))
+    is_defined_risk = bool(narrative_ctx.get("is_defined_risk"))
+
+    def _level_by_price(target: Optional[float]) -> Optional[Mapping[str, object]]:
+        if target is None:
+            return None
+        for level in levels:
+            if not isinstance(level, Mapping):
+                continue
+            price = _to_float(level.get("price"))
+            if price is not None and abs(price - target) <= 1e-6:
+                return level
+        return None
 
     anchors_used: dict[str, list[str]] = {}
     scenarios: dict[str, object] = {}
@@ -1117,11 +1511,11 @@ def build_narrative_scenarios(
         lower_bound = None
         upper_bound = None
         if has_stock and family == "covered_call":
-            lower_bound = spot_price or lower_strike_price
+            lower_bound = spot_price
             upper_bound = cap_strike_price or upper_strike_price
         elif has_stock and family == "protective_put":
             lower_bound = put_strike_price or lower_strike_price
-            upper_bound = spot_price or upper_strike_price
+            upper_bound = spot_price
         elif has_stock and family == "collar":
             lower_bound = put_strike_price or lower_strike_price
             upper_bound = cap_strike_price or upper_strike_price
@@ -1139,12 +1533,20 @@ def build_narrative_scenarios(
         condition = _strike_condition(kind, lower_bound, upper_bound, spot_price)
 
         primary = None
-        if kind == "bear":
-            primary = lower_short or lower_strike or (breakeven_levels[0] if breakeven_levels else None) or spot_level
-        elif kind == "bull":
-            primary = upper_short or upper_strike or (breakeven_levels[-1] if breakeven_levels else None) or spot_level
+        if has_stock:
+            if kind == "bear":
+                primary = _level_by_price(put_strike_price) or spot_level
+            elif kind == "bull":
+                primary = _level_by_price(cap_strike_price) or spot_level
+            else:
+                primary = spot_level or _level_by_price(put_strike_price) or _level_by_price(cap_strike_price)
         else:
-            primary = spot_level or lower_short or upper_short or (breakeven_levels[0] if breakeven_levels else None)
+            if kind == "bear":
+                primary = _level_by_price(lower_bound) or lower_short or lower_strike
+            elif kind == "bull":
+                primary = _level_by_price(upper_bound) or upper_short or upper_strike
+            else:
+                primary = spot_level or _level_by_price(lower_bound) or _level_by_price(upper_bound)
         primary = primary or _pick_primary_anchor(anchors)
         price = _to_float(primary.get("price")) if primary else None
         overlay_pnl = _level_value(primary, ["net_pnl", "Net PnL", "combined_pnl"])
@@ -1196,11 +1598,13 @@ def build_narrative_scenarios(
             "coverage_scope": coverage_scope,
             "cap_phrase": cap_phrase,
             "protection_phrase": protection_phrase,
+            "coverage_tail_bear": coverage_tail_bear,
+            "coverage_tail_bull": coverage_tail_bull,
         }
         base_body = _render_template(templates.get(kind, ""), context_values).strip()
         if base_body == "--":
             base_body = ""
-        pnl_sentence = _pnl_sentence(primary, has_stock)
+        pnl_sentence = _pnl_sentence(primary, has_stock, price)
         numbers_sentence = _numbers_sentence(
             kind,
             family,
@@ -1213,6 +1617,12 @@ def build_narrative_scenarios(
             roi_value,
             breakeven_min,
             include_breakeven,
+            price,
+            is_credit,
+            is_debit,
+            option_structure,
+            is_capped_profit,
+            is_defined_risk,
         )
         overlay_sentence = _overlay_sentence(kind, delta_vs_stock) if has_stock else None
         body = _join_sentences(
@@ -1255,7 +1665,7 @@ def build_narrative_scenarios(
         trace = dict(trace)
         trace["matched_conditions"] = matched_conditions
         trace["inputs_used"] = inputs_used
-        trace["coverage"] = coverage_context
+        trace["coverage"] = narrative_ctx
         fallback["trace"] = trace
         return fallback
 
@@ -1269,6 +1679,6 @@ def build_narrative_scenarios(
             "matched_conditions": matched_conditions,
             "inputs_used": inputs_used,
             "anchors_used": anchors_used,
-            "coverage": coverage_context,
+            "coverage": narrative_ctx,
         },
     }

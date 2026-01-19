@@ -162,10 +162,7 @@ def render_dashboard():
         st.session_state[key] = notices
 
     def _current_underlying() -> str:
-        value = (
-            st.session_state.get("resolved_underlying")
-            or st.session_state.get("underlying_ticker", "")
-        )
+        value = st.session_state.get("underlying_ticker", "")
         return value.strip() if isinstance(value, str) else ""
 
     def _current_expiry() -> str:
@@ -180,15 +177,17 @@ def render_dashboard():
         kind = st.session_state.get(f"kind_{idx}", "Call")
         kind_text = str(kind).strip().upper()
         put_call = "CALL" if kind_text.startswith("C") else "PUT"
-        strike_value = st.session_state.get(f"strike_{idx}", spot)
+        strike_value = st.session_state.get(
+            f"strike_{idx}", st.session_state.get("spot_value", 0.0)
+        )
         try:
             strike = float(strike_value)
         except (TypeError, ValueError):
             strike = float("nan")
         return (underlying, expiry, put_call, strike)
 
-    def _queue_refresh_spot() -> None:
-        st.session_state["pending_refresh_spot"] = True
+    def _queue_refresh_bloomberg() -> None:
+        st.session_state["pending_refresh_bloomberg"] = True
 
     def _process_refresh_spot() -> None:
         base_ticker = (
@@ -221,198 +220,36 @@ def render_dashboard():
         )
         st.session_state.pop("spot_notice", None)
 
-    if st.session_state.pop("pending_refresh_spot", False):
-        _process_refresh_spot()
-
-    with st.container():
-        market_col, strategy_col, chain_col, pricing_col, action_col = st.columns(
-            [2.0, 2.6, 2.0, 2.4, 1.6]
-        )
-        with market_col:
-            st.caption("Market")
-            spot_input = st.number_input(
-                "Spot", min_value=0.01, value=100.0, step=1.0, key="spot_input"
-            )
-            st.session_state["spot_value"] = float(spot_input)
-            spot = float(st.session_state["spot_value"])
-            underlying_input = st.text_input("Underlying", key="underlying_ticker")
-            resolve_underlying = st.button("Resolve", key="resolve_ticker")
-            if resolve_underlying:
-                if underlying_input.strip():
-                    try:
-                        resolved = resolve_security(underlying_input.strip())
-                        st.session_state["resolved_underlying"] = resolved
-                    except Exception as exc:
-                        st.error(f"Resolve failed: {exc}")
-                else:
-                    st.warning("Enter an underlying ticker to resolve.")
-            resolved_underlying = st.session_state.get("resolved_underlying", "")
-            st.text_input(
-                "Resolved",
-                value=resolved_underlying,
-                disabled=True,
-            )
-            st.button(
-                "Bloomberg: Refresh Spot",
-                key="refresh_spot",
-                on_click=_queue_refresh_spot,
-            )
-            for level, message in st.session_state.pop("spot_notice", []):
-                if level == "success":
-                    st.success(message)
-                elif level == "error":
-                    st.error(message)
-                else:
-                    st.warning(message)
-
-        with strategy_col:
-            st.caption("Strategy")
-            groups = list_groups()
-            if not groups:
-                st.warning("No strategy templates available.")
-                selected_strategy_row = None
-            else:
-                if st.session_state.get("strategy_group") not in groups:
-                    st.session_state["strategy_group"] = groups[0]
-                group = st.selectbox("Group", options=groups, key="strategy_group")
-
-                subgroups = list_subgroups(group)
-                if subgroups:
-                    if st.session_state.get("strategy_subgroup") not in subgroups:
-                        st.session_state["strategy_subgroup"] = subgroups[0]
-                    subgroup = st.selectbox(
-                        "Subgroup", options=subgroups, key="strategy_subgroup"
-                    )
-                else:
-                    subgroup = None
-                    st.info("No subgroups available for this group.")
-
-                strategies_df = (
-                    list_strategies(group, subgroup)
-                    if subgroup is not None
-                    else pd.DataFrame()
-                )
-                if not strategies_df.empty:
-                    strategies_df = strategies_df.sort_values("strategy_id")
-                    strategy_ids = strategies_df["strategy_id"].tolist()
-                    name_map = dict(
-                        zip(strategies_df["strategy_id"], strategies_df["strategy_name"])
-                    )
-                    if st.session_state.get("strategy_id") not in strategy_ids:
-                        st.session_state["strategy_id"] = strategy_ids[0]
-                    strategy_id = st.selectbox(
-                        "Strategy",
-                        options=strategy_ids,
-                        key="strategy_id",
-                        format_func=lambda value: f"{value} - {name_map.get(value, '')}",
-                    )
-                    selected_strategy = get_strategy(strategy_id)
-                    selected_strategy_row = (
-                        selected_strategy.iloc[0]
-                        if not selected_strategy.empty
-                        else None
-                    )
-                else:
-                    selected_strategy_row = None
-                    st.info("No strategies available for this group/subgroup.")
-
-                selected_id = (
-                    int(selected_strategy_row["strategy_id"])
-                    if selected_strategy_row is not None
-                    else None
-                )
-                if selected_id != st.session_state.get("active_strategy_id"):
-                    st.session_state["active_strategy_id"] = selected_id
-                    if selected_strategy_row is not None:
-                        _apply_strategy_defaults(selected_strategy_row, spot)
-
-        with chain_col:
-            st.caption("Expiry")
-            chain_expiry = st.date_input(
-                "Expiry",
-                value=st.session_state.get("chain_expiry", date.today()),
-                key="chain_expiry",
+    def _refresh_underlying_snapshot(base_ticker: str, source: str) -> None:
+        try:
+            underlying_snapshot = fetch_underlying_snapshot(base_ticker)
+            st.session_state["underlying_snapshot"] = underlying_snapshot
+            st.session_state["underlying_snapshot_status"] = {
+                "ok": True,
+                "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "ticker": base_ticker,
+                "source": source,
+            }
+        except Exception as exc:
+            st.session_state["underlying_snapshot"] = {"error": str(exc)}
+            st.session_state["underlying_snapshot_status"] = {
+                "ok": False,
+                "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "ticker": base_ticker,
+                "source": source,
+                "error": str(exc),
+            }
+            _add_notice(
+                "bloomberg_notice",
+                "error",
+                f"Underlying snapshot failed: {exc}",
             )
 
-        with pricing_col:
-            st.caption("Pricing & ROI")
-            pricing_mode = st.radio(
-                "Pricing",
-                options=[MID, DEALABLE],
-                key="pricing_mode",
-                format_func=lambda value: "MID" if value == MID else "BID/ASK",
-                horizontal=True,
-            )
-            roi_policy = st.selectbox(
-                "ROI policy",
-                options=[NET_PREMIUM, RISK_MAX_LOSS, CASH_SECURED, MARGIN_PROXY],
-                key="roi_policy",
-            )
-            vol_mode = st.selectbox(
-                "Vol mode",
-                options=["ATM", "VEGA_WEIGHTED"],
-                key="vol_mode",
-            )
-            atm_iv = st.number_input(
-                "ATM IV",
-                min_value=0.0001,
-                value=0.2,
-                step=0.01,
-                key="atm_iv",
-            )
-            show_prob_details = st.checkbox(
-                "Show probability details",
-                key="show_prob_details",
-            )
-
-        with action_col:
-            st.caption("Scenario & actions")
-            scenario_mode = st.selectbox(
-                "Scenario",
-                options=["STANDARD", "INFINITY"],
-                key="scenario_mode",
-            )
-            if scenario_mode == "STANDARD":
-                target_cols = st.columns(2)
-                downside_tgt = target_cols[0].number_input(
-                    "Down x",
-                    min_value=0.0,
-                    value=0.8,
-                    step=0.05,
-                    key="downside_tgt",
-                )
-                upside_tgt = target_cols[1].number_input(
-                    "Up x",
-                    min_value=0.0,
-                    value=1.2,
-                    step=0.05,
-                    key="upside_tgt",
-                )
-            else:
-                downside_tgt = 0.8
-                upside_tgt = 1.2
-            fill_leg_prices = st.button(
-                "Bloomberg: Fill Leg Prices", key="fill_leg_prices"
-            )
-            run = st.button("Run Analysis", type="primary")
-
-    reset_leg_state_on_context_change(
-        st.session_state,
-        st.session_state.get("underlying_ticker", ""),
-        st.session_state.get("resolved_underlying", ""),
-        _current_expiry(),
-        leg_count=4,
-    )
-
-    template_kind = (
-        str(selected_strategy_row["template_kind"]).strip().upper()
-        if selected_strategy_row is not None
-        else None
-    )
-
-    if fill_leg_prices:
-        base_underlying = _current_underlying()
-        expiry_value = _current_expiry()
+    def _refresh_leg_prices(
+        base_underlying: str,
+        expiry_value: str,
+        pricing_mode: str,
+    ) -> int:
         identity_changed = False
         for idx in range(4):
             if not st.session_state.get(f"include_{idx}", False):
@@ -426,8 +263,10 @@ def render_dashboard():
         if identity_changed:
             st.session_state.pop("bbg_snapshot_df", None)
             st.session_state.pop("bbg_snapshot_time", None)
+
         leg_requests = []
         tickers = []
+        spot_value = float(st.session_state.get("spot_value", 0.0))
         for idx in range(4):
             if not st.session_state.get(f"include_{idx}", False):
                 continue
@@ -442,7 +281,7 @@ def render_dashboard():
                     continue
                 kind = st.session_state.get(f"kind_{idx}", "Call")
                 put_call = "CALL" if kind == "Call" else "PUT"
-                strike = st.session_state.get(f"strike_{idx}", spot)
+                strike = st.session_state.get(f"strike_{idx}", spot_value)
                 try:
                     resolved = resolve_option_ticker_from_strike(
                         base_underlying,
@@ -481,70 +320,179 @@ def render_dashboard():
             )
             if not manual_override:
                 tickers.append(ticker)
+
         unique_tickers = sorted(set(tickers))
         if not unique_tickers:
-            st.info("No eligible leg tickers to refresh.")
+            _add_notice(
+                "bloomberg_notice",
+                "info",
+                "No eligible leg tickers to refresh.",
+            )
+            return 0
+
+        try:
+            snapshot = fetch_option_snapshot(unique_tickers)
+            st.session_state["bbg_snapshot_df"] = snapshot.copy()
+            st.session_state["bbg_snapshot_time"] = datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            updates = build_leg_price_updates(
+                leg_requests,
+                snapshot,
+                pricing_mode,
+            )
+            for idx, premium in updates.items():
+                st.session_state[f"prem_{idx}"] = premium
+            if not updates:
+                _add_notice(
+                    "bloomberg_notice",
+                    "info",
+                    "No prices updated from Bloomberg data.",
+                )
+            return len(updates)
+        except Exception as exc:
+            _add_notice("bloomberg_notice", "error", f"Price refresh failed: {exc}")
+            return 0
+
+    def _refresh_bloomberg_data() -> None:
+        base_underlying = _current_underlying()
+        if not base_underlying:
+            _add_notice(
+                "bloomberg_notice",
+                "warning",
+                "Enter an underlying ticker before refreshing Bloomberg data.",
+            )
+            return
+        _process_refresh_spot()
+        _refresh_underlying_snapshot(base_underlying, "refresh_bloomberg")
+        updated = _refresh_leg_prices(
+            base_underlying,
+            _current_expiry(),
+            st.session_state.get("pricing_mode", MID),
+        )
+        st.session_state["last_bloomberg_refresh"] = datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+        if updated:
+            _add_notice(
+                "bloomberg_notice",
+                "success",
+                f"Bloomberg data refreshed. Updated {updated} leg price(s).",
+            )
         else:
-            try:
-                snapshot = fetch_option_snapshot(unique_tickers)
-                st.session_state["bbg_snapshot_df"] = snapshot.copy()
-                st.session_state["bbg_snapshot_time"] = datetime.now().strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
-                if base_underlying:
-                    try:
-                        underlying_snapshot = fetch_underlying_snapshot(
-                            base_underlying
-                        )
-                        st.session_state["underlying_snapshot"] = (
-                            underlying_snapshot
-                        )
-                        st.session_state["underlying_snapshot_status"] = {
-                            "ok": True,
-                            "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "ticker": base_underlying,
-                            "source": "fill_leg_prices",
-                        }
-                    except Exception as exc:
-                        st.session_state["underlying_snapshot"] = {
-                            "error": str(exc)
-                        }
-                        st.session_state["underlying_snapshot_status"] = {
-                            "ok": False,
-                            "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "ticker": base_underlying,
-                            "source": "fill_leg_prices",
-                            "error": str(exc),
-                        }
-                updates = build_leg_price_updates(
-                    leg_requests,
-                    snapshot,
-                    pricing_mode,
-                )
-                for idx, premium in updates.items():
-                    st.session_state[f"prem_{idx}"] = premium
-                if updates:
-                    st.success(f"Updated {len(updates)} leg price(s).")
-                else:
-                    st.info("No prices updated from Bloomberg data.")
-            except Exception as exc:
-                st.error(f"Price refresh failed: {exc}")
+            _add_notice("bloomberg_notice", "success", "Bloomberg data refreshed.")
+
+    if st.session_state.pop("pending_refresh_bloomberg", False):
+        _refresh_bloomberg_data()
 
     legs = []
     leg_meta = []
     scenario_table = None
     results = None
     pop = None
+    summary_df = None
+    margin_df = None
 
-    left_col, right_col = st.columns([1.25, 1])
+    left_col, center_col, right_col = st.columns([1.1, 1.6, 1.1])
+
     with left_col:
+        st.caption("Inputs")
+        spot_input = st.number_input(
+            "Spot", min_value=0.01, value=100.0, step=1.0, key="spot_input"
+        )
+        st.session_state["spot_value"] = float(spot_input)
+        spot = float(st.session_state["spot_value"])
+        underlying_input = st.text_input("Underlying", key="underlying_ticker")
+        resolved_underlying = underlying_input.strip()
+        st.session_state["resolved_underlying"] = resolved_underlying
+
+        st.caption("Strategy")
+        groups = list_groups()
+        if not groups:
+            st.warning("No strategy templates available.")
+            selected_strategy_row = None
+        else:
+            if st.session_state.get("strategy_group") not in groups:
+                st.session_state["strategy_group"] = groups[0]
+            group = st.selectbox("Group", options=groups, key="strategy_group")
+
+            subgroups = list_subgroups(group)
+            if subgroups:
+                if st.session_state.get("strategy_subgroup") not in subgroups:
+                    st.session_state["strategy_subgroup"] = subgroups[0]
+                subgroup = st.selectbox(
+                    "Subgroup", options=subgroups, key="strategy_subgroup"
+                )
+            else:
+                subgroup = None
+                st.info("No subgroups available for this group.")
+
+            strategies_df = (
+                list_strategies(group, subgroup)
+                if subgroup is not None
+                else pd.DataFrame()
+            )
+            if not strategies_df.empty:
+                strategies_df = strategies_df.sort_values("strategy_id")
+                strategy_ids = strategies_df["strategy_id"].tolist()
+                name_map = dict(
+                    zip(strategies_df["strategy_id"], strategies_df["strategy_name"])
+                )
+                if st.session_state.get("strategy_id") not in strategy_ids:
+                    st.session_state["strategy_id"] = strategy_ids[0]
+                strategy_id = st.selectbox(
+                    "Strategy",
+                    options=strategy_ids,
+                    key="strategy_id",
+                    format_func=lambda value: f"{value} - {name_map.get(value, '')}",
+                )
+                selected_strategy = get_strategy(strategy_id)
+                selected_strategy_row = (
+                    selected_strategy.iloc[0]
+                    if not selected_strategy.empty
+                    else None
+                )
+            else:
+                selected_strategy_row = None
+                st.info("No strategies available for this group/subgroup.")
+
+            selected_id = (
+                int(selected_strategy_row["strategy_id"])
+                if selected_strategy_row is not None
+                else None
+            )
+            if selected_id != st.session_state.get("active_strategy_id"):
+                st.session_state["active_strategy_id"] = selected_id
+                if selected_strategy_row is not None:
+                    _apply_strategy_defaults(selected_strategy_row, spot)
+
+        template_kind = (
+            str(selected_strategy_row["template_kind"]).strip().upper()
+            if selected_strategy_row is not None
+            else None
+        )
+
+        st.caption("Expiry")
+        chain_expiry = st.date_input(
+            "Expiry",
+            value=st.session_state.get("chain_expiry", date.today()),
+            key="chain_expiry",
+        )
+
         st.caption("Stock overlay")
         stock_cols = st.columns(2)
         stock_position = stock_cols[0].number_input(
-            "Stock position (shares)", value=0.0, step=1.0
+            "Stock position (shares)",
+            value=st.session_state.get("stock_position", 0.0),
+            step=1.0,
+            key="stock_position",
         )
         avg_cost = stock_cols[1].number_input(
-            "Stock average cost", min_value=0.0, value=spot, step=1.0
+            "Stock average cost",
+            min_value=0.0,
+            value=st.session_state.get("avg_cost", spot),
+            step=1.0,
+            key="avg_cost",
         )
 
         if template_kind == "STOCK_ONLY":
@@ -664,13 +612,706 @@ def render_dashboard():
             else:
                 st.warning(message)
 
+    with right_col:
+        st.caption("Controls")
+        action_cols = st.columns(3)
+        action_cols[0].button(
+            "Refresh Bloomberg Data",
+            key="refresh_bloomberg",
+            on_click=_queue_refresh_bloomberg,
+        )
+        run = action_cols[1].button("Run Analysis", type="primary")
+        generate_pdf = action_cols[2].button(
+            "Generate PDF Report", key="generate_pdf"
+        )
+        for level, message in st.session_state.pop("bloomberg_notice", []):
+            if level == "success":
+                st.success(message)
+            elif level == "error":
+                st.error(message)
+            elif level == "warning":
+                st.warning(message)
+            else:
+                st.info(message)
+
+        st.caption("Chart settings")
+        chart_toggle_cols = st.columns(3)
+        show_options = chart_toggle_cols[0].checkbox(
+            "Show Options PnL",
+            value=True,
+            key="show_options_pnl",
+        )
+        show_stock = chart_toggle_cols[1].checkbox(
+            "Show Stock PnL",
+            value=st.session_state.get("stock_position", 0.0) != 0,
+            key="show_stock_pnl",
+        )
+        show_combined = chart_toggle_cols[2].checkbox(
+            "Show Combined PnL",
+            value=True,
+            key="show_combined_pnl",
+        )
+        annotate_cols = st.columns(2)
+        show_strikes = annotate_cols[0].checkbox(
+            "Show Strikes", value=True, key="show_strikes"
+        )
+        show_breakevens = annotate_cols[1].checkbox(
+            "Show Breakevens", value=True, key="show_breakevens"
+        )
+
+        st.caption("Pricing & ROI")
+        pricing_mode = st.radio(
+            "Pricing",
+            options=[MID, DEALABLE],
+            key="pricing_mode",
+            format_func=lambda value: "MID" if value == MID else "BID/ASK",
+            horizontal=True,
+        )
+        roi_policy = st.selectbox(
+            "ROI policy",
+            options=[NET_PREMIUM, RISK_MAX_LOSS, CASH_SECURED, MARGIN_PROXY],
+            key="roi_policy",
+        )
+        vol_mode = st.selectbox(
+            "Vol mode",
+            options=["ATM", "VEGA_WEIGHTED"],
+            key="vol_mode",
+        )
+        atm_iv = st.number_input(
+            "ATM IV",
+            min_value=0.0001,
+            value=0.2,
+            step=0.01,
+            key="atm_iv",
+        )
+        show_prob_details = st.checkbox(
+            "Show probability details",
+            key="show_prob_details",
+        )
+
+        st.caption("Scenario controls")
+        scenario_mode = st.selectbox(
+            "Scenario",
+            options=["STANDARD", "INFINITY"],
+            key="scenario_mode",
+        )
+        if scenario_mode == "STANDARD":
+            target_cols = st.columns(2)
+            downside_tgt = target_cols[0].number_input(
+                "Down x",
+                min_value=0.0,
+                value=0.8,
+                step=0.05,
+                key="downside_tgt",
+            )
+            upside_tgt = target_cols[1].number_input(
+                "Up x",
+                min_value=0.0,
+                value=1.2,
+                step=0.05,
+                key="upside_tgt",
+            )
+        else:
+            downside_tgt = 0.8
+            upside_tgt = 1.2
+
+        for level, message in st.session_state.pop("spot_notice", []):
+            if level == "success":
+                st.success(message)
+            elif level == "error":
+                st.error(message)
+            else:
+                st.warning(message)
+
+    reset_leg_state_on_context_change(
+        st.session_state,
+        st.session_state.get("underlying_ticker", ""),
+        st.session_state.get("resolved_underlying", ""),
+        _current_expiry(),
+        leg_count=4,
+    )
+
+    analysis_pack = st.session_state.get("analysis_pack")
+    analysis_summary_df = st.session_state.get("analysis_summary_df")
+    analysis_margin_df = st.session_state.get("analysis_margin_df")
+    analysis_prob_details = st.session_state.get("analysis_prob_details")
+    analysis_payoff = st.session_state.get("analysis_payoff", {})
+    analysis_summary = st.session_state.get("analysis_summary", {})
+    analysis_scenario_df = st.session_state.get("analysis_scenario_df")
+
+    if run:
+        strategy = StrategyInput(
+            spot=spot,
+            stock_position=stock_position,
+            avg_cost=avg_cost,
+            legs=legs,
+        )
+        results = compute_payoff(strategy)
+
+        per_leg_iv = [None for _ in legs]
+        expiry = st.session_state.get("chain_expiry")
+        if isinstance(expiry, date):
+            days = (expiry - date.today()).days
+            t = max(days / 365.0, 1e-6)
+        else:
+            t = 1.0
+        pop = strategy_pop(
+            strategy,
+            _compute_pnl_for_price,
+            S0=spot,
+            r=0.0,
+            q=0.0,
+            sigma_mode=vol_mode,
+            atm_iv=atm_iv,
+            per_leg_iv=per_leg_iv,
+            t=t,
+        )
+
+        scenario_points = build_scenario_points(
+            strategy,
+            results,
+            mode=scenario_mode,
+            downside_tgt=downside_tgt,
+            upside_tgt=upside_tgt,
+        )
+        scenario_table = compute_scenario_table(
+            strategy,
+            scenario_points,
+            payoff_result=results,
+            roi_policy=roi_policy,
+            strategy_row=selected_strategy_row,
+        )
+
+        option_basis = capital_basis(strategy, results, roi_policy)
+        total_basis = combined_capital_basis(strategy, option_basis)
+        if scenario_table is not None and not scenario_table.empty:
+            margin_proxy = float(scenario_table["margin_requirement"].iloc[0])
+        else:
+            margin_proxy = compute_margin_proxy(strategy, results)
+
+        price_grid = results["price_grid"]
+        combined_pnl = results["pnl"]
+        option_only = StrategyInput(
+            spot=spot,
+            stock_position=0.0,
+            avg_cost=0.0,
+            legs=legs,
+        )
+        options_pnl = [
+            _compute_pnl_for_price(option_only, price) for price in price_grid
+        ]
+        stock_pnl = [
+            combined - option
+            for combined, option in zip(combined_pnl, options_pnl)
+        ]
+        net_premium = compute_net_premium(strategy)
+        if net_premium < 0:
+            net_premium_text = f"Credit {abs(net_premium):.2f}"
+        elif net_premium > 0:
+            net_premium_text = f"Debit {net_premium:.2f}"
+        else:
+            net_premium_text = "0.00"
+        breakevens = results.get("breakevens", [])
+        breakeven_text = (
+            ", ".join(f"{value:g}" for value in breakevens)
+            if breakevens
+            else "None"
+        )
+        summary_rows = [
+            {"Metric": "Max Option PnL", "Value": f"{max(options_pnl):.2f}"},
+            {"Metric": "Min Option PnL", "Value": f"{min(options_pnl):.2f}"},
+            {"Metric": "Max Combined PnL", "Value": f"{max(combined_pnl):.2f}"},
+            {"Metric": "Min Combined PnL", "Value": f"{min(combined_pnl):.2f}"},
+            {"Metric": "Breakeven(s)", "Value": breakeven_text},
+            {"Metric": "Net Premium", "Value": net_premium_text},
+            {"Metric": "Strategy PoP", "Value": f"{pop * 100:.1f}%"},
+            {"Metric": "Capital Basis", "Value": f"{total_basis:.2f}"},
+        ]
+        summary_df = pd.DataFrame(summary_rows)
+        margin_rows = [
+            {
+                "Metric": "Strategy Code",
+                "Value": classify_strategy(strategy),
+            },
+            {"Metric": "Margin Proxy", "Value": f"{margin_proxy:.2f}"},
+            {"Metric": "ROI Policy", "Value": roi_policy},
+        ]
+        margin_df = pd.DataFrame(margin_rows)
+
+        raw_strikes = []
+        for leg in legs:
+            strike = leg.strike
+            if isinstance(strike, (int, float)) and math.isfinite(strike):
+                raw_strikes.append(float(strike))
+        analysis_strikes = []
+        for value in sorted(raw_strikes):
+            if not analysis_strikes or abs(value - analysis_strikes[-1]) > 1e-6:
+                analysis_strikes.append(value)
+
+        options_notional = sum(
+            abs(leg.position) * leg.strike * leg.multiplier for leg in legs
+        )
+        combined_notional = options_notional + abs(stock_position * spot)
+        net_prem_pct = (net_premium / spot * 100.0) if spot else 0.0
+
+        option_roi_values = []
+        net_roi_values = []
+        if scenario_table is not None and not scenario_table.empty:
+            option_roi_values = [
+                float(value)
+                for value in scenario_table["option_roi"].dropna().tolist()
+            ]
+            net_roi_values = [
+                float(value)
+                for value in scenario_table["net_roi"].dropna().tolist()
+            ]
+
+        pop_text = f"{pop * 100:.1f}%"
+        analysis_summary = {
+            "max_profit_options": f"{max(options_pnl):.2f}" if options_pnl else "--",
+            "max_profit_combined": f"{max(combined_pnl):.2f}" if combined_pnl else "--",
+            "max_loss_options": f"{min(options_pnl):.2f}" if options_pnl else "--",
+            "max_loss_combined": f"{min(combined_pnl):.2f}" if combined_pnl else "--",
+            "capital_basis_options": f"{option_basis:.2f}",
+            "capital_basis_combined": f"{total_basis:.2f}",
+            "max_roi_options": f"{max(option_roi_values):.2f}"
+            if option_roi_values
+            else "--",
+            "max_roi_combined": f"{max(net_roi_values):.2f}"
+            if net_roi_values
+            else "--",
+            "min_roi_options": f"{min(option_roi_values):.2f}"
+            if option_roi_values
+            else "--",
+            "min_roi_combined": f"{min(net_roi_values):.2f}"
+            if net_roi_values
+            else "--",
+            "cost_credit_options": net_premium_text,
+            "cost_credit_combined": net_premium_text,
+            "notional_options": f"{options_notional:.2f}",
+            "notional_combined": f"{combined_notional:.2f}",
+            "net_prem_per_share": f"{net_premium:.2f}",
+            "net_prem_pct_spot": f"{net_prem_pct:.2f}%",
+            "pop_options": pop_text,
+            "pop_combined": pop_text,
+        }
+
+        st.session_state["analysis_payoff"] = {
+            "price_grid": list(price_grid) if price_grid is not None else [],
+            "options_pnl": list(options_pnl),
+            "stock_pnl": list(stock_pnl),
+            "combined_pnl": list(combined_pnl),
+            "strikes": analysis_strikes,
+            "breakevens": list(breakevens) if breakevens is not None else [],
+        }
+        st.session_state["analysis_scenario_df"] = scenario_table.copy()
+        st.session_state["analysis_summary"] = analysis_summary
+        analysis_as_of = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state["analysis_as_of"] = analysis_as_of
+
+        underlying_profile = st.session_state.get("underlying_snapshot")
+        if not isinstance(underlying_profile, (dict, pd.Series)):
+            underlying_profile = None
+        analysis_pack = build_analysis_pack(
+            strategy_input=strategy,
+            strategy_meta={
+                "group": st.session_state.get("strategy_group"),
+                "subgroup": st.session_state.get("strategy_subgroup"),
+                "strategy_id": st.session_state.get("strategy_id"),
+                "strategy_name": (
+                    selected_strategy_row["strategy_name"]
+                    if selected_strategy_row is not None
+                    else ""
+                ),
+                "expiry": chain_expiry,
+                "as_of": analysis_as_of,
+                "underlying_ticker": underlying_input.strip(),
+                "resolved_underlying": resolved_underlying,
+                "legs_meta": leg_meta,
+                "strategy_row": selected_strategy_row,
+            },
+            pricing_mode=pricing_mode,
+            roi_policy=roi_policy,
+            vol_mode=vol_mode,
+            atm_iv=atm_iv,
+            underlying_profile=underlying_profile,
+            bbg_leg_snapshots=None,
+            scenario_mode=scenario_mode,
+            downside_tgt=downside_tgt,
+            upside_tgt=upside_tgt,
+        )
+        st.session_state["analysis_pack"] = analysis_pack
+        st.session_state["analysis_summary_df"] = summary_df
+        st.session_state["analysis_margin_df"] = margin_df
+        st.session_state["analysis_prob_details"] = None
+        if show_prob_details:
+            sigma = effective_sigma(
+                strategy,
+                per_leg_iv=per_leg_iv,
+                mode=vol_mode,
+                r=0.0,
+                q=0.0,
+                t=t,
+                atm_iv=atm_iv,
+            )
+            details = build_probability_details(
+                S0=spot,
+                r=0.0,
+                q=0.0,
+                sigma=sigma,
+                t=t,
+                breakevens=results.get("breakevens", []),
+            )
+            st.session_state["analysis_prob_details"] = details
+
+        analysis_pack = st.session_state.get("analysis_pack")
+        analysis_summary_df = summary_df
+        analysis_margin_df = margin_df
+        analysis_prob_details = st.session_state.get("analysis_prob_details")
+        analysis_payoff = st.session_state.get("analysis_payoff", {})
+        analysis_scenario_df = st.session_state.get("analysis_scenario_df")
+
+    if generate_pdf:
+        if not isinstance(analysis_payoff, dict) or not analysis_payoff.get("price_grid"):
+            st.warning("Run Analysis before generating a PDF report.")
+        else:
+            legs_payload = []
+            for idx in range(4):
+                if not st.session_state.get(f"include_{idx}", False):
+                    continue
+                ratio = st.session_state.get(f"ratio_{idx}", 1)
+                side = st.session_state.get(f"pos_{idx}", "Long")
+                qty = ratio if side == "Long" else -ratio
+                legs_payload.append(
+                    {
+                        "type": st.session_state.get(f"kind_{idx}", ""),
+                        "side": side,
+                        "qty": qty,
+                        "strike": st.session_state.get(f"strike_{idx}"),
+                        "premium": st.session_state.get(f"prem_{idx}"),
+                    }
+                )
+            inputs_payload = {
+                "ticker": underlying_input.strip(),
+                "resolved_ticker": resolved_underlying,
+                "strategy_name": (
+                    selected_strategy_row["strategy_name"]
+                    if selected_strategy_row is not None
+                    else ""
+                ),
+                "expiry": (
+                    chain_expiry.isoformat()
+                    if isinstance(chain_expiry, date)
+                    else ""
+                ),
+                "pricing_mode": pricing_mode,
+                "spot": spot,
+                "stock_position": stock_position,
+                "avg_cost": avg_cost,
+                "roi_policy": roi_policy,
+                "legs": legs_payload,
+            }
+            combined_pnl = analysis_payoff.get("combined_pnl", [])
+            pop_text = (
+                analysis_summary.get("pop_combined")
+                if isinstance(analysis_summary, dict)
+                else None
+            )
+            if not pop_text and isinstance(analysis_summary, dict):
+                pop_text = analysis_summary.get("pop_options")
+            margin_proxy = None
+            if isinstance(analysis_pack, dict):
+                margin_proxy = analysis_pack.get("margin", {}).get("margin_proxy")
+            summary_payload = {
+                "min_pnl": min(combined_pnl) if combined_pnl else None,
+                "max_pnl": max(combined_pnl) if combined_pnl else None,
+                "breakevens": analysis_payoff.get("breakevens", []),
+                "pop": pop_text,
+                "margin_proxy": margin_proxy,
+                "capital_basis": (
+                    analysis_summary.get("capital_basis_combined")
+                    if isinstance(analysis_summary, dict)
+                    else None
+                ),
+            }
+            notes = [
+                "Expiry-only payoff; interim PnL is not modeled.",
+                "Probability of profit is model-based and uses a lognormal distribution.",
+                "Margin is a proxy and does not reflect broker-specific rules.",
+                "This report is for informational purposes only and is not investment advice.",
+            ]
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                build_report_pdf(
+                    tmp.name,
+                    title="Options Strategy Report",
+                    as_of=timestamp,
+                    inputs=inputs_payload,
+                    summary=summary_payload,
+                    scenario_df=analysis_scenario_df,
+                    notes=notes,
+                )
+                tmp_path = tmp.name
+            with open(tmp_path, "rb") as handle:
+                st.session_state["pdf_bytes"] = handle.read()
+            st.session_state["pdf_filename"] = (
+                f"strategy_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            )
+            st.success("PDF report generated.")
+
+    report_model = None
+    if isinstance(analysis_pack, dict):
+        from reporting.report_model import build_report_model
+        report_model = build_report_model(st.session_state)
+
+    with center_col:
+        st.caption("Payoff")
+        payoff = analysis_pack.get("payoff") if isinstance(analysis_pack, dict) else None
+        if not isinstance(payoff, dict) or not payoff.get("price_grid"):
+            st.info("Run Analysis to view payoff and scenarios.")
+        else:
+            price_grid = payoff.get("price_grid", [])
+            options_pnl = payoff.get("options_pnl", [])
+            stock_pnl = payoff.get("stock_pnl", [])
+            combined_pnl = payoff.get("combined_pnl", [])
+            fig = go.Figure()
+            if show_options and options_pnl:
+                fig.add_trace(
+                    go.Scatter(
+                        x=price_grid,
+                        y=options_pnl,
+                        mode="lines",
+                        name="Options PnL",
+                        line=dict(color="#1f77b4"),
+                    )
+                )
+            if show_stock and stock_pnl:
+                fig.add_trace(
+                    go.Scatter(
+                        x=price_grid,
+                        y=stock_pnl,
+                        mode="lines",
+                        name="Stock PnL",
+                        line=dict(color="#2ca02c", dash="dot"),
+                    )
+                )
+            if show_combined and combined_pnl:
+                fig.add_trace(
+                    go.Scatter(
+                        x=price_grid,
+                        y=combined_pnl,
+                        mode="lines",
+                        name="Combined PnL",
+                        line=dict(color="#111111", width=2),
+                    )
+                )
+
+            label_positions = [
+                "top left",
+                "top right",
+                "bottom left",
+                "bottom right",
+            ]
+            if show_strikes:
+                strikes = []
+                for value in payoff.get("strikes", []):
+                    if isinstance(value, (int, float)) and math.isfinite(value):
+                        strikes.append(float(value))
+                strikes = sorted(set(strikes))
+                strike_label_limit = 6
+                for idx, strike in enumerate(strikes):
+                    label = f"K{idx + 1}={strike:g}" if idx < strike_label_limit else None
+                    if label:
+                        fig.add_vline(
+                            x=strike,
+                            line_dash="dot",
+                            line_color="rgba(0,0,0,0.35)",
+                            annotation_text=label,
+                            annotation_position=label_positions[idx % len(label_positions)],
+                        )
+                    else:
+                        fig.add_vline(
+                            x=strike,
+                            line_dash="dot",
+                            line_color="rgba(0,0,0,0.35)",
+                        )
+
+            if show_breakevens:
+                breakevens = []
+                for value in payoff.get("breakevens", []):
+                    if isinstance(value, (int, float)) and math.isfinite(value):
+                        breakevens.append(float(value))
+                breakevens = sorted(set(breakevens))
+                breakeven_label_limit = 4
+                for idx, breakeven in enumerate(breakevens):
+                    label = (
+                        f"BE{idx + 1}={breakeven:g}"
+                        if idx < breakeven_label_limit
+                        else None
+                    )
+                    if label:
+                        fig.add_vline(
+                            x=breakeven,
+                            line_dash="dash",
+                            line_color="rgba(255,0,0,0.45)",
+                            annotation_text=label,
+                            annotation_position=label_positions[idx % len(label_positions)],
+                        )
+                    else:
+                        fig.add_vline(
+                            x=breakeven,
+                            line_dash="dash",
+                            line_color="rgba(255,0,0,0.45)",
+                        )
+
+            fig.update_layout(
+                xaxis_title="Underlying Price at Expiry",
+                yaxis_title="PnL",
+                height=330,
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+            if show_prob_details and analysis_prob_details is not None:
+                st.dataframe(
+                    analysis_prob_details,
+                    use_container_width=True,
+                    height=200,
+                )
+
+        st.caption("Scenario Analysis")
+        if report_model and report_model.get("scenario_analysis_cards"):
+            cards = report_model.get("scenario_analysis_cards", [])
+            card_cols = st.columns(3)
+            for idx, card in enumerate(cards[:3]):
+                with card_cols[idx]:
+                    st.markdown(f"**{card.get('title', '')}**")
+                    condition_text = card.get("condition", "")
+                    if condition_text:
+                        st.caption(condition_text)
+                    body_text = card.get("body", "")
+                    if body_text:
+                        st.write(body_text)
+        else:
+            st.info("Run Analysis to view scenario narratives.")
+
+        st.caption("Key Levels")
+        if report_model and report_model.get("key_levels_display_rows_by_price"):
+            key_rows = report_model.get("key_levels_display_rows_by_price", [])
+            key_df = pd.DataFrame(key_rows)
+            has_stock_position = bool(report_model.get("has_stock_position", False))
+            if has_stock_position:
+                cols = [
+                    "Scenario",
+                    "Price",
+                    "Move %",
+                    "Stock PnL",
+                    "Option PnL",
+                    "Option ROI",
+                    "Net PnL",
+                    "Net ROI",
+                ]
+            else:
+                cols = [
+                    "Scenario",
+                    "Price",
+                    "Move %",
+                    "Option PnL",
+                    "Option ROI",
+                    "Net PnL",
+                    "Net ROI",
+                ]
+            cols = [col for col in cols if col in key_df.columns]
+            if cols:
+                key_df = key_df[cols]
+            st.dataframe(
+                key_df,
+                use_container_width=True,
+                height=240,
+                hide_index=True,
+            )
+        else:
+            st.info("Run Analysis to view key levels.")
+
+    with right_col:
+        st.caption("Payoff & Metrics")
+        if isinstance(analysis_summary_df, pd.DataFrame):
+            st.dataframe(
+                analysis_summary_df,
+                use_container_width=True,
+                height=260,
+                hide_index=True,
+            )
+        else:
+            st.info("Run Analysis to view metrics.")
+
+        st.caption("Margin & Capital")
+        if isinstance(analysis_margin_df, pd.DataFrame):
+            st.dataframe(
+                analysis_margin_df,
+                use_container_width=True,
+                height=140,
+                hide_index=True,
+            )
+        else:
+            st.info("Run Analysis to view margin requirements.")
+
+        dividend_risk = None
+        if isinstance(analysis_pack, dict):
+            underlying_info = analysis_pack.get("underlying")
+            if isinstance(underlying_info, dict):
+                dividend_risk = underlying_info.get("dividend_risk")
+        ex_div_date = (
+            dividend_risk.get("ex_div_date")
+            if isinstance(dividend_risk, dict)
+            else None
+        )
+        if isinstance(ex_div_date, datetime):
+            ex_div_display = ex_div_date.date().isoformat()
+        elif isinstance(ex_div_date, date):
+            ex_div_display = ex_div_date.isoformat()
+        elif ex_div_date:
+            ex_div_display = str(ex_div_date)
+        else:
+            ex_div_display = "--"
+        days_to_dividend = (
+            dividend_risk.get("days_to_dividend")
+            if isinstance(dividend_risk, dict)
+            else None
+        )
+        if isinstance(days_to_dividend, (int, float)) and not pd.isna(days_to_dividend):
+            days_display = str(int(days_to_dividend))
+        else:
+            days_display = "--"
+        before_expiry = (
+            dividend_risk.get("before_expiry")
+            if isinstance(dividend_risk, dict)
+            else None
+        )
+        if before_expiry is True:
+            before_display = "Yes"
+        elif before_expiry is False:
+            before_display = "No"
+        else:
+            before_display = "--"
+        dividend_df = pd.DataFrame(
+            [
+                {"Metric": "Ex-div date", "Value": ex_div_display},
+                {"Metric": "Days to dividend", "Value": days_display},
+                {"Metric": "Before expiry", "Value": before_display},
+            ]
+        )
+        st.caption("Dividend")
+        st.dataframe(
+            dividend_df,
+            use_container_width=True,
+            height=120,
+            hide_index=True,
+        )
+
         st.caption("Account eligibility")
         account_map = load_account_map()
         if account_map.empty:
             st.warning("No account eligibility data available.")
-            account_type = None
-            eligibility_table = pd.DataFrame()
-            strategy_code = ""
         else:
             account_types = sorted(
                 account_map["account_type"].dropna().unique().tolist()
@@ -685,8 +1326,7 @@ def render_dashboard():
             )
             strategy_code = determine_strategy_code(eligibility_input, roi_policy)
             eligibility_table = get_account_eligibility(strategy_code)
-
-            info_cols = st.columns([1.4, 1.0, 1.0])
+            info_cols = st.columns([1.3, 1.0, 1.0])
             account_type = info_cols[0].selectbox(
                 "Account Type",
                 options=account_types,
@@ -701,561 +1341,19 @@ def render_dashboard():
             else:
                 eligibility_value = selected_row["eligibility"].iloc[0]
             info_cols[2].metric("Eligibility", eligibility_value)
-
             with st.expander("Eligibility table"):
                 st.dataframe(
                     eligibility_table, use_container_width=True, height=220
                 )
 
-    with right_col:
-        st.caption("Payoff & metrics")
-        if run:
-            strategy = StrategyInput(
-                spot=spot,
-                stock_position=stock_position,
-                avg_cost=avg_cost,
-                legs=legs,
-            )
-            results = compute_payoff(strategy)
-
-            per_leg_iv = [None for _ in legs]
-            expiry = st.session_state.get("chain_expiry")
-            if isinstance(expiry, date):
-                days = (expiry - date.today()).days
-                t = max(days / 365.0, 1e-6)
-            else:
-                t = 1.0
-            pop = strategy_pop(
-                strategy,
-                _compute_pnl_for_price,
-                S0=spot,
-                r=0.0,
-                q=0.0,
-                sigma_mode=vol_mode,
-                atm_iv=atm_iv,
-                per_leg_iv=per_leg_iv,
-                t=t,
-            )
-
-            scenario_points = build_scenario_points(
-                strategy,
-                results,
-                mode=scenario_mode,
-                downside_tgt=downside_tgt,
-                upside_tgt=upside_tgt,
-            )
-            scenario_table = compute_scenario_table(
-                strategy,
-                scenario_points,
-                payoff_result=results,
-                roi_policy=roi_policy,
-                strategy_row=selected_strategy_row,
-            )
-
-            option_basis = capital_basis(strategy, results, roi_policy)
-            total_basis = combined_capital_basis(strategy, option_basis)
-            if scenario_table is not None and not scenario_table.empty:
-                margin_proxy = float(scenario_table["margin_requirement"].iloc[0])
-            else:
-                margin_proxy = compute_margin_proxy(strategy, results)
-
-            price_grid = results["price_grid"]
-            combined_pnl = results["pnl"]
-            option_only = StrategyInput(
-                spot=spot,
-                stock_position=0.0,
-                avg_cost=0.0,
-                legs=legs,
-            )
-            options_pnl = [
-                _compute_pnl_for_price(option_only, price) for price in price_grid
-            ]
-            stock_pnl = [
-                combined - option
-                for combined, option in zip(combined_pnl, options_pnl)
-            ]
-            net_premium = compute_net_premium(strategy)
-            if net_premium < 0:
-                net_premium_text = f"Credit {abs(net_premium):.2f}"
-            elif net_premium > 0:
-                net_premium_text = f"Debit {net_premium:.2f}"
-            else:
-                net_premium_text = "0.00"
-            breakevens = results.get("breakevens", [])
-            breakeven_text = (
-                ", ".join(f"{value:g}" for value in breakevens)
-                if breakevens
-                else "None"
-            )
-            summary_rows = [
-                {"Metric": "Max Option PnL", "Value": f"{max(options_pnl):.2f}"},
-                {"Metric": "Min Option PnL", "Value": f"{min(options_pnl):.2f}"},
-                {"Metric": "Max Combined PnL", "Value": f"{max(combined_pnl):.2f}"},
-                {"Metric": "Min Combined PnL", "Value": f"{min(combined_pnl):.2f}"},
-                {"Metric": "Breakeven(s)", "Value": breakeven_text},
-                {"Metric": "Net Premium", "Value": net_premium_text},
-                {"Metric": "Strategy PoP", "Value": f"{pop * 100:.1f}%"},
-                {"Metric": "Capital Basis", "Value": f"{total_basis:.2f}"},
-            ]
-            summary_df = pd.DataFrame(summary_rows)
-            margin_rows = [
-                {
-                    "Metric": "Strategy Code",
-                    "Value": classify_strategy(strategy),
-                },
-                {"Metric": "Margin Proxy", "Value": f"{margin_proxy:.2f}"},
-                {"Metric": "ROI Policy", "Value": roi_policy},
-            ]
-            margin_df = pd.DataFrame(margin_rows)
-
-            raw_strikes = []
-            for leg in legs:
-                strike = leg.strike
-                if isinstance(strike, (int, float)) and math.isfinite(strike):
-                    raw_strikes.append(float(strike))
-            analysis_strikes = []
-            for value in sorted(raw_strikes):
-                if not analysis_strikes or abs(value - analysis_strikes[-1]) > 1e-6:
-                    analysis_strikes.append(value)
-
-            options_notional = sum(
-                abs(leg.position) * leg.strike * leg.multiplier for leg in legs
-            )
-            combined_notional = options_notional + abs(stock_position * spot)
-            net_prem_pct = (net_premium / spot * 100.0) if spot else 0.0
-
-            option_roi_values = []
-            net_roi_values = []
-            if scenario_table is not None and not scenario_table.empty:
-                option_roi_values = [
-                    float(value)
-                    for value in scenario_table["option_roi"].dropna().tolist()
-                ]
-                net_roi_values = [
-                    float(value) for value in scenario_table["net_roi"].dropna().tolist()
-                ]
-
-            pop_text = f"{pop * 100:.1f}%"
-            analysis_summary = {
-                "max_profit_options": f"{max(options_pnl):.2f}" if options_pnl else "--",
-                "max_profit_combined": f"{max(combined_pnl):.2f}" if combined_pnl else "--",
-                "max_loss_options": f"{min(options_pnl):.2f}" if options_pnl else "--",
-                "max_loss_combined": f"{min(combined_pnl):.2f}" if combined_pnl else "--",
-                "capital_basis_options": f"{option_basis:.2f}",
-                "capital_basis_combined": f"{total_basis:.2f}",
-                "max_roi_options": f"{max(option_roi_values):.2f}"
-                if option_roi_values
-                else "--",
-                "max_roi_combined": f"{max(net_roi_values):.2f}"
-                if net_roi_values
-                else "--",
-                "min_roi_options": f"{min(option_roi_values):.2f}"
-                if option_roi_values
-                else "--",
-                "min_roi_combined": f"{min(net_roi_values):.2f}"
-                if net_roi_values
-                else "--",
-                "cost_credit_options": net_premium_text,
-                "cost_credit_combined": net_premium_text,
-                "notional_options": f"{options_notional:.2f}",
-                "notional_combined": f"{combined_notional:.2f}",
-                "net_prem_per_share": f"{net_premium:.2f}",
-                "net_prem_pct_spot": f"{net_prem_pct:.2f}%",
-                "pop_options": pop_text,
-                "pop_combined": pop_text,
-            }
-
-            st.session_state["analysis_payoff"] = {
-                "price_grid": list(price_grid) if price_grid is not None else [],
-                "options_pnl": list(options_pnl),
-                "stock_pnl": list(stock_pnl),
-                "combined_pnl": list(combined_pnl),
-                "strikes": analysis_strikes,
-                "breakevens": list(breakevens) if breakevens is not None else [],
-            }
-            st.session_state["analysis_scenario_df"] = scenario_table.copy()
-            st.session_state["analysis_summary"] = analysis_summary
-            analysis_as_of = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            st.session_state["analysis_as_of"] = analysis_as_of
-
-            underlying_profile = st.session_state.get("underlying_snapshot")
-            base_underlying = resolved_underlying or underlying_input.strip()
-            if base_underlying:
-                try:
-                    underlying_profile = fetch_underlying_snapshot(base_underlying)
-                    st.session_state["underlying_snapshot"] = underlying_profile
-                except Exception:
-                    underlying_profile = st.session_state.get("underlying_snapshot")
-            if not isinstance(underlying_profile, (dict, pd.Series)):
-                underlying_profile = None
-            analysis_pack = build_analysis_pack(
-                strategy_input=strategy,
-                strategy_meta={
-                    "group": st.session_state.get("strategy_group"),
-                    "subgroup": st.session_state.get("strategy_subgroup"),
-                    "strategy_id": st.session_state.get("strategy_id"),
-                    "strategy_name": (
-                        selected_strategy_row["strategy_name"]
-                        if selected_strategy_row is not None
-                        else ""
-                    ),
-                    "expiry": chain_expiry,
-                    "as_of": analysis_as_of,
-                    "underlying_ticker": underlying_input.strip(),
-                    "resolved_underlying": resolved_underlying,
-                    "legs_meta": leg_meta,
-                    "strategy_row": selected_strategy_row,
-                },
-                pricing_mode=pricing_mode,
-                roi_policy=roi_policy,
-                vol_mode=vol_mode,
-                atm_iv=atm_iv,
-                underlying_profile=underlying_profile,
-                bbg_leg_snapshots=None,
-                scenario_mode=scenario_mode,
-                downside_tgt=downside_tgt,
-                upside_tgt=upside_tgt,
-            )
-            assert "key_levels" in analysis_pack
-            st.session_state["analysis_pack"] = analysis_pack
-
-            payoff_cols = st.columns([1.6, 1.0])
-            with payoff_cols[0]:
-                chart_toggle_cols = st.columns(3)
-                show_options = chart_toggle_cols[0].checkbox(
-                    "Show Options PnL",
-                    value=True,
-                    key="show_options_pnl",
-                )
-                show_stock = chart_toggle_cols[1].checkbox(
-                    "Show Stock PnL",
-                    value=stock_position != 0,
-                    key="show_stock_pnl",
-                )
-                show_combined = chart_toggle_cols[2].checkbox(
-                    "Show Combined PnL",
-                    value=True,
-                    key="show_combined_pnl",
-                )
-                annotate_cols = st.columns(2)
-                show_strikes = annotate_cols[0].checkbox(
-                    "Show Strikes", value=True, key="show_strikes"
-                )
-                show_breakevens = annotate_cols[1].checkbox(
-                    "Show Breakevens", value=True, key="show_breakevens"
-                )
-
-                fig = go.Figure()
-                if show_options:
-                    fig.add_trace(
-                        go.Scatter(
-                            x=price_grid,
-                            y=options_pnl,
-                            mode="lines",
-                            name="Options PnL",
-                            line=dict(color="#1f77b4"),
-                        )
-                    )
-                if show_stock:
-                    fig.add_trace(
-                        go.Scatter(
-                            x=price_grid,
-                            y=stock_pnl,
-                            mode="lines",
-                            name="Stock PnL",
-                            line=dict(color="#2ca02c", dash="dot"),
-                        )
-                    )
-                if show_combined:
-                    fig.add_trace(
-                        go.Scatter(
-                            x=price_grid,
-                            y=combined_pnl,
-                            mode="lines",
-                            name="Combined PnL",
-                            line=dict(color="#111111", width=2),
-                        )
-                    )
-
-                label_positions = [
-                    "top left",
-                    "top right",
-                    "bottom left",
-                    "bottom right",
-                ]
-                if show_strikes:
-                    raw_strikes = []
-                    for leg in legs:
-                        strike = leg.strike
-                        if isinstance(strike, (int, float)) and math.isfinite(strike):
-                            raw_strikes.append(float(strike))
-                    strikes = []
-                    for value in sorted(raw_strikes):
-                        if not strikes or abs(value - strikes[-1]) > 1e-6:
-                            strikes.append(value)
-                    strike_label_limit = 6
-                    for idx, strike in enumerate(strikes):
-                        label = None
-                        if idx < strike_label_limit:
-                            label = f"K{idx + 1}={strike:g}"
-                        if label:
-                            fig.add_vline(
-                                x=strike,
-                                line_dash="dot",
-                                line_color="rgba(0,0,0,0.35)",
-                                annotation_text=label,
-                                annotation_position=label_positions[
-                                    idx % len(label_positions)
-                                ],
-                            )
-                        else:
-                            fig.add_vline(
-                                x=strike,
-                                line_dash="dot",
-                                line_color="rgba(0,0,0,0.35)",
-                            )
-
-                if show_breakevens:
-                    breakevens = []
-                    for value in results.get("breakevens", []):
-                        if isinstance(value, (int, float)) and math.isfinite(value):
-                            breakevens.append(float(value))
-                    breakevens = sorted(breakevens)
-                    breakeven_label_limit = 4
-                    for idx, breakeven in enumerate(breakevens):
-                        label = None
-                        if idx < breakeven_label_limit:
-                            label = f"BE{idx + 1}={breakeven:g}"
-                        if label:
-                            fig.add_vline(
-                                x=breakeven,
-                                line_dash="dash",
-                                line_color="rgba(255,0,0,0.45)",
-                                annotation_text=label,
-                                annotation_position=label_positions[
-                                    idx % len(label_positions)
-                                ],
-                            )
-                        else:
-                            fig.add_vline(
-                                x=breakeven,
-                                line_dash="dash",
-                                line_color="rgba(255,0,0,0.45)",
-                            )
-                fig.update_layout(
-                    xaxis_title="Underlying Price at Expiry",
-                    yaxis_title="PnL",
-                    height=340,
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-                if show_prob_details:
-                    sigma = effective_sigma(
-                        strategy,
-                        per_leg_iv=per_leg_iv,
-                        mode=vol_mode,
-                        r=0.0,
-                        q=0.0,
-                        t=t,
-                        atm_iv=atm_iv,
-                    )
-                    details = build_probability_details(
-                        S0=spot,
-                        r=0.0,
-                        q=0.0,
-                        sigma=sigma,
-                        t=t,
-                        breakevens=results.get("breakevens", []),
-                    )
-                    st.dataframe(details, use_container_width=True, height=200)
-
-            with payoff_cols[1]:
-                st.caption("Payoff & Metrics")
-                st.dataframe(
-                    summary_df,
-                    use_container_width=True,
-                    height=260,
-                    hide_index=True,
-                )
-                st.caption("Margin & Capital")
-                st.dataframe(
-                    margin_df,
-                    use_container_width=True,
-                    height=140,
-                    hide_index=True,
-                )
-                dividend_risk = None
-                if isinstance(analysis_pack, dict):
-                    underlying_info = analysis_pack.get("underlying")
-                    if isinstance(underlying_info, dict):
-                        dividend_risk = underlying_info.get("dividend_risk")
-                ex_div_date = (
-                    dividend_risk.get("ex_div_date")
-                    if isinstance(dividend_risk, dict)
-                    else None
-                )
-                if isinstance(ex_div_date, datetime):
-                    ex_div_display = ex_div_date.date().isoformat()
-                elif isinstance(ex_div_date, date):
-                    ex_div_display = ex_div_date.isoformat()
-                elif ex_div_date:
-                    ex_div_display = str(ex_div_date)
-                else:
-                    ex_div_display = "--"
-                days_to_dividend = (
-                    dividend_risk.get("days_to_dividend")
-                    if isinstance(dividend_risk, dict)
-                    else None
-                )
-                if isinstance(days_to_dividend, (int, float)) and not pd.isna(
-                    days_to_dividend
-                ):
-                    days_display = str(int(days_to_dividend))
-                else:
-                    days_display = "--"
-                before_expiry = (
-                    dividend_risk.get("before_expiry")
-                    if isinstance(dividend_risk, dict)
-                    else None
-                )
-                if before_expiry is True:
-                    before_display = "Yes"
-                elif before_expiry is False:
-                    before_display = "No"
-                else:
-                    before_display = "--"
-                dividend_df = pd.DataFrame(
-                    [
-                        {"Metric": "Ex-div date", "Value": ex_div_display},
-                        {"Metric": "Days to dividend", "Value": days_display},
-                        {"Metric": "Before expiry", "Value": before_display},
-                    ]
-                )
-                st.caption("Dividend")
-                st.dataframe(
-                    dividend_df,
-                    use_container_width=True,
-                    height=120,
-                    hide_index=True,
-                )
-
-            st.caption("Report")
-            generate_pdf = st.button("Generate PDF Report", key="generate_pdf")
-            if generate_pdf:
-                legs_payload = []
-                for idx in range(4):
-                    if not st.session_state.get(f"include_{idx}", False):
-                        continue
-                    ratio = st.session_state.get(f"ratio_{idx}", 1)
-                    side = st.session_state.get(f"pos_{idx}", "Long")
-                    qty = ratio if side == "Long" else -ratio
-                    legs_payload.append(
-                        {
-                            "type": st.session_state.get(f"kind_{idx}", ""),
-                            "side": side,
-                            "qty": qty,
-                            "strike": st.session_state.get(f"strike_{idx}"),
-                            "premium": st.session_state.get(f"prem_{idx}"),
-                        }
-                    )
-                inputs_payload = {
-                    "ticker": underlying_input.strip(),
-                    "resolved_ticker": resolved_underlying,
-                    "strategy_name": (
-                        selected_strategy_row["strategy_name"]
-                        if selected_strategy_row is not None
-                        else ""
-                    ),
-                    "expiry": (
-                        chain_expiry.isoformat()
-                        if isinstance(chain_expiry, date)
-                        else ""
-                    ),
-                    "pricing_mode": pricing_mode,
-                    "spot": spot,
-                    "stock_position": stock_position,
-                    "avg_cost": avg_cost,
-                    "roi_policy": roi_policy,
-                    "legs": legs_payload,
-                }
-                summary_payload = {
-                    "min_pnl": min(results["pnl"]) if results.get("pnl") else None,
-                    "max_pnl": max(results["pnl"]) if results.get("pnl") else None,
-                    "breakevens": results.get("breakevens", []),
-                    "pop": f"{pop * 100:.1f}%",
-                    "margin_proxy": margin_proxy,
-                    "capital_basis": total_basis,
-                }
-                notes = [
-                    "Expiry-only payoff; interim PnL is not modeled.",
-                    "Probability of profit is model-based and uses a lognormal distribution.",
-                    "Margin is a proxy and does not reflect broker-specific rules.",
-                    "This report is for informational purposes only and is not investment advice.",
-                ]
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                    build_report_pdf(
-                        tmp.name,
-                        title="Options Strategy Report",
-                        as_of=timestamp,
-                        inputs=inputs_payload,
-                        summary=summary_payload,
-                        scenario_df=scenario_table,
-                        notes=notes,
-                    )
-                    tmp_path = tmp.name
-                with open(tmp_path, "rb") as handle:
-                    st.session_state["pdf_bytes"] = handle.read()
-                st.session_state["pdf_filename"] = (
-                    f"strategy_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-                )
-                st.success("PDF report generated.")
-            if st.session_state.get("pdf_bytes"):
-                st.download_button(
-                    "Download PDF Report",
-                    data=st.session_state["pdf_bytes"],
-                    file_name=st.session_state.get(
-                        "pdf_filename", "strategy_report.pdf"
-                    ),
-                    mime="application/pdf",
-                )
-        else:
-            st.info("Run Analysis to view payoff and scenarios.")
-
-    st.caption("Scenario table")
-    if scenario_table is None or scenario_table.empty:
-        st.info("Run Analysis to view scenario results.")
-    else:
-        display_cols = [
-            "scenario",
-            "price",
-            "option_pnl",
-            "stock_pnl",
-            "combined_pnl",
-            "net_roi",
-            "commentary",
-        ]
-        scenario_display = scenario_table[display_cols].rename(
-            columns={
-                "scenario": "Scenario",
-                "price": "Scenario Price",
-                "option_pnl": "Option PnL",
-                "stock_pnl": "Stock PnL",
-                "combined_pnl": "Combined PnL",
-                "net_roi": "ROI",
-                "commentary": "Commentary",
-            }
-        )
-        st.dataframe(
-            scenario_display.head(10),
-            use_container_width=True,
-            height=260,
-        )
-        with st.expander("Show full scenario table"):
-            st.dataframe(
-                scenario_display,
-                use_container_width=True,
-                height=420,
+        if st.session_state.get("pdf_bytes"):
+            st.download_button(
+                "Download PDF Report",
+                data=st.session_state["pdf_bytes"],
+                file_name=st.session_state.get(
+                    "pdf_filename", "strategy_report.pdf"
+                ),
+                mime="application/pdf",
             )
 
 def render_bloomberg_data():

@@ -132,6 +132,53 @@ def _coerce_float(value: object) -> float | None:
     return numeric
 
 
+def _df_dict_to_table(df_dict: dict, table_id: str, page_size: int = 10):
+    if not isinstance(df_dict, dict) or df_dict.get("__type__") != "DataFrame":
+        return html.Div("No data", style={"fontSize": "12px", "color": "#6B7280"})
+    columns = df_dict.get("columns") or []
+    records = df_dict.get("records") or []
+    if not isinstance(columns, list) or not isinstance(records, list):
+        return html.Div("No data", style={"fontSize": "12px", "color": "#6B7280"})
+    return dash_table.DataTable(
+        id=table_id,
+        columns=[{"name": col, "id": col} for col in columns],
+        data=records,
+        page_size=page_size,
+        style_table={"overflowX": "auto"},
+        style_cell={"fontSize": "12px", "padding": "4px"},
+    )
+
+
+def _extract_pop_text(pack: dict) -> str:
+    summary = pack.get("summary", {}) if isinstance(pack, dict) else {}
+    rows = summary.get("rows", []) if isinstance(summary, dict) else []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        metric = str(row.get("metric", "")).lower()
+        if "prob" in metric or "pop" in metric:
+            value = row.get("combined")
+            if value is None:
+                value = row.get("options")
+            if value is None:
+                value = row.get("value")
+            if value is not None:
+                return str(value)
+    if not isinstance(pack, dict):
+        return "--"
+    probability = pack.get("probability", {})
+    for key in ("pop", "pop_text"):
+        value = pack.get(key)
+        if value is not None:
+            return str(value)
+    if isinstance(probability, dict):
+        for key in ("pop", "pop_text"):
+            value = probability.get(key)
+            if value is not None:
+                return str(value)
+    return "--"
+
+
 def _is_blank(value: object) -> bool:
     if value is None:
         return True
@@ -426,7 +473,7 @@ if DASH_AVAILABLE:
                                 step=0.01,
                                 style={"width": "100%"},
                             ),
-                            html.Label("Downside target"),
+                            html.Label("Downside target (%)"),
                             dcc.Input(
                                 id="downside-tgt-input",
                                 type="number",
@@ -434,7 +481,7 @@ if DASH_AVAILABLE:
                                 step=1.0,
                                 style={"width": "100%"},
                             ),
-                            html.Label("Upside target"),
+                            html.Label("Upside target (%)"),
                             dcc.Input(
                                 id="upside-tgt-input",
                                 type="number",
@@ -491,6 +538,18 @@ if DASH_AVAILABLE:
                             ),
                             html.Div(style={"height": "12px"}),
                             html.Div(id="as-of-display", children="As of: --"),
+                            html.H4("Results", style={"marginTop": "12px"}),
+                            dcc.Tabs(
+                                id="results-tabs",
+                                value="summary",
+                                children=[
+                                    dcc.Tab(label="Summary", value="summary"),
+                                    dcc.Tab(label="Scenario", value="scenario"),
+                                    dcc.Tab(label="Key Levels", value="key_levels"),
+                                    dcc.Tab(label="Margin / POP", value="margin_pop"),
+                                ],
+                            ),
+                            html.Div(id="results-content", style={"marginTop": "8px"}),
                         ],
                         style={
                             "flex": "1",
@@ -821,10 +880,13 @@ if DASH_AVAILABLE:
         vol_mode = str(inputs.get("vol_mode", "atm") or "atm")
         atm_iv = float(inputs.get("atm_iv", 0.0) or 0.0)
         scenario_mode = str(inputs.get("scenario_mode", "targets") or "targets")
-        downside_tgt = float(inputs.get("downside_tgt", 0.0) or 0.0)
-        upside_tgt = float(inputs.get("upside_tgt", 0.0) or 0.0)
+        downside_pct = float(inputs.get("downside_tgt", 0.0) or 0.0)
+        upside_pct = float(inputs.get("upside_tgt", 0.0) or 0.0)
+        downside_tgt = max(1e-6, 1.0 + (downside_pct / 100.0))
+        upside_tgt = max(1e-6, 1.0 + (upside_pct / 100.0))
         legs_data = inputs.get("legs") or []
         legs = []
+        net_premium_per_share = 0.0
         for row in legs_data:
             if not isinstance(row, dict):
                 continue
@@ -841,6 +903,7 @@ if DASH_AVAILABLE:
                 multiplier = int(row.get("multiplier", 100) or 100)
             except (TypeError, ValueError):
                 multiplier = 100
+            net_premium_per_share -= position * premium
             legs.append(
                 OptionLeg(
                     kind=kind,
@@ -850,6 +913,15 @@ if DASH_AVAILABLE:
                     multiplier=multiplier,
                 )
             )
+        roi_policy_key = roi_policy.strip().lower()
+        if roi_policy_key == "premium" and abs(net_premium_per_share) < 1e-9:
+            return {
+                "error": (
+                    "Net premium is 0 under ROI policy Premium. Enter premiums "
+                    "(or Fetch Bloomberg Data) or choose a different ROI policy."
+                ),
+                "as_of": _utc_now_str(),
+            }
         strategy_input = StrategyInput(
             spot=spot,
             stock_position=stock_position,
@@ -980,6 +1052,124 @@ if DASH_AVAILABLE:
             if as_of:
                 return f"As of: {as_of}"
         return "As of: --"
+
+    @app.callback(
+        Output("results-content", "children"),
+        Input("store-analysis-pack", "data"),
+        Input("results-tabs", "value"),
+    )
+    def _render_results(pack: dict, tab: str):
+        if not isinstance(pack, dict):
+            return html.Div("Run Analysis to view results", style={"fontSize": "12px"})
+        if pack.get("error"):
+            return html.Div(
+                f"Analysis error: {pack['error']}", style={"fontSize": "12px"}
+            )
+        if tab == "summary":
+            summary = pack.get("summary", {}) if isinstance(pack, dict) else {}
+            rows = summary.get("rows", []) if isinstance(summary, dict) else []
+            table = dash_table.DataTable(
+                columns=[
+                    {"name": "Metric", "id": "metric"},
+                    {"name": "Options", "id": "options"},
+                    {"name": "Combined", "id": "combined"},
+                ],
+                data=rows if isinstance(rows, list) else [],
+                style_table={"overflowX": "auto"},
+                style_cell={"fontSize": "12px", "padding": "4px"},
+                page_size=10,
+            )
+            net_total = summary.get("net_premium_total")
+            net_per_share = summary.get("net_premium_per_share")
+            return html.Div(
+                [
+                    table,
+                    html.Div(
+                        f"Net premium total: {net_total}",
+                        style={"fontSize": "12px", "marginTop": "6px"},
+                    ),
+                    html.Div(
+                        f"Net premium per share: {net_per_share}",
+                        style={"fontSize": "12px"},
+                    ),
+                ]
+            )
+        if tab == "scenario":
+            scenario = pack.get("scenario", {}) if isinstance(pack, dict) else {}
+            df_dict = None
+            if isinstance(scenario, dict):
+                df_dict = scenario.get("top10") or scenario.get("df")
+            if isinstance(df_dict, dict) and df_dict.get("__type__") == "DataFrame":
+                columns = df_dict.get("columns") or []
+                filtered_columns = [
+                    col for col in columns if str(col).lower() != "commentary"
+                ]
+                records = df_dict.get("records") or []
+                if filtered_columns:
+                    records = [
+                        {key: row.get(key) for key in filtered_columns}
+                        for row in records
+                        if isinstance(row, dict)
+                    ]
+                if isinstance(records, list) and len(records) > 10:
+                    records = records[:10]
+                df_dict = {
+                    "__type__": "DataFrame",
+                    "columns": filtered_columns or columns,
+                    "records": records,
+                }
+            return _df_dict_to_table(df_dict, "scenario-table", page_size=10)
+        if tab == "key_levels":
+            levels = []
+            key_levels = pack.get("key_levels", {}) if isinstance(pack, dict) else {}
+            if isinstance(key_levels, dict):
+                levels = key_levels.get("levels") or []
+            rows = []
+            if isinstance(levels, list):
+                for row in levels:
+                    if not isinstance(row, dict):
+                        continue
+                    rows.append(
+                        {
+                            "label": row.get("label") or row.get("scenario"),
+                            "price": row.get("price"),
+                            "move_pct": row.get("move_pct"),
+                            "net_pnl": row.get("net_pnl"),
+                            "net_roi": row.get("net_roi"),
+                            "source": row.get("source"),
+                        }
+                    )
+            return dash_table.DataTable(
+                columns=[
+                    {"name": "Label", "id": "label"},
+                    {"name": "Price", "id": "price"},
+                    {"name": "Move %", "id": "move_pct"},
+                    {"name": "Net PnL", "id": "net_pnl"},
+                    {"name": "Net ROI", "id": "net_roi"},
+                    {"name": "Source", "id": "source"},
+                ],
+                data=rows,
+                style_table={"overflowX": "auto"},
+                style_cell={"fontSize": "12px", "padding": "4px"},
+                page_size=10,
+            )
+        if tab == "margin_pop":
+            margin = pack.get("margin", {}) if isinstance(pack, dict) else {}
+            classification = (
+                margin.get("classification", "--") if isinstance(margin, dict) else "--"
+            )
+            margin_proxy = (
+                margin.get("margin_proxy", "--") if isinstance(margin, dict) else "--"
+            )
+            pop_text = _extract_pop_text(pack)
+            return html.Div(
+                [
+                    html.Div(f"Classification: {classification}", style={"fontSize": "12px"}),
+                    html.Div(f"Margin proxy: {margin_proxy}", style={"fontSize": "12px"}),
+                    html.Div(f"PoP: {pop_text}", style={"fontSize": "12px"}),
+                ]
+            )
+        return html.Div("No data", style={"fontSize": "12px", "color": "#6B7280"})
 
 
 if __name__ == "__main__":

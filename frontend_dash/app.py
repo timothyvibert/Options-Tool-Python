@@ -21,7 +21,7 @@ from core.strategy_map import (
     list_strategies,
     list_subgroups,
 )
-from frontend_dash.analysis_adapter import analysis_pack_to_store
+from frontend_dash.analysis_adapter import analysis_pack_to_store, refresh_leg_premiums
 from frontend_dash.smart_strikes import compute_default_strike, is_number_like
 
 try:
@@ -427,7 +427,7 @@ if DASH_AVAILABLE:
                                 id="pricing-mode-input",
                                 options=[
                                     {"label": "Mid", "value": "mid"},
-                                    {"label": "Bid/Ask", "value": "dealable"},
+                                    {"label": "Bid/Ask", "value": "bid_ask"},
                                 ],
                                 value="mid",
                                 clearable=False,
@@ -672,7 +672,6 @@ if DASH_AVAILABLE:
 
     @app.callback(
         Output("store-inputs", "data"),
-        Output("legs-table", "data"),
         Input("ticker-input", "value"),
         Input("spot-input", "value"),
         Input("expiry-input", "value"),
@@ -711,7 +710,7 @@ if DASH_AVAILABLE:
         strategy_id: int,
         ref_data: dict,
         previous_state: dict,
-    ) -> tuple[dict, list[dict]]:
+    ) -> dict:
         prev_spot = 100.0
         if isinstance(previous_state, dict) and is_number_like(previous_state.get("spot")):
             prev_spot = float(previous_state.get("spot"))
@@ -842,22 +841,73 @@ if DASH_AVAILABLE:
             "template_kind": template_kind,
             "strategy_row": strategy_row,
         }
-        return store_inputs, sanitized_legs
+        return store_inputs
 
     @app.callback(
         Output("store-market", "data"),
         Output("refresh-status", "children"),
+        Output("legs-table", "data"),
         Input("refresh-button", "n_clicks"),
+        Input("strategy-id", "value"),
         State("store-inputs", "data"),
+        State("legs-table", "data"),
         prevent_initial_call=True,
     )
-    def _refresh_market(n_clicks: int, inputs: dict) -> tuple[dict, str]:
-        spot = 0.0
-        if isinstance(inputs, dict):
-            spot = float(inputs.get("spot", 0.0) or 0.0)
-        timestamp = _utc_now_str()
-        data = {"market_refreshed_at": timestamp, "spot": spot}
-        return data, f"Market refreshed at {timestamp}"
+    def _refresh_market(
+        n_clicks: int, strategy_id: int, inputs: dict, legs_data: list[dict]
+    ) -> tuple[dict, str, list[dict]]:
+        trigger_id = ctx.triggered_id if ctx else None
+        if trigger_id == "strategy-id":
+            if not isinstance(inputs, dict) or strategy_id is None:
+                return no_update, no_update, no_update
+            spot_for_defaults = _coerce_float(inputs.get("spot")) or 100.0
+            strategy_row = _cached_strategy_row(strategy_id)
+            if not strategy_row:
+                return no_update, no_update, no_update
+            template_kind = str(strategy_row.get("template_kind", "")).strip().upper()
+            template_legs = extract_template_legs_from_row(
+                strategy_row, spot_for_defaults
+            )
+            if template_kind == "STOCK_ONLY" or not template_legs:
+                template_legs = [
+                    {
+                        "kind": "call",
+                        "position": 1.0,
+                        "strike": compute_default_strike(spot_for_defaults, "ATM"),
+                        "strike_tag": "ATM",
+                        "premium": 0.0,
+                        "multiplier": 100,
+                    }
+                ]
+            return no_update, no_update, template_legs
+        if trigger_id != "refresh-button":
+            return no_update, no_update, no_update
+        if not isinstance(inputs, dict):
+            return no_update, "Refresh failed: missing inputs", no_update
+        raw_ticker = str(inputs.get("raw_ticker") or inputs.get("ticker") or "")
+        resolved_ticker = inputs.get("resolved_ticker")
+        expiry = inputs.get("expiry") or None
+        pricing_mode = str(inputs.get("pricing_mode", "mid") or "mid").strip().lower()
+        source_legs = legs_data if isinstance(legs_data, list) else inputs.get("legs") or []
+        if not expiry:
+            return no_update, "Refresh failed: expiry required", no_update
+        updated_legs, market_snapshot, status = refresh_leg_premiums(
+            raw_underlying=raw_ticker,
+            resolved_underlying=resolved_ticker,
+            expiry=expiry,
+            legs_rows=source_legs,
+            pricing_mode=pricing_mode,
+        )
+        store_market = {
+            "resolved_underlying": market_snapshot.get("resolved_underlying"),
+            "market_spot": market_snapshot.get("market_spot"),
+            "underlying_profile": market_snapshot.get("underlying_profile"),
+            "per_leg_iv": market_snapshot.get("per_leg_iv"),
+            "leg_quotes": market_snapshot.get("leg_quotes"),
+            "refreshed_at": market_snapshot.get("refreshed_at"),
+            "errors": market_snapshot.get("errors"),
+        }
+        return store_market, status, updated_legs
 
     @app.callback(
         Output("store-analysis-pack", "data"),
@@ -943,8 +993,14 @@ if DASH_AVAILABLE:
         bbg_leg_snapshots = None
         if isinstance(market_data, dict):
             underlying_profile = market_data.get("underlying_profile", {})
-            bbg_leg_snapshots = market_data.get("bbg_leg_snapshots")
-        pricing_map = {"mid": "MID", "dealable": "DEALABLE"}
+            per_leg_iv = market_data.get("per_leg_iv")
+            leg_quotes = market_data.get("leg_quotes")
+            if per_leg_iv is not None or leg_quotes is not None:
+                bbg_leg_snapshots = {
+                    "per_leg_iv": per_leg_iv,
+                    "leg_quotes": leg_quotes,
+                }
+        pricing_map = {"mid": "MID", "bid_ask": "DEALABLE"}
         roi_map = {
             "premium": "NET_PREMIUM",
             "capital": "RISK_MAX_LOSS",

@@ -1,0 +1,112 @@
+body {
+  margin: 0;
+  background: #0b1220;
+  color: #e5e7eb;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.ae-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.ae-sidebar {
+  width: 280px;
+  background: #0f172a;
+  border-right: 1px solid #1f2937;
+  padding: 16px;
+  box-sizing: border-box;
+  transition: width 0.2s ease;
+}
+
+.ae-sidebar.collapsed {
+  width: 72px;
+}
+
+.ae-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.ae-brand {
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
+.ae-collapse-btn {
+  background: #111827;
+  color: #e5e7eb;
+  border: 1px solid #1f2937;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+}
+
+.ae-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ae-nav-btn {
+  background: transparent;
+  color: #e5e7eb;
+  text-align: left;
+  border: 1px solid #1f2937;
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.ae-nav-btn:hover {
+  background: #111827;
+}
+
+.ae-sidebar.collapsed .ae-brand {
+  display: none;
+}
+
+.ae-sidebar.collapsed .ae-nav-btn {
+  font-size: 0;
+  padding: 10px;
+}
+
+.ae-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ae-header {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid #1f2937;
+  background: #0b1220;
+}
+
+.ae-breadcrumbs {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.ae-chip {
+  background: #064e3b;
+  color: #d1fae5;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.ae-canvas {
+  padding: 16px;
+  overflow: auto;
+  flex: 1;
+}

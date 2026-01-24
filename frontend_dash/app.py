@@ -280,41 +280,8 @@ if DASH_AVAILABLE:
         _strategy_options = []
     _strategy_value = _strategy_options[0]["value"] if _strategy_options else None
 
-    app.layout = html.Div(
+    builder_layout = html.Div(
         [
-            dcc.Store(
-                id="store-inputs",
-                data={
-                    "ticker": "",
-                    "spot": 100.0,
-                    "expiry": "",
-                    "stock_position": 0.0,
-                    "avg_cost": 0.0,
-                    "legs": [
-                        {
-                            "kind": "call",
-                            "position": 1.0,
-                            "strike": 100.0,
-                            "premium": 2.0,
-                            "multiplier": 100,
-                        }
-                    ],
-                    "pricing_mode": "mid",
-                    "roi_policy": "premium",
-                    "vol_mode": "atm",
-                    "atm_iv": 0.20,
-                    "scenario_mode": "targets",
-                    "downside_tgt": -10.0,
-                    "upside_tgt": 10.0,
-                },
-            ),
-            dcc.Store(id="store-ref"),
-            dcc.Store(id="store-market"),
-            dcc.Store(id="store-analysis-pack"),
-            dcc.Store(
-                id="store-ui",
-                data={"show_options": True, "show_stock": False, "show_combined": True},
-            ),
             html.H2("Options Strategy Builder (Dash)"),
             html.Div(
                 [
@@ -565,8 +532,363 @@ if DASH_AVAILABLE:
         style={"padding": "16px", "fontFamily": "Arial, sans-serif"},
     )
 
+    app.layout = html.Div(
+        className="ae-shell",
+        children=[
+            dcc.Store(
+                id="store-inputs",
+                data={
+                    "ticker": "",
+                    "spot": 100.0,
+                    "expiry": "",
+                    "stock_position": 0.0,
+                    "avg_cost": 0.0,
+                    "legs": [
+                        {
+                            "kind": "call",
+                            "position": 1.0,
+                            "strike": 100.0,
+                            "premium": 2.0,
+                            "multiplier": 100,
+                        }
+                    ],
+                    "pricing_mode": "mid",
+                    "roi_policy": "premium",
+                    "vol_mode": "atm",
+                    "atm_iv": 0.20,
+                    "scenario_mode": "targets",
+                    "downside_tgt": -10.0,
+                    "upside_tgt": 10.0,
+                },
+            ),
+            dcc.Store(id="store-ref"),
+            dcc.Store(id="store-market"),
+            dcc.Store(id="store-analysis-pack"),
+            dcc.Store(
+                id="store-ui",
+                data={"show_options": True, "show_stock": False, "show_combined": True},
+            ),
+            dcc.Store(
+                id="store-shell",
+                data={
+                    "sidebar_collapsed": False,
+                    "active_module": "structuring",
+                    "active_structuring_tab": "builder",
+                },
+            ),
+            html.Div(
+                id="ae-sidebar",
+                className="ae-sidebar",
+                children=[
+                    html.Div(
+                        [
+                            html.Div("ALPHA ENGINE", className="ae-brand"),
+                            html.Button(
+                                "≡",
+                                id="btn-sidebar-toggle",
+                                className="ae-collapse-btn",
+                            ),
+                        ],
+                        className="ae-sidebar-header",
+                    ),
+                    html.Div(
+                        [
+                            html.Button(
+                                "Overview Map",
+                                id="btn-module-overview",
+                                className="ae-nav-btn",
+                            ),
+                            html.Button(
+                                "Structuring Lab",
+                                id="btn-module-structuring",
+                                className="ae-nav-btn",
+                            ),
+                            html.Button(
+                                "Client Intelligence",
+                                id="btn-module-client",
+                                className="ae-nav-btn",
+                            ),
+                            html.Button(
+                                "Content Factory",
+                                id="btn-module-content",
+                                className="ae-nav-btn",
+                            ),
+                            html.Button(
+                                "Lifecycle Mgmt",
+                                id="btn-module-lifecycle",
+                                className="ae-nav-btn",
+                            ),
+                        ],
+                        className="ae-nav",
+                    ),
+                ],
+            ),
+            html.Div(
+                className="ae-main",
+                children=[
+                    html.Div(
+                        className="ae-header",
+                        children=[
+                            html.Div(id="breadcrumbs", className="ae-breadcrumbs"),
+                            html.Div(id="market-status-chip", className="ae-chip"),
+                        ],
+                    ),
+                    html.Div(
+                        className="ae-canvas",
+                        children=[
+                            html.Div(
+                                id="module-overview",
+                                children=[
+                                    html.H3("Overview Map"),
+                                    html.P("Module coming next."),
+                                ],
+                                style={},
+                            ),
+                            html.Div(
+                                id="module-structuring",
+                                children=[
+                                    dcc.Tabs(
+                                        id="structuring-tabs",
+                                        value="builder",
+                                        children=[
+                                            dcc.Tab(
+                                                label="Strategy Builder", value="builder"
+                                            ),
+                                            dcc.Tab(
+                                                label="Market Data", value="data"
+                                            ),
+                                            dcc.Tab(
+                                                label="Client Report", value="report"
+                                            ),
+                                        ],
+                                    ),
+                                    html.Div(
+                                        id="structuring-builder-container",
+                                        children=[builder_layout],
+                                    ),
+                                    html.Div(
+                                        id="structuring-data-container",
+                                        children=[
+                                            html.H3("Market Data"),
+                                            html.Div(id="structuring-data-summary"),
+                                        ],
+                                    ),
+                                    html.Div(
+                                        id="structuring-report-container",
+                                        children=[
+                                            html.H3("Client Report"),
+                                            html.P(
+                                                "Generate PDF Report (coming next step)."
+                                            ),
+                                            html.Div(id="structuring-report-summary"),
+                                        ],
+                                    ),
+                                ],
+                                style={},
+                            ),
+                            html.Div(
+                                id="module-client",
+                                children=[
+                                    html.H3("Client Intelligence"),
+                                    html.P("Module coming next."),
+                                ],
+                                style={},
+                            ),
+                            html.Div(
+                                id="module-content",
+                                children=[
+                                    html.H3("Content Factory"),
+                                    html.P("Module coming next."),
+                                ],
+                                style={},
+                            ),
+                            html.Div(
+                                id="module-lifecycle",
+                                children=[
+                                    html.H3("Lifecycle Management"),
+                                    html.P("Module coming next."),
+                                ],
+                                style={},
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    )
+
 
 if DASH_AVAILABLE:
+    def _default_shell_state(state: dict | None) -> dict:
+        base = {
+            "sidebar_collapsed": False,
+            "active_module": "structuring",
+            "active_structuring_tab": "builder",
+        }
+        if isinstance(state, dict):
+            base.update({k: v for k, v in state.items() if k in base})
+        return base
+
+    @app.callback(
+        Output("store-shell", "data"),
+        Input("btn-sidebar-toggle", "n_clicks"),
+        Input("btn-module-overview", "n_clicks"),
+        Input("btn-module-structuring", "n_clicks"),
+        Input("btn-module-client", "n_clicks"),
+        Input("btn-module-content", "n_clicks"),
+        Input("btn-module-lifecycle", "n_clicks"),
+        Input("structuring-tabs", "value"),
+        State("store-shell", "data"),
+        prevent_initial_call=True,
+    )
+    def _update_shell_state(
+        toggle_clicks: int,
+        overview_clicks: int,
+        structuring_clicks: int,
+        client_clicks: int,
+        content_clicks: int,
+        lifecycle_clicks: int,
+        structuring_tab: str,
+        shell_state: dict,
+    ) -> dict:
+        state = _default_shell_state(shell_state)
+        trigger_id = ctx.triggered_id if ctx else None
+        if trigger_id == "btn-sidebar-toggle":
+            state["sidebar_collapsed"] = not state.get("sidebar_collapsed", False)
+        elif trigger_id == "btn-module-overview":
+            state["active_module"] = "overview"
+        elif trigger_id == "btn-module-structuring":
+            state["active_module"] = "structuring"
+        elif trigger_id == "btn-module-client":
+            state["active_module"] = "client"
+        elif trigger_id == "btn-module-content":
+            state["active_module"] = "content"
+        elif trigger_id == "btn-module-lifecycle":
+            state["active_module"] = "lifecycle"
+        elif trigger_id == "structuring-tabs":
+            state["active_structuring_tab"] = structuring_tab or "builder"
+        return state
+
+    @app.callback(
+        Output("module-overview", "style"),
+        Output("module-structuring", "style"),
+        Output("module-client", "style"),
+        Output("module-content", "style"),
+        Output("module-lifecycle", "style"),
+        Output("structuring-builder-container", "style"),
+        Output("structuring-data-container", "style"),
+        Output("structuring-report-container", "style"),
+        Output("breadcrumbs", "children"),
+        Output("market-status-chip", "children"),
+        Output("ae-sidebar", "className"),
+        Input("store-shell", "data"),
+        Input("store-market", "data"),
+    )
+    def _render_shell(
+        shell_state: dict,
+        market_data: dict,
+    ) -> tuple[dict, dict, dict, dict, dict, dict, dict, dict, str, str, str]:
+        state = _default_shell_state(shell_state)
+        active_module = state.get("active_module", "structuring")
+        active_tab = state.get("active_structuring_tab", "builder")
+
+        def _module_style(name: str) -> dict:
+            return {"display": "block"} if active_module == name else {"display": "none"}
+
+        def _tab_style(name: str) -> dict:
+            return {"display": "block"} if active_tab == name else {"display": "none"}
+
+        module_overview = _module_style("overview")
+        module_structuring = _module_style("structuring")
+        module_client = _module_style("client")
+        module_content = _module_style("content")
+        module_lifecycle = _module_style("lifecycle")
+
+        builder_style = _tab_style("builder")
+        data_style = _tab_style("data")
+        report_style = _tab_style("report")
+
+        module_label = {
+            "overview": "Overview Map",
+            "structuring": "Structuring Lab",
+            "client": "Client Intelligence",
+            "content": "Content Factory",
+            "lifecycle": "Lifecycle Mgmt",
+        }.get(active_module, "Structuring Lab")
+        tab_label = {
+            "builder": "Strategy Builder",
+            "data": "Market Data",
+            "report": "Client Report",
+        }.get(active_tab, "")
+        breadcrumbs = (
+            f"Dashboard / {module_label} / {tab_label}"
+            if active_module == "structuring"
+            else f"Dashboard / {module_label}"
+        )
+
+        refreshed_at = None
+        if isinstance(market_data, dict):
+            refreshed_at = market_data.get("refreshed_at")
+        market_chip = "MARKET LIVE"
+        if refreshed_at:
+            market_chip = f"MARKET LIVE • {refreshed_at}"
+
+        sidebar_class = "ae-sidebar"
+        if state.get("sidebar_collapsed"):
+            sidebar_class = "ae-sidebar collapsed"
+
+        return (
+            module_overview,
+            module_structuring,
+            module_client,
+            module_content,
+            module_lifecycle,
+            builder_style,
+            data_style,
+            report_style,
+            breadcrumbs,
+            market_chip,
+            sidebar_class,
+        )
+
+    @app.callback(
+        Output("structuring-data-summary", "children"),
+        Input("store-market", "data"),
+    )
+    def _render_market_summary(market_data: dict):
+        if not isinstance(market_data, dict):
+            return html.P("No snapshot data available.")
+        refreshed_at = market_data.get("refreshed_at") or "--"
+        resolved = market_data.get("resolved_underlying") or "--"
+        spot = market_data.get("market_spot")
+        spot_text = spot if spot is not None else "--"
+        leg_quotes = market_data.get("leg_quotes") or []
+        quote_count = len([q for q in leg_quotes if isinstance(q, dict) and q])
+        errors = market_data.get("errors") or []
+        items = [
+            html.Li(f"Refreshed at: {refreshed_at}"),
+            html.Li(f"Resolved underlying: {resolved}"),
+            html.Li(f"Snapshot spot: {spot_text}"),
+            html.Li(f"Leg quotes populated: {quote_count}"),
+        ]
+        if errors:
+            items.append(html.Li(f"Errors: {len(errors)}"))
+        return html.Ul(items)
+
+    @app.callback(
+        Output("structuring-report-summary", "children"),
+        Input("store-analysis-pack", "data"),
+    )
+    def _render_report_summary(pack: dict):
+        if not isinstance(pack, dict):
+            return html.P("Run Analysis to view report context.")
+        if pack.get("error"):
+            return html.P(f"Analysis error: {pack.get('error')}")
+        as_of = pack.get("as_of") or "--"
+        underlying = pack.get("underlying") or {}
+        ticker = underlying.get("ticker") or underlying.get("resolved_underlying") or "--"
+        return html.Ul([html.Li(f"As of: {as_of}"), html.Li(f"Ticker: {ticker}")])
+
     @app.callback(
         Output("strategy-subgroup", "options"),
         Output("strategy-subgroup", "value"),

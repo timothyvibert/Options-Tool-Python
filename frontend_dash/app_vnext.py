@@ -127,6 +127,15 @@ def _cache_get(key: str | None) -> dict | None:
     return _ANALYSIS_CACHE.get(key)
 
 
+CARD_STYLE = {
+    "border": "1px solid #1f2937",
+    "padding": "8px",
+    "borderRadius": "4px",
+    "backgroundColor": "#0f172a",
+}
+CARD_TITLE_STYLE = {"fontWeight": "600", "marginBottom": "6px"}
+
+
 def _safe_list_groups() -> list[str]:
     try:
         return list_groups()
@@ -191,10 +200,13 @@ def _extract_template_legs(row: dict | None, spot: float) -> list[dict]:
         legs.append(
             {
                 "kind": kind,
-                "position": ratio * sign,
+                "side": "Long" if sign > 0 else "Short",
+                "qty": abs(ratio),
                 "strike": float(strike_value),
                 "premium": 0.0,
                 "multiplier": 100,
+                "override": False,
+                "option_ticker": "",
             }
         )
     return legs
@@ -205,10 +217,13 @@ def _default_blank_legs(spot: float) -> list[dict]:
     return [
         {
             "kind": "call",
-            "position": 1.0,
+            "side": "Long",
+            "qty": 1,
             "strike": float(strike),
             "premium": 0.0,
             "multiplier": 100,
+            "override": False,
+            "option_ticker": "",
         }
         for _ in range(4)
     ]
@@ -216,7 +231,16 @@ def _default_blank_legs(spot: float) -> list[dict]:
 
 def _empty_leg_rows() -> list[dict]:
     return [
-        {"kind": "", "position": "", "strike": "", "premium": "", "multiplier": 100}
+        {
+            "kind": "",
+            "side": "",
+            "qty": "",
+            "strike": "",
+            "premium": "",
+            "multiplier": 100,
+            "override": False,
+            "option_ticker": "",
+        }
         for _ in range(4)
     ]
 
@@ -260,6 +284,14 @@ def _select_premium_from_quote(quote: dict, position: float, pricing_mode: str) 
     return 0.0
 
 
+def _row_position(row: dict) -> float:
+    qty = _coerce_float(row.get("qty")) or 0.0
+    side = str(row.get("side", "")).strip().lower()
+    if side == "short":
+        return -qty
+    return qty
+
+
 _groups = _safe_list_groups()
 _default_group = _groups[0] if _groups else None
 _default_subgroups = _safe_list_subgroups(_default_group)
@@ -277,12 +309,86 @@ app.layout = html.Div(
         dcc.Store(id="store-market"),
         dcc.Store(id="store-analysis-key"),
         dcc.Store(id="store-inputs"),
+        dcc.Store(
+            id="store-ui",
+            data={
+                "show_options": True,
+                "show_stock": False,
+                "show_combined": True,
+                "show_strikes": True,
+                "show_breakevens": True,
+            },
+        ),
+        dcc.Tabs(
+            id="vnext-tabs",
+            value="dashboard",
+            children=[
+                dcc.Tab(
+                    label="Dashboard",
+                    value="dashboard",
+                    children=html.Div(id="tab-dashboard"),
+                ),
+                dcc.Tab(
+                    label="Bloomberg Data",
+                    value="bloomberg",
+                    children=html.Div(
+                        id="tab-bloomberg",
+                        children=[
+                            html.H3("Market Debug"),
+                            html.Div(
+                                children=[
+                                    html.Div(
+                                        id="bbg-mode",
+                                        children=(
+                                            "Bloomberg: "
+                                            f"{'AVAILABLE' if BLOOMBERG_AVAILABLE else 'OFFLINE'}"
+                                        ),
+                                    ),
+                                    html.Pre(
+                                        id="ref-debug",
+                                        style={
+                                            "backgroundColor": "#111827",
+                                            "color": "#e5e7eb",
+                                            "padding": "8px",
+                                            "fontSize": "12px",
+                                            "whiteSpace": "pre-wrap",
+                                        },
+                                    ),
+                                    html.Pre(
+                                        id="market-debug",
+                                        style={
+                                            "backgroundColor": "#111827",
+                                            "color": "#e5e7eb",
+                                            "padding": "8px",
+                                            "fontSize": "12px",
+                                            "whiteSpace": "pre-wrap",
+                                        },
+                                    ),
+                                    html.Div(
+                                        id="refresh-debug",
+                                        style={"fontSize": "12px", "color": "#e5e7eb"},
+                                    ),
+                                ],
+                                style={"marginTop": "8px"},
+                            ),
+                            html.Div("Snapshot transparency coming next."),
+                        ],
+                    ),
+                ),
+                dcc.Tab(
+                    label="Client Report",
+                    value="report",
+                    children=html.Div(id="tab-report", children=["Coming next"]),
+                ),
+            ],
+        ),
         html.H2("Options Strategy Builder (vNext)"),
         html.Div(
             style={"display": "grid", "gridTemplateColumns": "1fr 2fr", "gap": "16px"},
             children=[
                 html.Div(
                     children=[
+                        html.H4("Market"),
                         html.Label("Ticker"),
                         dcc.Input(
                             id="ticker-input",
@@ -300,6 +406,9 @@ app.layout = html.Div(
                             step=0.01,
                             style={"width": "100%"},
                         ),
+                        html.Button("Refresh Bloomberg Data", id="refresh-button"),
+                        html.Div(id="refresh-status", style={"fontSize": "12px"}),
+                        html.H4("Expiry"),
                         html.Label("Expiry (YYYY-MM-DD)"),
                         dcc.Input(
                             id="expiry-input",
@@ -307,6 +416,7 @@ app.layout = html.Div(
                             value="",
                             style={"width": "100%"},
                         ),
+                        html.H4("Strategy"),
                         html.Label("Strategy Group"),
                         dcc.Dropdown(
                             id="strategy-group",
@@ -344,6 +454,7 @@ app.layout = html.Div(
                             value=_default_strategy_id,
                             clearable=True,
                         ),
+                        html.H4("Stock Overlay"),
                         html.Label("Stock Position (shares)"),
                         dcc.Input(
                             id="stock-position-input",
@@ -364,17 +475,44 @@ app.layout = html.Div(
                         dash_table.DataTable(
                             id="legs-table",
                             columns=[
-                                {"name": "kind", "id": "kind"},
-                                {"name": "position", "id": "position"},
-                                {"name": "strike", "id": "strike"},
-                                {"name": "premium", "id": "premium"},
-                                {"name": "multiplier", "id": "multiplier"},
+                                {"name": "Type", "id": "kind", "presentation": "dropdown"},
+                                {"name": "Side", "id": "side", "presentation": "dropdown"},
+                                {"name": "Qty", "id": "qty"},
+                                {"name": "Strike", "id": "strike"},
+                                {"name": "Premium", "id": "premium"},
+                                {"name": "Override", "id": "override", "presentation": "dropdown"},
+                                {"name": "Option Ticker", "id": "option_ticker"},
                             ],
                             data=_default_blank_legs(100.0),
                             editable=True,
-                            style_table={"overflowX": "auto"},
+                            dropdown={
+                                "kind": {
+                                    "options": [
+                                        {"label": "Call", "value": "call"},
+                                        {"label": "Put", "value": "put"},
+                                    ]
+                                },
+                                "side": {
+                                    "options": [
+                                        {"label": "Long", "value": "Long"},
+                                        {"label": "Short", "value": "Short"},
+                                    ]
+                                },
+                                "override": {
+                                    "options": [
+                                        {"label": "No", "value": False},
+                                        {"label": "Yes", "value": True},
+                                    ]
+                                },
+                            },
+                            style_table={
+                                "overflowX": "auto",
+                                "maxHeight": "220px",
+                                "overflowY": "auto",
+                            },
                         ),
                         html.Div(style={"height": "12px"}),
+                        html.H4("Pricing & ROI"),
                         html.Label("Pricing Mode"),
                         dcc.Dropdown(
                             id="pricing-mode-input",
@@ -421,6 +559,7 @@ app.layout = html.Div(
                             step=0.01,
                             style={"width": "100%"},
                         ),
+                        html.H4("Scenario & Actions"),
                         html.Label("Scenario Mode"),
                         dcc.Dropdown(
                             id="scenario-mode-input",
@@ -448,9 +587,6 @@ app.layout = html.Div(
                             step=1.0,
                             style={"width": "100%"},
                         ),
-                        html.Div(style={"height": "12px"}),
-                        html.Button("Refresh Bloomberg Data", id="refresh-button"),
-                        html.Div(id="refresh-status", style={"fontSize": "12px"}),
                         html.Div(style={"height": "8px"}),
                         html.Button("Run Analysis", id="run-analysis-button"),
                     ]
@@ -462,47 +598,47 @@ app.layout = html.Div(
                             figure=go.Figure(),
                             style={"height": "420px"},
                         ),
-                        html.Div(id="results-summary"),
+                        html.Div(
+                            style={
+                                "display": "grid",
+                                "gridTemplateColumns": "1fr 1fr",
+                                "gap": "8px",
+                                "marginTop": "8px",
+                            },
+                            children=[
+                                dcc.Checklist(
+                                    id="pnl-toggles",
+                                    options=[
+                                        {"label": "Options", "value": "options"},
+                                        {"label": "Stock", "value": "stock"},
+                                        {"label": "Combined", "value": "combined"},
+                                    ],
+                                    value=["options", "combined"],
+                                    style={"fontSize": "12px"},
+                                ),
+                                dcc.Checklist(
+                                    id="annotate-toggles",
+                                    options=[
+                                        {"label": "Strikes", "value": "strikes"},
+                                        {"label": "Breakevens", "value": "breakevens"},
+                                    ],
+                                    value=["strikes", "breakevens"],
+                                    style={"fontSize": "12px"},
+                                ),
+                            ],
+                        ),
+                        html.H4("Payoff & Metrics"),
+                        html.Div(id="panel-payoff-metrics"),
+                        html.H4("Margin & Capital"),
+                        html.Div(id="panel-margin-capital"),
+                        html.H4("Dividend"),
+                        html.Div(id="panel-dividend"),
                     ]
                 ),
             ],
         ),
-        html.H4("Market Debug"),
-        html.Div(
-            children=[
-                html.Div(
-                    id="bbg-mode",
-                    children=(
-                        f"Bloomberg: {'AVAILABLE' if BLOOMBERG_AVAILABLE else 'OFFLINE'}"
-                    ),
-                ),
-                html.Pre(
-                    id="ref-debug",
-                    style={
-                        "backgroundColor": "#111827",
-                        "color": "#e5e7eb",
-                        "padding": "8px",
-                        "fontSize": "12px",
-                        "whiteSpace": "pre-wrap",
-                    },
-                ),
-                html.Pre(
-                    id="market-debug",
-                    style={
-                        "backgroundColor": "#111827",
-                        "color": "#e5e7eb",
-                        "padding": "8px",
-                        "fontSize": "12px",
-                        "whiteSpace": "pre-wrap",
-                    },
-                ),
-                html.Div(
-                    id="refresh-debug",
-                    style={"fontSize": "12px", "color": "#e5e7eb"},
-                ),
-            ],
-            style={"marginTop": "16px"},
-        ),
+        html.H3("Scenario Table"),
+        html.Div(id="panel-scenario-table"),
         html.H3("Analysis Debug"),
         html.Div(
             children=[
@@ -593,7 +729,7 @@ def _apply_legs_updates(
             quote = {}
             if idx < len(quotes) and isinstance(quotes[idx], dict):
                 quote = quotes[idx]
-            position = _coerce_float(row.get("position")) or 0.0
+            position = _row_position(row)
             premium = _select_premium_from_quote(quote, position, pricing_mode or "mid")
             updated = dict(row)
             updated["premium"] = abs(float(premium))
@@ -818,9 +954,9 @@ def _run_analysis(
             continue
         strike = _coerce_float(row.get("strike"))
         premium = _coerce_float(row.get("premium"))
-        position = _coerce_float(row.get("position"))
+        position = _row_position(row)
         multiplier = _coerce_float(row.get("multiplier")) or 100.0
-        if strike is None or premium is None or position is None:
+        if strike is None or premium is None or position == 0.0:
             continue
         legs.append(
             OptionLeg(
@@ -940,9 +1076,16 @@ def _run_analysis(
 @app.callback(
     Output("payoff-chart", "figure"),
     Input("store-analysis-key", "data"),
+    Input("store-ui", "data"),
 )
-def _render_chart(key_payload):
+def _render_chart(key_payload, ui_state):
     fig = go.Figure()
+    ui_state = ui_state if isinstance(ui_state, dict) else {}
+    show_options = bool(ui_state.get("show_options", True))
+    show_stock = bool(ui_state.get("show_stock", False))
+    show_combined = bool(ui_state.get("show_combined", True))
+    show_strikes = bool(ui_state.get("show_strikes", True))
+    show_breakevens = bool(ui_state.get("show_breakevens", True))
     if not isinstance(key_payload, dict) or key_payload.get("error"):
         if isinstance(key_payload, dict) and key_payload.get("error"):
             fig.update_layout(title=f"Analysis error: {key_payload['error']}")
@@ -965,41 +1108,169 @@ def _render_chart(key_payload):
     if not x:
         fig.update_layout(title="No payoff data in analysis_pack")
         return fig
-    if len(options) == len(x):
+    if show_options and len(options) == len(x):
         fig.add_trace(go.Scatter(x=x, y=options, name="Options PnL"))
-    if len(stock) == len(x):
+    if show_stock and len(stock) == len(x):
         fig.add_trace(go.Scatter(x=x, y=stock, name="Stock PnL"))
-    if len(combined) == len(x):
+    if show_combined and len(combined) == len(x):
         fig.add_trace(go.Scatter(x=x, y=combined, name="Combined PnL"))
+    def _numeric_list(values):
+        items = []
+        for value in values or []:
+            num = _coerce_float(value)
+            if num is not None:
+                items.append(num)
+        return sorted(set(items))
+
+    if show_strikes:
+        for strike in _numeric_list(payoff.get("strikes")):
+            fig.add_vline(x=strike, line_dash="dot", line_color="#9ca3af")
+            fig.add_annotation(x=strike, y=1.02, yref="paper", text=f"K={strike:g}")
+    if show_breakevens:
+        for be in _numeric_list(payoff.get("breakevens")):
+            fig.add_vline(x=be, line_dash="dash", line_color="#f59e0b")
+            fig.add_annotation(x=be, y=1.08, yref="paper", text=f"BE={be:g}")
     fig.update_layout(title="Payoff at Expiry", height=420, template="plotly_dark")
     return fig
 
 
 @app.callback(
-    Output("results-summary", "children"),
+    Output("store-ui", "data"),
+    Input("pnl-toggles", "value"),
+    Input("annotate-toggles", "value"),
+    State("store-ui", "data"),
+)
+def _sync_ui(pnl_values, annotate_values, current):
+    pnl_values = pnl_values or []
+    annotate_values = annotate_values or []
+    state = dict(current) if isinstance(current, dict) else {}
+    state.update(
+        {
+            "show_options": "options" in pnl_values,
+            "show_stock": "stock" in pnl_values,
+            "show_combined": "combined" in pnl_values,
+            "show_strikes": "strikes" in annotate_values,
+            "show_breakevens": "breakevens" in annotate_values,
+        }
+    )
+    return state
+
+
+@app.callback(
+    Output("panel-payoff-metrics", "children"),
+    Output("panel-margin-capital", "children"),
+    Output("panel-dividend", "children"),
+    Output("panel-scenario-table", "children"),
     Input("store-analysis-key", "data"),
 )
-def _render_summary(key_payload):
+def _render_panels(key_payload):
+    def _table(headers, rows):
+        return html.Table(
+            [
+                html.Thead(html.Tr([html.Th(h) for h in headers])),
+                html.Tbody(
+                    [html.Tr([html.Td(cell) for cell in row]) for row in rows]
+                ),
+            ],
+            style={"width": "100%", "fontSize": "12px"},
+        )
+
     if not isinstance(key_payload, dict) or key_payload.get("error"):
-        return html.Div("Run Analysis to view results.")
+        msg = "Run Analysis to view results."
+        return html.Div(msg), html.Div(msg), html.Div(msg), html.Div(msg)
     pack = _cache_get(key_payload.get("key"))
     if not pack:
-        return html.Div("Analysis expired; rerun.")
-    summary = pack.get("summary", {}) if isinstance(pack, dict) else {}
-    rows = summary.get("rows") if isinstance(summary, dict) else None
-    net_premium = summary.get("net_premium_total") if isinstance(summary, dict) else None
-    underlying = pack.get("underlying", {}) if isinstance(pack, dict) else {}
-    ticker = underlying.get("ticker") or underlying.get("resolved_underlying") or "--"
-    as_of = pack.get("as_of") or key_payload.get("as_of") or "--"
-    children = [
-        html.Div(f"As of: {as_of}"),
-        html.Div(f"Ticker: {ticker}"),
+        msg = "Analysis expired; rerun."
+        return html.Div(msg), html.Div(msg), html.Div(msg), html.Div(msg)
+    store_pack = analysis_pack_to_store(pack)
+
+    summary = store_pack.get("summary", {}) if isinstance(store_pack, dict) else {}
+    summary_rows = summary.get("rows") if isinstance(summary, dict) else []
+    metrics_rows = []
+    for row in summary_rows or []:
+        if not isinstance(row, dict):
+            continue
+        metric = row.get("metric") or row.get("label") or row.get("Metric") or ""
+        metrics_rows.append(
+            [
+                metric,
+                row.get("options") or row.get("Options") or "--",
+                row.get("combined") or row.get("Combined") or row.get("net") or "--",
+            ]
+        )
+    metrics_table = (
+        _table(["Metric", "Options", "Combined"], metrics_rows)
+        if metrics_rows
+        else html.Div("--")
+    )
+
+    margin = store_pack.get("margin", {}) if isinstance(store_pack, dict) else {}
+    margin_rows = [
+        ["Classification", margin.get("classification", "--")],
+        ["Margin Proxy", margin.get("margin_proxy", "--")],
     ]
-    if net_premium is not None:
-        children.append(html.Div(f"Net premium (total): {net_premium}"))
-    if isinstance(rows, list):
-        children.append(html.Div(f"Summary rows: {len(rows)}"))
-    return html.Div(children)
+    margin_table = _table(["Field", "Value"], margin_rows)
+
+    dividend = {}
+    underlying = store_pack.get("underlying", {}) if isinstance(store_pack, dict) else {}
+    if isinstance(underlying, dict):
+        dividend = underlying.get("dividend_risk", {}) or {}
+    div_rows = [
+        ["Ex-div Date", dividend.get("ex_div_date", "--")],
+        ["Days to Dividend", dividend.get("days_to_dividend", "--")],
+        ["Before Expiry", dividend.get("before_expiry", "--")],
+    ]
+    dividend_table = _table(["Field", "Value"], div_rows)
+
+    scenario = store_pack.get("scenario", {}) if isinstance(store_pack, dict) else {}
+    top10 = scenario.get("top10") or scenario.get("df")
+    records = []
+    if isinstance(top10, dict) and top10.get("__type__") == "DataFrame":
+        records = top10.get("records") or []
+    elif isinstance(top10, list):
+        records = top10
+    def _val(rec, keys):
+        for key in keys:
+            if key in rec:
+                return rec[key]
+        return "--"
+    scenario_rows = []
+    for rec in records[:10]:
+        if not isinstance(rec, dict):
+            continue
+        scenario_rows.append(
+            [
+                _val(rec, ["scenario", "Scenario", "label"]),
+                _val(rec, ["price", "Scenario Price", "scenario_price"]),
+                _val(rec, ["move_pct", "Move %", "move"]),
+                _val(rec, ["option_pnl", "Option PnL"]),
+                _val(rec, ["stock_pnl", "Stock PnL"]),
+                _val(rec, ["net_pnl", "Combined PnL", "combined_pnl"]),
+                _val(rec, ["net_roi", "Net ROI"]),
+                _val(rec, ["commentary", "Commentary"]),
+            ]
+        )
+    scenario_table = (
+        _table(
+            [
+                "Scenario",
+                "Scenario Price",
+                "Move %",
+                "Option PnL",
+                "Stock PnL",
+                "Combined PnL",
+                "Net ROI",
+                "Commentary",
+            ],
+            scenario_rows,
+        )
+        if scenario_rows
+        else html.Div("--")
+    )
+    scenario_container = html.Div(
+        scenario_table, style={"maxHeight": "240px", "overflowY": "auto"}
+    )
+    return metrics_table, margin_table, dividend_table, scenario_container
 
 
 @app.callback(

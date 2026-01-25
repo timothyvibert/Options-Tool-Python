@@ -10,6 +10,8 @@ This is a minimal, backend-first shell. Run Analysis builds a real analysis_pack
 from datetime import datetime, timezone
 import math
 from functools import lru_cache
+from time import time
+import uuid
 
 import plotly.graph_objects as go
 
@@ -21,15 +23,21 @@ from core.strategy_map import (
     list_strategies,
     list_subgroups,
 )
-from frontend_dash.analysis_adapter import analysis_pack_to_store, refresh_leg_premiums
+from frontend_dash.analysis_adapter import (
+    analysis_pack_to_store,
+    refresh_leg_premiums,
+    to_jsonable,
+)
 from frontend_dash.smart_strikes import compute_default_strike, is_number_like
 
 try:
-    from adapters.bloomberg import resolve_security, fetch_spot
-except Exception as exc:
-    raise RuntimeError(
-        "Missing dependency: resolve_security/fetch_spot could not be imported."
-    ) from exc
+    from adapters.bloomberg import resolve_security as _bbg_resolve_security
+    from adapters.bloomberg import fetch_spot as _bbg_fetch_spot
+    BLOOMBERG_AVAILABLE = True
+except Exception:
+    _bbg_resolve_security = None
+    _bbg_fetch_spot = None
+    BLOOMBERG_AVAILABLE = False
 
 try:
     from dash import Dash, Input, Output, State, dcc, html, dash_table, no_update, ctx
@@ -64,6 +72,45 @@ def _utc_now_str() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
+_ANALYSIS_CACHE: dict[str, dict] = {}
+_ANALYSIS_CACHE_TS: dict[str, float] = {}
+MAX_CACHE_ENTRIES = 20
+CACHE_TTL_SECONDS = 1800
+
+
+def _cache_prune() -> None:
+    now = time()
+    expired = [
+        key
+        for key, ts in _ANALYSIS_CACHE_TS.items()
+        if now - ts > CACHE_TTL_SECONDS
+    ]
+    for key in expired:
+        _ANALYSIS_CACHE.pop(key, None)
+        _ANALYSIS_CACHE_TS.pop(key, None)
+    if len(_ANALYSIS_CACHE_TS) > MAX_CACHE_ENTRIES:
+        ordered = sorted(_ANALYSIS_CACHE_TS.items(), key=lambda item: item[1])
+        for key, _ in ordered[: len(ordered) - MAX_CACHE_ENTRIES]:
+            _ANALYSIS_CACHE.pop(key, None)
+            _ANALYSIS_CACHE_TS.pop(key, None)
+
+
+def _cache_put(pack: dict) -> str:
+    _cache_prune()
+    key = uuid.uuid4().hex
+    _ANALYSIS_CACHE[key] = pack
+    _ANALYSIS_CACHE_TS[key] = time()
+    _cache_prune()
+    return key
+
+
+def _cache_get(key: str | None) -> dict | None:
+    if not key:
+        return None
+    _cache_prune()
+    return _ANALYSIS_CACHE.get(key)
+
+
 def _safe_list_groups() -> list[str]:
     try:
         return list_groups()
@@ -95,7 +142,7 @@ def _cached_strategy_row(strategy_id: int) -> dict | None:
         return None
     if strategy_df is None or strategy_df.empty:
         return None
-    return strategy_df.iloc[0].to_dict()
+    return to_jsonable(strategy_df.iloc[0].to_dict())
 
 
 def _safe_list_subgroups(group: str | None) -> list[str]:
@@ -674,6 +721,7 @@ if DASH_AVAILABLE:
             ),
             dcc.Store(id="store-ref"),
             dcc.Store(id="store-market"),
+            dcc.Store(id="store-analysis-key"),
             dcc.Store(id="store-analysis-pack"),
             dcc.Store(
                 id="store-ui",
@@ -889,7 +937,7 @@ if DASH_AVAILABLE:
             state["active_module"] = "lifecycle"
         elif trigger_id == "structuring-tabs":
             state["active_structuring_tab"] = structuring_tab or "builder"
-        return state
+        return to_jsonable(state)
 
     @app.callback(
         Output("module-overview", "style"),
@@ -999,13 +1047,17 @@ if DASH_AVAILABLE:
 
     @app.callback(
         Output("structuring-report-summary", "children"),
-        Input("store-analysis-pack", "data"),
+        Input("store-analysis-key", "data"),
     )
-    def _render_report_summary(pack: dict):
-        if not isinstance(pack, dict):
+    def _render_report_summary(analysis_key: dict):
+        if not isinstance(analysis_key, dict):
             return html.P("Run Analysis to view report context.")
-        if pack.get("error"):
-            return html.P(f"Analysis error: {pack.get('error')}")
+        if analysis_key.get("error"):
+            return html.P(f"Analysis error: {analysis_key.get('error')}")
+        key = analysis_key.get("key")
+        pack = _cache_get(key)
+        if not isinstance(pack, dict):
+            return html.P("Analysis expired; rerun.")
         as_of = pack.get("as_of") or "--"
         underlying = pack.get("underlying") or {}
         ticker = underlying.get("ticker") or underlying.get("resolved_underlying") or "--"
@@ -1056,217 +1108,63 @@ if DASH_AVAILABLE:
         Output("store-ref", "data"),
         Output("spot-input", "value"),
         Output("spot-status", "children"),
-        Input("ticker-input", "value"),
-        State("spot-input", "value"),
+        Input("ticker-input", "n_submit"),
+        Input("ticker-input", "n_blur"),
+        State("ticker-input", "value"),
         State("store-ref", "data"),
+        prevent_initial_call=True,
     )
-    def _ping_spot(ticker: str, current_spot: float, ref_data: dict):
-        raw_ticker = (ticker or "").strip()
+    def _ping_spot(n_submit: int, n_blur: int, ticker_value: str, ref_data: dict):
+        raw_ticker = (ticker_value or "").strip()
         if not raw_ticker:
             return no_update, no_update, "Enter a ticker"
         if len(raw_ticker) < 2:
             return no_update, no_update, "Ticker incomplete"
+        prop_id = ctx.triggered[0]["prop_id"] if ctx and ctx.triggered else ""
+        is_submit = prop_id.endswith(".n_submit")
+        last_raw = ""
         if isinstance(ref_data, dict):
-            cached_raw = str(ref_data.get("raw_ticker", "")).strip()
-            if cached_raw and cached_raw == raw_ticker:
-                return no_update, no_update, no_update
+            last_raw = str(ref_data.get("raw_ticker", "")).strip()
+        if not is_submit and last_raw and last_raw == raw_ticker:
+            return no_update, no_update, no_update
+        if not BLOOMBERG_AVAILABLE or _bbg_resolve_security is None:
+            return no_update, no_update, "Bloomberg unavailable (offline mode)"
         try:
-            resolved = resolve_security(raw_ticker)
-            spot_result = fetch_spot(resolved)
+            resolved = _bbg_resolve_security(raw_ticker)
+            spot_result = _bbg_fetch_spot(resolved)
             spot_value, as_of = _normalize_spot_result(spot_result)
             if spot_value is None:
                 raise ValueError("Spot not available")
             as_of_text = as_of or _utc_now_str()
             return (
-                {
-                    "raw_ticker": raw_ticker,
-                    "resolved_ticker": resolved,
-                    "spot": spot_value,
-                    "as_of": as_of_text,
-                    "status": "ok",
-                    "error": None,
-                },
+                to_jsonable(
+                    {
+                        "raw_ticker": raw_ticker,
+                        "resolved_ticker": resolved,
+                        "spot": spot_value,
+                        "as_of": as_of_text,
+                        "status": "ok",
+                        "error": None,
+                    }
+                ),
                 spot_value,
                 f"Spot updated ({as_of_text})",
             )
         except Exception as exc:
-            return no_update, no_update, f"Spot fetch failed for {raw_ticker}"
-
-    @app.callback(
-        Output("store-inputs", "data"),
-        Input("ticker-input", "value"),
-        Input("spot-input", "value"),
-        Input("expiry-input", "value"),
-        Input("stock-position-input", "value"),
-        Input("avg-cost-input", "value"),
-        Input("legs-table", "data"),
-        Input("pricing-mode-input", "value"),
-        Input("roi-policy-input", "value"),
-        Input("vol-mode-input", "value"),
-        Input("scenario-mode-input", "value"),
-        Input("atm-iv-input", "value"),
-        Input("downside-tgt-input", "value"),
-        Input("upside-tgt-input", "value"),
-        Input("strategy-group", "value"),
-        Input("strategy-subgroup", "value"),
-        Input("strategy-id", "value"),
-        State("store-ref", "data"),
-        State("store-inputs", "data"),
-    )
-    def _sync_inputs_and_defaults(
-        ticker: str,
-        spot: float,
-        expiry: str,
-        stock_position: float,
-        avg_cost: float,
-        legs_data: list[dict],
-        pricing_mode: str,
-        roi_policy: str,
-        vol_mode: str,
-        scenario_mode: str,
-        atm_iv: float,
-        downside_tgt: float,
-        upside_tgt: float,
-        strategy_group: str,
-        strategy_subgroup: str,
-        strategy_id: int,
-        ref_data: dict,
-        previous_state: dict,
-    ) -> dict:
-        trigger_id = ctx.triggered_id if ctx else None
-        raw_ticker = (ticker or "").strip()
-        if trigger_id == "ticker-input" and (not raw_ticker or len(raw_ticker) < 2):
-            return previous_state if isinstance(previous_state, dict) else no_update
-        prev_spot = 100.0
-        if isinstance(previous_state, dict) and is_number_like(previous_state.get("spot")):
-            prev_spot = float(previous_state.get("spot"))
-        spot_value = _coerce_float(spot)
-        if spot_value is None:
-            spot_value = prev_spot
-        if spot_value < 0:
-            spot_value = 0.0
-        stock_position_value = _coerce_float(stock_position)
-        if stock_position_value is None:
-            stock_position_value = 0.0
-        avg_cost_value = _coerce_float(avg_cost)
-        if avg_cost_value is None:
-            avg_cost_value = 0.0
-
-        ref_spot = None
-        resolved_ticker = None
-        if isinstance(ref_data, dict) and ref_data.get("status") == "ok":
-            ref_spot = _coerce_float(ref_data.get("spot"))
-            resolved_ticker = ref_data.get("resolved_ticker")
-            if ref_data.get("raw_ticker"):
-                raw_ticker = str(ref_data.get("raw_ticker"))
-        spot_for_defaults = ref_spot if ref_spot is not None else spot_value
-
-        prev_strategy_id = None
-        if isinstance(previous_state, dict):
-            prev_strategy_id = previous_state.get("strategy_id")
-        use_defaults = strategy_id is not None and strategy_id != prev_strategy_id
-
-        sanitized_legs = []
-        strategy_row = None
-        strategy_name = ""
-        template_kind = None
-        force_default = False
-
-        if use_defaults and strategy_id is not None:
-            strategy_row = _cached_strategy_row(strategy_id)
-            if strategy_row:
-                strategy_name = str(strategy_row.get("strategy_name", "")).strip()
-                template_kind = str(strategy_row.get("template_kind", "")).strip().upper()
-                template_legs = extract_template_legs_from_row(
-                    strategy_row, spot_for_defaults
-                )
-                if template_kind == "STOCK_ONLY" or not template_legs:
-                    template_legs = []
-                    force_default = True
-                for leg in template_legs:
-                    sanitized_legs.append(
-                        {
-                            "kind": leg.get("kind"),
-                            "position": float(leg.get("position", 0.0)),
-                            "strike": float(leg.get("strike")),
-                            "strike_tag": leg.get("strike_tag"),
-                            "premium": 0.0,
-                            "multiplier": int(leg.get("multiplier", 100) or 100),
-                        }
-                    )
-        if not sanitized_legs and not force_default:
-            if isinstance(legs_data, list):
-                for row in legs_data:
-                    if not isinstance(row, dict):
-                        continue
-                    kind = str(row.get("kind", "")).strip().lower()
-                    if kind not in {"call", "put"}:
-                        continue
-                    try:
-                        position = float(row.get("position"))
-                        strike = float(row.get("strike"))
-                        premium = float(row.get("premium"))
-                    except (TypeError, ValueError):
-                        continue
-                    try:
-                        multiplier = int(row.get("multiplier", 100) or 100)
-                    except (TypeError, ValueError):
-                        multiplier = 100
-                    strike_tag = row.get("strike_tag")
-                    sanitized_legs.append(
-                        {
-                            "kind": kind,
-                            "position": position,
-                            "strike": strike,
-                            "strike_tag": strike_tag,
-                            "premium": premium,
-                            "multiplier": multiplier,
-                        }
-                    )
-        if not sanitized_legs:
-            sanitized_legs = [
-                {
-                    "kind": "call",
-                    "position": 1.0,
-                    "strike": float(spot_for_defaults),
-                    "strike_tag": "ATM",
-                    "premium": 0.0,
-                    "multiplier": 100,
-                }
-            ]
-
-        if isinstance(previous_state, dict):
-            if not strategy_name:
-                strategy_name = str(previous_state.get("strategy_name", "") or "")
-            if template_kind is None:
-                template_kind = previous_state.get("template_kind")
-            if strategy_row is None:
-                strategy_row = previous_state.get("strategy_row")
-
-        store_inputs = {
-            "ticker": raw_ticker,
-            "raw_ticker": raw_ticker,
-            "resolved_ticker": resolved_ticker or raw_ticker,
-            "spot": spot_value,
-            "expiry": (expiry or "").strip(),
-            "stock_position": stock_position_value,
-            "avg_cost": avg_cost_value,
-            "legs": sanitized_legs,
-            "pricing_mode": pricing_mode or "mid",
-            "roi_policy": roi_policy or "premium",
-            "vol_mode": vol_mode or "atm",
-            "atm_iv": float(atm_iv or 0.0),
-            "scenario_mode": scenario_mode or "targets",
-            "downside_tgt": float(downside_tgt or 0.0),
-            "upside_tgt": float(upside_tgt or 0.0),
-            "strategy_group": strategy_group,
-            "strategy_subgroup": strategy_subgroup,
-            "strategy_id": strategy_id,
-            "strategy_name": strategy_name,
-            "template_kind": template_kind,
-            "strategy_row": strategy_row,
-        }
-        return store_inputs
+            return (
+                to_jsonable(
+                    {
+                        "raw_ticker": raw_ticker,
+                        "resolved_ticker": None,
+                        "spot": None,
+                        "as_of": _utc_now_str(),
+                        "status": "error",
+                        "error": str(exc),
+                    }
+                ),
+                no_update,
+                f"Spot fetch failed for {raw_ticker}",
+            )
 
     @app.callback(
         Output("legs-table", "data"),
@@ -1333,20 +1231,33 @@ if DASH_AVAILABLE:
         Output("store-market", "data"),
         Output("refresh-status", "children"),
         Input("refresh-button", "n_clicks"),
-        State("store-inputs", "data"),
+        State("store-ref", "data"),
+        State("ticker-input", "value"),
+        State("expiry-input", "value"),
+        State("pricing-mode-input", "value"),
         State("legs-table", "data"),
         prevent_initial_call=True,
     )
     def _refresh_market(
-        n_clicks: int, inputs: dict, legs_data: list[dict]
+        n_clicks: int,
+        ref_data: dict,
+        ticker_value: str,
+        expiry: str,
+        pricing_mode: str,
+        legs_data: list[dict],
     ) -> tuple[dict, str]:
-        if not isinstance(inputs, dict):
-            return no_update, "Refresh failed: missing inputs"
-        raw_ticker = str(inputs.get("raw_ticker") or inputs.get("ticker") or "")
-        resolved_ticker = inputs.get("resolved_ticker")
-        expiry = inputs.get("expiry") or None
-        pricing_mode = str(inputs.get("pricing_mode", "mid") or "mid").strip().lower()
-        source_legs = legs_data if isinstance(legs_data, list) else inputs.get("legs") or []
+        raw_ticker = str(ticker_value or "").strip()
+        resolved_ticker = None
+        if isinstance(ref_data, dict):
+            ref_raw = str(ref_data.get("raw_ticker") or "").strip()
+            if ref_raw:
+                raw_ticker = ref_raw
+            ref_resolved = ref_data.get("resolved_ticker")
+            if ref_resolved:
+                resolved_ticker = ref_resolved
+        expiry = expiry or None
+        pricing_mode = str(pricing_mode or "mid").strip().lower()
+        source_legs = legs_data if isinstance(legs_data, list) else []
         if not expiry:
             return no_update, "Refresh failed: expiry required"
         _, market_snapshot, status = refresh_leg_premiums(
@@ -1365,35 +1276,92 @@ if DASH_AVAILABLE:
             "refreshed_at": market_snapshot.get("refreshed_at"),
             "errors": market_snapshot.get("errors"),
         }
-        return store_market, status
+        return to_jsonable(store_market), status
 
     @app.callback(
         Output("store-analysis-pack", "data"),
+        Output("store-inputs", "data"),
         Input("run-analysis-button", "n_clicks"),
-        State("store-inputs", "data"),
+        State("store-ref", "data"),
+        State("ticker-input", "value"),
+        State("spot-input", "value"),
+        State("expiry-input", "value"),
+        State("stock-position-input", "value"),
+        State("avg-cost-input", "value"),
+        State("legs-table", "data"),
+        State("pricing-mode-input", "value"),
+        State("roi-policy-input", "value"),
+        State("vol-mode-input", "value"),
+        State("atm-iv-input", "value"),
+        State("scenario-mode-input", "value"),
+        State("downside-tgt-input", "value"),
+        State("upside-tgt-input", "value"),
+        State("strategy-group", "value"),
+        State("strategy-subgroup", "value"),
+        State("strategy-id", "value"),
         State("store-market", "data"),
         prevent_initial_call=True,
     )
-    def _run_analysis(n_clicks: int, inputs: dict, market_data: dict) -> dict:
-        if not isinstance(inputs, dict):
-            return {"error": "invalid inputs"}
-        ticker = str(inputs.get("ticker", "") or "")
-        resolved_ticker = str(inputs.get("resolved_ticker") or ticker)
-        spot = float(inputs.get("spot", 0.0) or 0.0)
-        stock_position = float(inputs.get("stock_position", 0.0) or 0.0)
-        avg_cost = float(inputs.get("avg_cost", 0.0) or 0.0)
-        expiry = str(inputs.get("expiry", "") or "")
-        pricing_mode = str(inputs.get("pricing_mode", "mid") or "mid")
-        roi_policy = str(inputs.get("roi_policy", "premium") or "premium")
-        vol_mode = str(inputs.get("vol_mode", "atm") or "atm")
-        atm_iv = float(inputs.get("atm_iv", 0.0) or 0.0)
-        scenario_mode = str(inputs.get("scenario_mode", "targets") or "targets")
-        downside_pct = float(inputs.get("downside_tgt", 0.0) or 0.0)
-        upside_pct = float(inputs.get("upside_tgt", 0.0) or 0.0)
-        downside_tgt = max(1e-6, 1.0 + (downside_pct / 100.0))
-        upside_tgt = max(1e-6, 1.0 + (upside_pct / 100.0))
-        legs_data = inputs.get("legs") or []
+    def _run_analysis(
+        n_clicks: int,
+        ref_data: dict,
+        ticker_value: str,
+        spot: float,
+        expiry: str,
+        stock_position: float,
+        avg_cost: float,
+        legs_table_data: list[dict],
+        pricing_mode: str,
+        roi_policy: str,
+        vol_mode: str,
+        atm_iv: float,
+        scenario_mode: str,
+        downside_tgt: float,
+        upside_tgt: float,
+        strategy_group: str,
+        strategy_subgroup: str,
+        strategy_id: int,
+        market_data: dict,
+    ) -> tuple[dict, dict]:
+        raw_ticker = str(ticker_value or "").strip()
+        resolved_ticker = None
+        if isinstance(ref_data, dict):
+            ref_raw = str(ref_data.get("raw_ticker") or "").strip()
+            if ref_raw:
+                raw_ticker = ref_raw
+            ref_resolved = ref_data.get("resolved_ticker")
+            if ref_resolved:
+                resolved_ticker = ref_resolved
+        if not resolved_ticker:
+            resolved_ticker = raw_ticker
+
+        spot_value = _coerce_float(spot)
+        if spot_value is None:
+            spot_value = 0.0
+        stock_position_value = _coerce_float(stock_position) or 0.0
+        avg_cost_value = _coerce_float(avg_cost) or 0.0
+        expiry_value = str(expiry or "")
+        pricing_mode_value = str(pricing_mode or "mid")
+        roi_policy_value = str(roi_policy or "premium")
+        vol_mode_value = str(vol_mode or "atm")
+        atm_iv_value = _coerce_float(atm_iv) or 0.0
+        scenario_mode_value = str(scenario_mode or "targets")
+        downside_pct = _coerce_float(downside_tgt) or 0.0
+        upside_pct = _coerce_float(upside_tgt) or 0.0
+        downside_factor = max(1e-6, 1.0 + (downside_pct / 100.0))
+        upside_factor = max(1e-6, 1.0 + (upside_pct / 100.0))
+
+        strategy_row = _cached_strategy_row(strategy_id) if strategy_id else None
+        strategy_name = ""
+        template_kind = None
+        if isinstance(strategy_row, dict):
+            strategy_name = str(strategy_row.get("strategy_name", "")).strip()
+            template_kind = str(strategy_row.get("template_kind", "")).strip().upper()
+        strategy_row = to_jsonable(strategy_row) if isinstance(strategy_row, dict) else None
+
+        legs_data = legs_table_data if isinstance(legs_table_data, list) else []
         legs = []
+        sanitized_legs = []
         net_premium_per_share = 0.0
         for row in legs_data:
             if not isinstance(row, dict):
@@ -1411,6 +1379,17 @@ if DASH_AVAILABLE:
                 multiplier = int(row.get("multiplier", 100) or 100)
             except (TypeError, ValueError):
                 multiplier = 100
+            strike_tag = row.get("strike_tag")
+            sanitized_legs.append(
+                {
+                    "kind": kind,
+                    "position": position,
+                    "strike": strike,
+                    "strike_tag": strike_tag,
+                    "premium": premium,
+                    "multiplier": multiplier,
+                }
+            )
             net_premium_per_share -= position * premium
             legs.append(
                 OptionLeg(
@@ -1421,31 +1400,62 @@ if DASH_AVAILABLE:
                     multiplier=multiplier,
                 )
             )
-        roi_policy_key = roi_policy.strip().lower()
-        if roi_policy_key == "premium" and abs(net_premium_per_share) < 1e-9:
-            return {
-                "error": (
-                    "Net premium is 0 under ROI policy Premium. Enter premiums "
-                    "(or Fetch Bloomberg Data) or choose a different ROI policy."
-                ),
-                "as_of": _utc_now_str(),
+
+        inputs_snapshot = to_jsonable(
+            {
+                "ticker": raw_ticker,
+                "raw_ticker": raw_ticker,
+                "resolved_ticker": resolved_ticker or raw_ticker,
+                "spot": spot_value,
+                "expiry": expiry_value,
+                "stock_position": stock_position_value,
+                "avg_cost": avg_cost_value,
+                "legs": sanitized_legs,
+                "pricing_mode": pricing_mode_value,
+                "roi_policy": roi_policy_value,
+                "vol_mode": vol_mode_value,
+                "atm_iv": atm_iv_value,
+                "scenario_mode": scenario_mode_value,
+                "downside_tgt": downside_pct,
+                "upside_tgt": upside_pct,
+                "strategy_group": strategy_group,
+                "strategy_subgroup": strategy_subgroup,
+                "strategy_id": strategy_id,
+                "strategy_name": strategy_name,
+                "template_kind": template_kind,
+                "strategy_row": strategy_row,
             }
+        )
+
+        roi_policy_key = roi_policy_value.strip().lower()
+        if roi_policy_key == "premium" and abs(net_premium_per_share) < 1e-9:
+            return (
+                {
+                    "error": (
+                        "Net premium is 0 under ROI policy Premium. Enter premiums "
+                        "(or Fetch Bloomberg Data) or choose a different ROI policy."
+                    ),
+                    "as_of": _utc_now_str(),
+                },
+                inputs_snapshot,
+            )
+
         strategy_input = StrategyInput(
-            spot=spot,
-            stock_position=stock_position,
-            avg_cost=avg_cost,
+            spot=spot_value,
+            stock_position=stock_position_value,
+            avg_cost=avg_cost_value,
             legs=legs,
         )
         strategy_meta = {
             "as_of": _utc_now_str(),
-            "expiry": expiry,
-            "underlying_ticker": ticker,
+            "expiry": expiry_value,
+            "underlying_ticker": raw_ticker,
             "resolved_underlying": resolved_ticker,
-            "strategy_name": inputs.get("strategy_name") or "",
-            "strategy_id": inputs.get("strategy_id"),
-            "group": inputs.get("strategy_group"),
-            "subgroup": inputs.get("strategy_subgroup"),
-            "strategy_row": inputs.get("strategy_row"),
+            "strategy_name": strategy_name,
+            "strategy_id": strategy_id,
+            "group": strategy_group,
+            "subgroup": strategy_subgroup,
+            "strategy_row": strategy_row,
         }
         underlying_profile = {}
         bbg_leg_snapshots = None
@@ -1469,19 +1479,19 @@ if DASH_AVAILABLE:
             pack = build_analysis_pack(
                 strategy_input=strategy_input,
                 strategy_meta=strategy_meta,
-                pricing_mode=pricing_map.get(pricing_mode, pricing_mode),
-                roi_policy=roi_map.get(roi_policy, roi_policy),
-                vol_mode=vol_map.get(vol_mode, vol_mode),
-                atm_iv=atm_iv,
+                pricing_mode=pricing_map.get(pricing_mode_value, pricing_mode_value),
+                roi_policy=roi_map.get(roi_policy_value, roi_policy_value),
+                vol_mode=vol_map.get(vol_mode_value, vol_mode_value),
+                atm_iv=atm_iv_value,
                 underlying_profile=underlying_profile,
                 bbg_leg_snapshots=bbg_leg_snapshots,
-                scenario_mode=scenario_mode,
-                downside_tgt=downside_tgt,
-                upside_tgt=upside_tgt,
+                scenario_mode=scenario_mode_value,
+                downside_tgt=downside_factor,
+                upside_tgt=upside_factor,
             )
-            return analysis_pack_to_store(pack)
+            return analysis_pack_to_store(pack), inputs_snapshot
         except Exception as exc:
-            return {"error": str(exc)}
+            return {"error": str(exc)}, inputs_snapshot
 
     @app.callback(
         Output("store-ui", "data"),
@@ -1489,34 +1499,41 @@ if DASH_AVAILABLE:
     )
     def _update_ui_toggles(values: list[str]) -> dict:
         selected = set(values or [])
-        return {
-            "show_options": "options" in selected,
-            "show_stock": "stock" in selected,
-            "show_combined": "combined" in selected,
-        }
+        return to_jsonable(
+            {
+                "show_options": "options" in selected,
+                "show_stock": "stock" in selected,
+                "show_combined": "combined" in selected,
+            }
+        )
 
     @app.callback(
         Output("payoff-chart", "figure"),
-        Input("store-analysis-pack", "data"),
+        Input("store-analysis-key", "data"),
         Input("store-ui", "data"),
     )
-    def _render_chart(analysis_pack: dict, ui_state: dict) -> go.Figure:
+    def _render_chart(analysis_key: dict, ui_state: dict) -> go.Figure:
         fig = go.Figure()
-        if not isinstance(analysis_pack, dict):
+        if not isinstance(analysis_key, dict):
             fig.update_layout(title="Run Analysis to view payoff")
             return fig
-        if analysis_pack.get("error"):
-            fig.update_layout(title=f"Analysis error: {analysis_pack['error']}")
+        if analysis_key.get("error"):
+            fig.update_layout(title=f"Analysis error: {analysis_key['error']}")
             return fig
-        payoff = analysis_pack.get("payoff")
+        key = analysis_key.get("key")
+        pack = _cache_get(key)
+        if not isinstance(pack, dict):
+            fig.update_layout(title="Analysis expired; rerun")
+            return fig
+        payoff = pack.get("payoff")
         if not isinstance(payoff, dict):
             fig.update_layout(title="Run Analysis to view payoff")
             return fig
-        price_grid = payoff.get("price_grid") or []
-        options_pnl = payoff.get("options_pnl") or []
-        stock_pnl = payoff.get("stock_pnl") or []
-        combined_pnl = payoff.get("combined_pnl") or []
-        if not price_grid:
+        price_grid = to_jsonable(payoff.get("price_grid") or [])
+        options_pnl = to_jsonable(payoff.get("options_pnl") or [])
+        stock_pnl = to_jsonable(payoff.get("stock_pnl") or [])
+        combined_pnl = to_jsonable(payoff.get("combined_pnl") or [])
+        if not isinstance(price_grid, list) or not price_grid:
             fig.update_layout(title="Run Analysis to view payoff")
             return fig
         show_options = bool((ui_state or {}).get("show_options", True))
@@ -1563,29 +1580,40 @@ if DASH_AVAILABLE:
 
     @app.callback(
         Output("as-of-display", "children"),
-        Input("store-analysis-pack", "data"),
+        Input("store-analysis-key", "data"),
     )
-    def _render_as_of(analysis_pack: dict) -> str:
-        if isinstance(analysis_pack, dict):
-            as_of = analysis_pack.get("as_of")
-            if as_of:
-                return f"As of: {as_of}"
+    def _render_as_of(analysis_key: dict) -> str:
+        if isinstance(analysis_key, dict):
+            if analysis_key.get("error"):
+                return "As of: --"
+            key = analysis_key.get("key")
+            pack = _cache_get(key)
+            if isinstance(pack, dict):
+                as_of = pack.get("as_of")
+                if as_of:
+                    return f"As of: {as_of}"
         return "As of: --"
 
     @app.callback(
         Output("results-content", "children"),
-        Input("store-analysis-pack", "data"),
+        Input("store-analysis-key", "data"),
         Input("results-tabs", "value"),
     )
-    def _render_results(pack: dict, tab: str):
-        if not isinstance(pack, dict):
+    def _render_results(analysis_key: dict, tab: str):
+        if not isinstance(analysis_key, dict):
             return html.Div("Run Analysis to view results", style={"fontSize": "12px"})
-        if pack.get("error"):
+        if analysis_key.get("error"):
             return html.Div(
-                f"Analysis error: {pack['error']}", style={"fontSize": "12px"}
+                f"Analysis error: {analysis_key['error']}",
+                style={"fontSize": "12px"},
             )
+        key = analysis_key.get("key")
+        pack = _cache_get(key)
+        if not isinstance(pack, dict):
+            return html.Div("Analysis expired; rerun", style={"fontSize": "12px"})
+        pack_json = analysis_pack_to_store(pack)
         if tab == "summary":
-            summary = pack.get("summary", {}) if isinstance(pack, dict) else {}
+            summary = pack_json.get("summary", {}) if isinstance(pack_json, dict) else {}
             rows = summary.get("rows", []) if isinstance(summary, dict) else []
             table = dash_table.DataTable(
                 columns=[
@@ -1617,7 +1645,7 @@ if DASH_AVAILABLE:
                 ]
             )
         if tab == "scenario":
-            scenario = pack.get("scenario", {}) if isinstance(pack, dict) else {}
+            scenario = pack_json.get("scenario", {}) if isinstance(pack_json, dict) else {}
             df_dict = None
             if isinstance(scenario, dict):
                 df_dict = scenario.get("top10") or scenario.get("df")
@@ -1645,7 +1673,7 @@ if DASH_AVAILABLE:
             )
         if tab == "key_levels":
             levels = []
-            key_levels = pack.get("key_levels", {}) if isinstance(pack, dict) else {}
+            key_levels = pack_json.get("key_levels", {}) if isinstance(pack_json, dict) else {}
             if isinstance(key_levels, dict):
                 levels = key_levels.get("levels") or []
             rows = []

@@ -33,13 +33,16 @@ def to_jsonable(obj):
     if np is not None and isinstance(obj, np.generic):
         return to_jsonable(obj.item())
     if pd is not None and isinstance(obj, pd.DataFrame):
+        records_raw = obj.to_dict("records")
+        records_clean = [to_jsonable(record) for record in records_raw]
         return {
             "__type__": "DataFrame",
             "columns": [str(col) for col in obj.columns],
-            "records": obj.to_dict("records"),
+            "records": records_clean,
         }
     if pd is not None and isinstance(obj, pd.Series):
-        return {"__type__": "Series", "data": obj.to_dict()}
+        data_raw = obj.to_dict()
+        return {"__type__": "Series", "data": to_jsonable(data_raw)}
     if isinstance(obj, Mapping):
         return {str(key): to_jsonable(value) for key, value in obj.items()}
     if isinstance(obj, (list, tuple, set)):

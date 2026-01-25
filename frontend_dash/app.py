@@ -132,20 +132,47 @@ def _coerce_float(value: object) -> float | None:
     return numeric
 
 
-def _df_dict_to_table(df_dict: dict, table_id: str, page_size: int = 10):
+AE_TABLE_STYLE = {"height": "240px", "overflowY": "auto", "overflowX": "auto"}
+AE_TABLE_STYLE_TALL = {"height": "320px", "overflowY": "auto", "overflowX": "auto"}
+AE_TABLE_HEADER = {
+    "backgroundColor": "#111827",
+    "color": "#e5e7eb",
+    "fontWeight": "600",
+    "border": "1px solid #1f2937",
+}
+AE_TABLE_CELL = {
+    "backgroundColor": "#0f172a",
+    "color": "#e5e7eb",
+    "fontSize": "12px",
+    "padding": "6px",
+    "border": "1px solid #1f2937",
+}
+AE_TABLE_DATA_COND = [
+    {"if": {"state": "selected"}, "backgroundColor": "#1f2937"},
+    {"if": {"state": "active"}, "backgroundColor": "#111827"},
+]
+
+
+def _df_dict_to_table(
+    df_dict: dict, table_id: str, page_size: int = 10, table_style=None
+):
     if not isinstance(df_dict, dict) or df_dict.get("__type__") != "DataFrame":
         return html.Div("No data", style={"fontSize": "12px", "color": "#6B7280"})
     columns = df_dict.get("columns") or []
     records = df_dict.get("records") or []
     if not isinstance(columns, list) or not isinstance(records, list):
         return html.Div("No data", style={"fontSize": "12px", "color": "#6B7280"})
+    style_table = table_style or AE_TABLE_STYLE_TALL
     return dash_table.DataTable(
         id=table_id,
         columns=[{"name": col, "id": col} for col in columns],
         data=records,
         page_size=page_size,
-        style_table={"overflowX": "auto"},
-        style_cell={"fontSize": "12px", "padding": "4px"},
+        style_table=style_table,
+        style_header=AE_TABLE_HEADER,
+        style_cell=AE_TABLE_CELL,
+        style_data_conditional=AE_TABLE_DATA_COND,
+        fixed_rows={"headers": True},
     )
 
 
@@ -187,6 +214,56 @@ def _is_blank(value: object) -> bool:
     if isinstance(value, str) and not value.strip():
         return True
     return False
+
+
+def _blank_leg_rows(count: int) -> list[dict]:
+    return [
+        {
+            "kind": "",
+            "position": "",
+            "strike": "",
+            "premium": "",
+            "multiplier": 100,
+        }
+        for _ in range(count)
+    ]
+
+
+def _select_premium_from_quote(quote: dict, position: float, mode: str) -> float:
+    def _get(keys: list[str]) -> float | None:
+        for key in keys:
+            if key in quote and quote[key] is not None:
+                try:
+                    return float(quote[key])
+                except (TypeError, ValueError):
+                    continue
+        return None
+
+    bid = _get(["bid", "BID", "PX_BID"])
+    ask = _get(["ask", "ASK", "PX_ASK"])
+    mid = _get(["mid", "MID", "PX_MID"])
+    last = _get(["last", "PX_LAST"])
+    avg = (bid + ask) / 2.0 if bid is not None and ask is not None else None
+    mode_key = (mode or "").strip().lower()
+    if mode_key == "mid":
+        for value in (mid, avg, bid, ask, last):
+            if value is not None:
+                return float(value)
+        return 0.0
+    if position > 0:
+        for value in (ask, mid, avg, bid, last):
+            if value is not None:
+                return float(value)
+        return 0.0
+    if position < 0:
+        for value in (bid, mid, avg, ask, last):
+            if value is not None:
+                return float(value)
+        return 0.0
+    for value in (mid, avg, bid, ask, last):
+        if value is not None:
+            return float(value)
+    return 0.0
 
 
 def extract_template_legs_from_row(strategy_row: dict, spot: float) -> list[dict]:
@@ -282,80 +359,88 @@ if DASH_AVAILABLE:
 
     builder_layout = html.Div(
         [
-            html.H2("Options Strategy Builder (Dash)"),
+            html.H2("Options Strategy Builder (Dash)", className="ae-page-title"),
             html.Div(
                 [
                     html.Div(
                         [
-                            html.H4("Inputs"),
-                            html.Label("Ticker"),
+                            html.H4("Inputs", className="ae-card-title"),
+                            html.Label("Ticker", className="ae-label"),
                             dcc.Input(
                                 id="ticker-input",
                                 type="text",
                                 value="",
                                 placeholder="e.g. AAPL US",
                                 debounce=True,
+                                className="ae-input",
                                 style={"width": "100%"},
                             ),
-                            html.Label("Group"),
+                            html.Label("Group", className="ae-label"),
                             dcc.Dropdown(
                                 id="strategy-group",
                                 options=_group_options,
                                 value=_group_value,
                                 clearable=False,
+                                className="ae-dropdown",
                             ),
-                            html.Label("Subgroup"),
+                            html.Label("Subgroup", className="ae-label"),
                             dcc.Dropdown(
                                 id="strategy-subgroup",
                                 options=_subgroup_options,
                                 value=_subgroup_value,
                                 clearable=False,
+                                className="ae-dropdown",
                             ),
-                            html.Label("Strategy"),
+                            html.Label("Strategy", className="ae-label"),
                             dcc.Dropdown(
                                 id="strategy-id",
                                 options=_strategy_options,
                                 value=_strategy_value,
                                 clearable=False,
+                                className="ae-dropdown",
                             ),
-                            html.Label("Expiry"),
+                            html.Label("Expiry", className="ae-label"),
                             dcc.Input(
                                 id="expiry-input",
                                 type="text",
                                 value="",
                                 placeholder="YYYY-MM-DD",
+                                className="ae-input",
                                 style={"width": "100%"},
                             ),
-                            html.Label("Spot"),
+                            html.Label("Spot", className="ae-label"),
                             dcc.Input(
                                 id="spot-input",
                                 type="number",
                                 value=100.0,
                                 min=0,
                                 step=1.0,
+                                className="ae-input",
                                 style={"width": "100%"},
                             ),
                             html.Div(
                                 id="spot-status",
                                 style={"fontSize": "12px", "marginTop": "4px"},
                             ),
-                            html.Label("Stock position"),
+                            html.Label("Stock position", className="ae-label"),
                             dcc.Input(
                                 id="stock-position-input",
                                 type="number",
                                 value=0.0,
                                 step=1.0,
+                                className="ae-input",
                                 style={"width": "100%"},
                             ),
-                            html.Label("Avg cost"),
+                            html.Label("Avg cost", className="ae-label"),
                             dcc.Input(
                                 id="avg-cost-input",
                                 type="number",
                                 value=0.0,
                                 step=1.0,
+                                className="ae-input",
                                 style={"width": "100%"},
                             ),
-                            html.Label("Option legs"),
+                            html.Label("Option legs", className="ae-label"),
                             dash_table.DataTable(
                                 id="legs-table",
                                 columns=[
@@ -387,9 +472,13 @@ if DASH_AVAILABLE:
                                     }
                                 },
                                 editable=True,
-                                style_table={"overflowX": "auto"},
+                                style_table=AE_TABLE_STYLE,
+                                style_header=AE_TABLE_HEADER,
+                                style_cell=AE_TABLE_CELL,
+                                style_data_conditional=AE_TABLE_DATA_COND,
+                                fixed_rows={"headers": True},
                             ),
-                            html.Label("Pricing mode"),
+                            html.Label("Pricing mode", className="ae-label"),
                             dcc.Dropdown(
                                 id="pricing-mode-input",
                                 options=[
@@ -398,8 +487,9 @@ if DASH_AVAILABLE:
                                 ],
                                 value="mid",
                                 clearable=False,
+                                className="ae-dropdown",
                             ),
-                            html.Label("ROI policy"),
+                            html.Label("ROI policy", className="ae-label"),
                             dcc.Dropdown(
                                 id="roi-policy-input",
                                 options=[
@@ -409,8 +499,9 @@ if DASH_AVAILABLE:
                                 ],
                                 value="premium",
                                 clearable=False,
+                                className="ae-dropdown",
                             ),
-                            html.Label("Vol mode"),
+                            html.Label("Vol mode", className="ae-label"),
                             dcc.Dropdown(
                                 id="vol-mode-input",
                                 options=[
@@ -419,8 +510,9 @@ if DASH_AVAILABLE:
                                 ],
                                 value="atm",
                                 clearable=False,
+                                className="ae-dropdown",
                             ),
-                            html.Label("Scenario mode"),
+                            html.Label("Scenario mode", className="ae-label"),
                             dcc.Dropdown(
                                 id="scenario-mode-input",
                                 options=[
@@ -430,30 +522,34 @@ if DASH_AVAILABLE:
                                 ],
                                 value="targets",
                                 clearable=False,
+                                className="ae-dropdown",
                             ),
-                            html.Label("ATM IV"),
+                            html.Label("ATM IV", className="ae-label"),
                             dcc.Input(
                                 id="atm-iv-input",
                                 type="number",
                                 value=0.20,
                                 min=0,
                                 step=0.01,
+                                className="ae-input",
                                 style={"width": "100%"},
                             ),
-                            html.Label("Downside target (%)"),
+                            html.Label("Downside target (%)", className="ae-label"),
                             dcc.Input(
                                 id="downside-tgt-input",
                                 type="number",
                                 value=-10.0,
                                 step=1.0,
+                                className="ae-input",
                                 style={"width": "100%"},
                             ),
-                            html.Label("Upside target (%)"),
+                            html.Label("Upside target (%)", className="ae-label"),
                             dcc.Input(
                                 id="upside-tgt-input",
                                 type="number",
                                 value=10.0,
                                 step=1.0,
+                                className="ae-input",
                                 style={"width": "100%"},
                             ),
                             html.Div(style={"height": "12px"}),
@@ -461,6 +557,7 @@ if DASH_AVAILABLE:
                                 "Refresh Bloomberg Data",
                                 id="refresh-button",
                                 n_clicks=0,
+                                className="ae-btn ae-btn-secondary",
                                 style={"width": "100%"},
                             ),
                             html.Div(id="refresh-status", style={"marginTop": "8px"}),
@@ -468,31 +565,28 @@ if DASH_AVAILABLE:
                                 "Run Analysis",
                                 id="run-analysis-button",
                                 n_clicks=0,
+                                className="ae-btn ae-btn-primary",
                                 style={"width": "100%", "marginTop": "8px"},
                             ),
                         ],
-                        style={
-                            "flex": "1",
-                            "padding": "12px",
-                            "border": "1px solid #E5E7EB",
-                            "borderRadius": "6px",
-                        },
+                        className="ae-card",
+                        style={"flex": "1"},
                     ),
                     html.Div(
                         [
-                            html.H4("Payoff"),
-                            dcc.Graph(id="payoff-chart", figure=go.Figure()),
+                            html.H4("Payoff", className="ae-card-title"),
+                            dcc.Graph(
+                                id="payoff-chart",
+                                figure=go.Figure(),
+                                style={"height": "460px"},
+                            ),
                         ],
-                        style={
-                            "flex": "2.2",
-                            "padding": "12px",
-                            "border": "1px solid #E5E7EB",
-                            "borderRadius": "6px",
-                        },
+                        className="ae-card",
+                        style={"flex": "2.2"},
                     ),
                     html.Div(
                         [
-                            html.H4("View"),
+                            html.H4("View", className="ae-card-title"),
                             dcc.Checklist(
                                 id="pnl-toggles",
                                 options=[
@@ -505,25 +599,42 @@ if DASH_AVAILABLE:
                             ),
                             html.Div(style={"height": "12px"}),
                             html.Div(id="as-of-display", children="As of: --"),
-                            html.H4("Results", style={"marginTop": "12px"}),
+                            html.H4("Results", className="ae-card-title", style={"marginTop": "12px"}),
                             dcc.Tabs(
                                 id="results-tabs",
                                 value="summary",
+                                className="ae-tabs",
                                 children=[
-                                    dcc.Tab(label="Summary", value="summary"),
-                                    dcc.Tab(label="Scenario", value="scenario"),
-                                    dcc.Tab(label="Key Levels", value="key_levels"),
-                                    dcc.Tab(label="Margin / POP", value="margin_pop"),
+                                    dcc.Tab(
+                                        label="Summary",
+                                        value="summary",
+                                        className="ae-tab",
+                                        selected_className="ae-tab ae-tab--selected",
+                                    ),
+                                    dcc.Tab(
+                                        label="Scenario",
+                                        value="scenario",
+                                        className="ae-tab",
+                                        selected_className="ae-tab ae-tab--selected",
+                                    ),
+                                    dcc.Tab(
+                                        label="Key Levels",
+                                        value="key_levels",
+                                        className="ae-tab",
+                                        selected_className="ae-tab ae-tab--selected",
+                                    ),
+                                    dcc.Tab(
+                                        label="Margin / POP",
+                                        value="margin_pop",
+                                        className="ae-tab",
+                                        selected_className="ae-tab ae-tab--selected",
+                                    ),
                                 ],
                             ),
                             html.Div(id="results-content", style={"marginTop": "8px"}),
                         ],
-                        style={
-                            "flex": "1",
-                            "padding": "12px",
-                            "border": "1px solid #E5E7EB",
-                            "borderRadius": "6px",
-                        },
+                        className="ae-card",
+                        style={"flex": "1"},
                     ),
                 ],
                 style={"display": "flex", "gap": "12px"},
@@ -533,7 +644,7 @@ if DASH_AVAILABLE:
     )
 
     app.layout = html.Div(
-        className="ae-shell",
+        className="alpha-engine ae-shell",
         children=[
             dcc.Store(
                 id="store-inputs",
@@ -650,15 +761,25 @@ if DASH_AVAILABLE:
                                     dcc.Tabs(
                                         id="structuring-tabs",
                                         value="builder",
+                                        className="ae-tabs",
                                         children=[
                                             dcc.Tab(
-                                                label="Strategy Builder", value="builder"
+                                                label="Strategy Builder",
+                                                value="builder",
+                                                className="ae-tab",
+                                                selected_className="ae-tab ae-tab--selected",
                                             ),
                                             dcc.Tab(
-                                                label="Market Data", value="data"
+                                                label="Market Data",
+                                                value="data",
+                                                className="ae-tab",
+                                                selected_className="ae-tab ae-tab--selected",
                                             ),
                                             dcc.Tab(
-                                                label="Client Report", value="report"
+                                                label="Client Report",
+                                                value="report",
+                                                className="ae-tab",
+                                                selected_className="ae-tab ae-tab--selected",
                                             ),
                                         ],
                                     ),
@@ -716,6 +837,7 @@ if DASH_AVAILABLE:
             ),
         ],
     )
+    app.validation_layout = app.layout
 
 
 if DASH_AVAILABLE:
@@ -941,20 +1063,9 @@ if DASH_AVAILABLE:
     def _ping_spot(ticker: str, current_spot: float, ref_data: dict):
         raw_ticker = (ticker or "").strip()
         if not raw_ticker:
-            spot_value = current_spot if current_spot is not None else 100.0
-            spot_out = spot_value if current_spot is None else no_update
-            return (
-                {
-                    "raw_ticker": "",
-                    "resolved_ticker": None,
-                    "spot": None,
-                    "as_of": None,
-                    "status": "empty",
-                    "error": None,
-                },
-                spot_out,
-                "",
-            )
+            return no_update, no_update, "Enter a ticker"
+        if len(raw_ticker) < 2:
+            return no_update, no_update, "Ticker incomplete"
         if isinstance(ref_data, dict):
             cached_raw = str(ref_data.get("raw_ticker", "")).strip()
             if cached_raw and cached_raw == raw_ticker:
@@ -979,18 +1090,7 @@ if DASH_AVAILABLE:
                 f"Spot updated ({as_of_text})",
             )
         except Exception as exc:
-            return (
-                {
-                    "raw_ticker": raw_ticker,
-                    "resolved_ticker": None,
-                    "spot": None,
-                    "as_of": None,
-                    "status": "error",
-                    "error": str(exc),
-                },
-                no_update,
-                f"Spot update failed: {exc}",
-            )
+            return no_update, no_update, f"Spot fetch failed for {raw_ticker}"
 
     @app.callback(
         Output("store-inputs", "data"),
@@ -1033,6 +1133,10 @@ if DASH_AVAILABLE:
         ref_data: dict,
         previous_state: dict,
     ) -> dict:
+        trigger_id = ctx.triggered_id if ctx else None
+        raw_ticker = (ticker or "").strip()
+        if trigger_id == "ticker-input" and (not raw_ticker or len(raw_ticker) < 2):
+            return previous_state if isinstance(previous_state, dict) else no_update
         prev_spot = 100.0
         if isinstance(previous_state, dict) and is_number_like(previous_state.get("spot")):
             prev_spot = float(previous_state.get("spot"))
@@ -1050,7 +1154,6 @@ if DASH_AVAILABLE:
 
         ref_spot = None
         resolved_ticker = None
-        raw_ticker = (ticker or "").strip()
         if isinstance(ref_data, dict) and ref_data.get("status") == "ok":
             ref_spot = _coerce_float(ref_data.get("spot"))
             resolved_ticker = ref_data.get("resolved_ticker")
@@ -1166,54 +1269,87 @@ if DASH_AVAILABLE:
         return store_inputs
 
     @app.callback(
-        Output("store-market", "data"),
-        Output("refresh-status", "children"),
         Output("legs-table", "data"),
-        Input("refresh-button", "n_clicks"),
         Input("strategy-id", "value"),
-        State("store-inputs", "data"),
+        Input("store-market", "data"),
+        State("spot-input", "value"),
+        State("pricing-mode-input", "value"),
         State("legs-table", "data"),
         prevent_initial_call=True,
     )
-    def _refresh_market(
-        n_clicks: int, strategy_id: int, inputs: dict, legs_data: list[dict]
-    ) -> tuple[dict, str, list[dict]]:
+    def _update_legs_table(
+        strategy_id: int,
+        market_data: dict,
+        spot: float,
+        pricing_mode: str,
+        legs_data: list[dict],
+    ) -> list[dict]:
         trigger_id = ctx.triggered_id if ctx else None
         if trigger_id == "strategy-id":
-            if not isinstance(inputs, dict) or strategy_id is None:
-                return no_update, no_update, no_update
-            spot_for_defaults = _coerce_float(inputs.get("spot")) or 100.0
+            if strategy_id is None:
+                return no_update
+            spot_for_defaults = _coerce_float(spot) or 100.0
             strategy_row = _cached_strategy_row(strategy_id)
             if not strategy_row:
-                return no_update, no_update, no_update
+                return no_update
             template_kind = str(strategy_row.get("template_kind", "")).strip().upper()
             template_legs = extract_template_legs_from_row(
                 strategy_row, spot_for_defaults
             )
             if template_kind == "STOCK_ONLY" or not template_legs:
-                template_legs = [
-                    {
-                        "kind": "call",
-                        "position": 1.0,
-                        "strike": compute_default_strike(spot_for_defaults, "ATM"),
-                        "strike_tag": "ATM",
-                        "premium": 0.0,
-                        "multiplier": 100,
-                    }
-                ]
-            return no_update, no_update, template_legs
-        if trigger_id != "refresh-button":
-            return no_update, no_update, no_update
+                return _blank_leg_rows(4)
+            return template_legs
+        if trigger_id != "store-market":
+            return no_update
+        if not isinstance(market_data, dict):
+            return no_update
+        leg_quotes = market_data.get("leg_quotes")
+        if not isinstance(leg_quotes, list) or not leg_quotes:
+            return no_update
+        if not isinstance(legs_data, list):
+            return no_update
+        mode = str(pricing_mode or "mid").strip().lower()
+        updated_rows = []
+        for idx, row in enumerate(legs_data):
+            if not isinstance(row, dict):
+                updated_rows.append(row)
+                continue
+            quote = (
+                leg_quotes[idx]
+                if idx < len(leg_quotes) and isinstance(leg_quotes[idx], dict)
+                else {}
+            )
+            try:
+                position = float(row.get("position") or 0.0)
+            except (TypeError, ValueError):
+                position = 0.0
+            premium = _select_premium_from_quote(quote, position, mode)
+            updated_row = dict(row)
+            updated_row["premium"] = abs(float(premium))
+            updated_rows.append(updated_row)
+        return updated_rows
+
+    @app.callback(
+        Output("store-market", "data"),
+        Output("refresh-status", "children"),
+        Input("refresh-button", "n_clicks"),
+        State("store-inputs", "data"),
+        State("legs-table", "data"),
+        prevent_initial_call=True,
+    )
+    def _refresh_market(
+        n_clicks: int, inputs: dict, legs_data: list[dict]
+    ) -> tuple[dict, str]:
         if not isinstance(inputs, dict):
-            return no_update, "Refresh failed: missing inputs", no_update
+            return no_update, "Refresh failed: missing inputs"
         raw_ticker = str(inputs.get("raw_ticker") or inputs.get("ticker") or "")
         resolved_ticker = inputs.get("resolved_ticker")
         expiry = inputs.get("expiry") or None
         pricing_mode = str(inputs.get("pricing_mode", "mid") or "mid").strip().lower()
         source_legs = legs_data if isinstance(legs_data, list) else inputs.get("legs") or []
         if not expiry:
-            return no_update, "Refresh failed: expiry required", no_update
-        updated_legs, market_snapshot, status = refresh_leg_premiums(
+            return no_update, "Refresh failed: expiry required"
+        _, market_snapshot, status = refresh_leg_premiums(
             raw_underlying=raw_ticker,
             resolved_underlying=resolved_ticker,
             expiry=expiry,
@@ -1229,7 +1365,7 @@ if DASH_AVAILABLE:
             "refreshed_at": market_snapshot.get("refreshed_at"),
             "errors": market_snapshot.get("errors"),
         }
-        return store_market, status, updated_legs
+        return store_market, status
 
     @app.callback(
         Output("store-analysis-pack", "data"),
@@ -1416,7 +1552,12 @@ if DASH_AVAILABLE:
         fig.update_layout(
             xaxis_title="Underlying Price at Expiry",
             yaxis_title="PnL",
-            height=420,
+            height=460,
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font={"color": "#e5e7eb"},
+            margin={"l": 40, "r": 20, "t": 30, "b": 40},
         )
         return fig
 
@@ -1453,8 +1594,11 @@ if DASH_AVAILABLE:
                     {"name": "Combined", "id": "combined"},
                 ],
                 data=rows if isinstance(rows, list) else [],
-                style_table={"overflowX": "auto"},
-                style_cell={"fontSize": "12px", "padding": "4px"},
+                style_table=AE_TABLE_STYLE,
+                style_header=AE_TABLE_HEADER,
+                style_cell=AE_TABLE_CELL,
+                style_data_conditional=AE_TABLE_DATA_COND,
+                fixed_rows={"headers": True},
                 page_size=10,
             )
             net_total = summary.get("net_premium_total")
@@ -1496,7 +1640,9 @@ if DASH_AVAILABLE:
                     "columns": filtered_columns or columns,
                     "records": records,
                 }
-            return _df_dict_to_table(df_dict, "scenario-table", page_size=10)
+            return _df_dict_to_table(
+                df_dict, "scenario-table", page_size=10, table_style=AE_TABLE_STYLE_TALL
+            )
         if tab == "key_levels":
             levels = []
             key_levels = pack.get("key_levels", {}) if isinstance(pack, dict) else {}
@@ -1527,8 +1673,11 @@ if DASH_AVAILABLE:
                     {"name": "Source", "id": "source"},
                 ],
                 data=rows,
-                style_table={"overflowX": "auto"},
-                style_cell={"fontSize": "12px", "padding": "4px"},
+                style_table=AE_TABLE_STYLE_TALL,
+                style_header=AE_TABLE_HEADER,
+                style_cell=AE_TABLE_CELL,
+                style_data_conditional=AE_TABLE_DATA_COND,
+                fixed_rows={"headers": True},
                 page_size=10,
             )
         if tab == "margin_pop":

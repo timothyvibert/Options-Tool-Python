@@ -5,6 +5,18 @@ body {
   font-family: "Segoe UI", Arial, sans-serif;
 }
 
+.alpha-engine {
+  --ae-bg: #0b1220;
+  --ae-surface: #0f172a;
+  --ae-surface-2: #111827;
+  --ae-border: #1f2937;
+  --ae-text: #e5e7eb;
+  --ae-muted: #9ca3af;
+  --ae-accent: #38bdf8;
+  color: var(--ae-text);
+  background: var(--ae-bg);
+}
+
 .ae-shell {
   display: flex;
   min-height: 100vh;
@@ -12,8 +24,8 @@ body {
 
 .ae-sidebar {
   width: 280px;
-  background: #0f172a;
-  border-right: 1px solid #1f2937;
+  background: var(--ae-surface);
+  border-right: 1px solid var(--ae-border);
   padding: 16px;
   box-sizing: border-box;
   transition: width 0.2s ease;
@@ -37,9 +49,9 @@ body {
 }
 
 .ae-collapse-btn {
-  background: #111827;
-  color: #e5e7eb;
-  border: 1px solid #1f2937;
+  background: var(--ae-surface-2);
+  color: var(--ae-text);
+  border: 1px solid var(--ae-border);
   border-radius: 6px;
   width: 32px;
   height: 32px;
@@ -54,16 +66,16 @@ body {
 
 .ae-nav-btn {
   background: transparent;
-  color: #e5e7eb;
+  color: var(--ae-text);
   text-align: left;
-  border: 1px solid #1f2937;
+  border: 1px solid var(--ae-border);
   padding: 10px 12px;
   border-radius: 6px;
   cursor: pointer;
 }
 
 .ae-nav-btn:hover {
-  background: #111827;
+  background: var(--ae-surface-2);
 }
 
 .ae-sidebar.collapsed .ae-brand {
@@ -88,13 +100,13 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
-  border-bottom: 1px solid #1f2937;
-  background: #0b1220;
+  border-bottom: 1px solid var(--ae-border);
+  background: var(--ae-bg);
 }
 
 .ae-breadcrumbs {
   font-size: 13px;
-  color: #9ca3af;
+  color: var(--ae-muted);
 }
 
 .ae-chip {
@@ -109,4 +121,96 @@ body {
   padding: 16px;
   overflow: auto;
   flex: 1;
+}
+
+.ae-card {
+  background: var(--ae-surface);
+  border: 1px solid var(--ae-border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.ae-card-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--ae-text);
+}
+
+.ae-label {
+  display: block;
+  margin: 10px 0 4px;
+  font-size: 12px;
+  color: var(--ae-muted);
+}
+
+.ae-input {
+  background: var(--ae-surface-2);
+  color: var(--ae-text);
+  border: 1px solid var(--ae-border);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.ae-dropdown .Select-control {
+  background: var(--ae-surface-2);
+  border: 1px solid var(--ae-border);
+  color: var(--ae-text);
+}
+
+.ae-dropdown .Select-placeholder,
+.ae-dropdown .Select-value-label {
+  color: var(--ae-text) !important;
+}
+
+.ae-dropdown .Select-menu-outer {
+  background: var(--ae-surface);
+  border: 1px solid var(--ae-border);
+  z-index: 9999;
+}
+
+.ae-dropdown .Select-option {
+  background: var(--ae-surface);
+  color: var(--ae-text);
+}
+
+.ae-dropdown .Select-option.is-focused {
+  background: #1f2937;
+}
+
+.ae-dropdown .Select-option.is-selected {
+  background: #0b2a3d;
+}
+
+.ae-tabs .tab {
+  padding: 8px 12px;
+}
+
+.ae-tab {
+  background: transparent;
+  color: var(--ae-muted);
+  border: none;
+  font-size: 12px;
+}
+
+.ae-tab--selected {
+  color: var(--ae-text);
+  border-bottom: 2px solid var(--ae-accent);
+}
+
+.ae-btn {
+  background: var(--ae-surface-2);
+  color: var(--ae-text);
+  border: 1px solid var(--ae-border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.ae-btn-primary {
+  background: #1e3a8a;
+  border-color: #1e40af;
+}
+
+.ae-btn-secondary {
+  background: var(--ae-surface-2);
 }

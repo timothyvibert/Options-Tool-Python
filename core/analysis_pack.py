@@ -7,6 +7,7 @@ import math
 
 import pandas as pd
 
+from core.eligibility import determine_strategy_code, get_account_eligibility
 from core.margin import classify_strategy, compute_margin_proxy
 from core.models import StrategyInput
 from core.narrative import build_narrative_scenarios
@@ -237,6 +238,15 @@ def build_analysis_pack(
         expected_report_value: object = expected_report_raw
     else:
         expected_report_value = expected_report_date
+    earnings_date_for_risk = (
+        _parse_date(expected_report_value) or expected_report_date
+    )
+    days_to_earnings = None
+    if earnings_date_for_risk is not None and as_of_date is not None:
+        days_to_earnings = (earnings_date_for_risk - as_of_date).days
+    earnings_before_expiry = None
+    if earnings_date_for_risk is not None and expiry_date is not None:
+        earnings_before_expiry = earnings_date_for_risk < expiry_date
     projected_dividend = pd.to_numeric(
         normalized_profile.get("PROJECTED_DIVIDEND"), errors="coerce"
     )
@@ -595,6 +605,16 @@ def build_analysis_pack(
     add_level("zero", "Stock to Zero", zero_row, 0.0, "sentinel")
     add_level("infinity", "Stock to Infinity", None, None, "sentinel")
 
+    strategy_code = determine_strategy_code(strategy_input, roi_policy)
+    eligibility_error = None
+    try:
+        eligibility_df = get_account_eligibility(strategy_code)
+    except Exception as exc:
+        eligibility_df = pd.DataFrame(
+            columns=["account_type", "eligibility"]
+        )
+        eligibility_error = str(exc)
+
     analysis_pack = {
         "as_of": as_of,
         "underlying": {
@@ -618,6 +638,13 @@ def build_analysis_pack(
                 earnings_related_implied_move
             ),
             "earnings_date": expected_report_value,
+            "earnings_risk": {
+                "earnings_date": (
+                    earnings_date_for_risk or expected_report_value
+                ),
+                "days_to_earnings": days_to_earnings,
+                "before_expiry": earnings_before_expiry,
+            },
             "profile": profile_value,
             "dividend_risk": {
                 "ex_div_date": ex_div_date,
@@ -632,6 +659,7 @@ def build_analysis_pack(
             "subgroup": meta.get("subgroup"),
             "name": meta.get("strategy_name"),
             "id": meta.get("strategy_id"),
+            "strategy_code": strategy_code,
             "expiry": expiry_value,
         },
         "policies": {
@@ -661,6 +689,11 @@ def build_analysis_pack(
             "df": scenario_df,
             "top10": scenario_df.head(10).copy(),
             "key_levels": key_rows,
+        },
+        "eligibility": {
+            "strategy_code": strategy_code,
+            "table": eligibility_df,
+            "error": eligibility_error,
         },
         "commentary_blocks": commentary_blocks,
     }

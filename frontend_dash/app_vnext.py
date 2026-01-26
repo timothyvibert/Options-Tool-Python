@@ -39,7 +39,9 @@ try:
 except ModuleNotFoundError:
     DASH_AVAILABLE = False
     Dash = None
-    Input = Output = State = None
+    def _dash_stub(*args, **kwargs):
+        return None
+    Input = Output = State = _dash_stub
     dcc = html = dash_table = None
     no_update = None
     ctx = None
@@ -60,6 +62,11 @@ class _DashStub:
 
 
 app = Dash(__name__) if DASH_AVAILABLE else _DashStub()
+_callback = (
+    app.callback
+    if DASH_AVAILABLE
+    else (lambda *args, **kwargs: (lambda func: func))
+)
 
 
 def _utc_now_str() -> str:
@@ -323,69 +330,23 @@ app.layout = html.Div(
             id="vnext-tabs",
             value="dashboard",
             children=[
-                dcc.Tab(
-                    label="Dashboard",
-                    value="dashboard",
-                    children=html.Div(id="tab-dashboard"),
-                ),
-                dcc.Tab(
-                    label="Bloomberg Data",
-                    value="bloomberg",
-                    children=html.Div(
-                        id="tab-bloomberg",
-                        children=[
-                            html.H3("Market Debug"),
-                            html.Div(
-                                children=[
-                                    html.Div(
-                                        id="bbg-mode",
-                                        children=(
-                                            "Bloomberg: "
-                                            f"{'AVAILABLE' if BLOOMBERG_AVAILABLE else 'OFFLINE'}"
-                                        ),
-                                    ),
-                                    html.Pre(
-                                        id="ref-debug",
-                                        style={
-                                            "backgroundColor": "#111827",
-                                            "color": "#e5e7eb",
-                                            "padding": "8px",
-                                            "fontSize": "12px",
-                                            "whiteSpace": "pre-wrap",
-                                        },
-                                    ),
-                                    html.Pre(
-                                        id="market-debug",
-                                        style={
-                                            "backgroundColor": "#111827",
-                                            "color": "#e5e7eb",
-                                            "padding": "8px",
-                                            "fontSize": "12px",
-                                            "whiteSpace": "pre-wrap",
-                                        },
-                                    ),
-                                    html.Div(
-                                        id="refresh-debug",
-                                        style={"fontSize": "12px", "color": "#e5e7eb"},
-                                    ),
-                                ],
-                                style={"marginTop": "8px"},
-                            ),
-                            html.Div("Snapshot transparency coming next."),
-                        ],
-                    ),
-                ),
-                dcc.Tab(
-                    label="Client Report",
-                    value="report",
-                    children=html.Div(id="tab-report", children=["Coming next"]),
-                ),
+                dcc.Tab(label="Dashboard", value="dashboard"),
+                dcc.Tab(label="Bloomberg Data", value="bloomberg"),
+                dcc.Tab(label="Client Report", value="report"),
             ],
         ),
-        html.H2("Options Strategy Builder (vNext)"),
         html.Div(
-            style={"display": "grid", "gridTemplateColumns": "1fr 2fr", "gap": "16px"},
+            id="page-dashboard",
             children=[
+                html.H2("Options Strategy Builder (vNext)"),
+                html.Div(id="risk-events-banner"),
+                html.Div(
+                    style={
+                        "display": "grid",
+                        "gridTemplateColumns": "1fr 2fr",
+                        "gap": "16px",
+                    },
+                    children=[
                 html.Div(
                     children=[
                         html.H4("Market"),
@@ -633,10 +594,16 @@ app.layout = html.Div(
                         html.Div(id="panel-margin-capital"),
                         html.H4("Dividend"),
                         html.Div(id="panel-dividend"),
+                        html.H4("Account Eligibility"),
+                        html.Div(id="panel-eligibility"),
                     ]
                 ),
             ],
         ),
+        html.H3("Scenario Commentary"),
+        html.Div(id="scenario-cards"),
+        html.H3("Key Levels"),
+        html.Div(id="panel-key-levels"),
         html.H3("Scenario Table"),
         html.Div(id="panel-scenario-table"),
         html.H3("Analysis Debug"),
@@ -669,11 +636,62 @@ app.layout = html.Div(
             ],
             style={"marginTop": "12px"},
         ),
+    ],
+        ),
+        html.Div(
+            id="page-bloomberg",
+            children=[
+                html.H3("Market Debug"),
+                html.Div(
+                    children=[
+                        html.Div(
+                            id="bbg-mode",
+                            children=(
+                                "Bloomberg: "
+                                f"{'AVAILABLE' if BLOOMBERG_AVAILABLE else 'OFFLINE'}"
+                            ),
+                        ),
+                        html.Pre(
+                            id="ref-debug",
+                            style={
+                                "backgroundColor": "#111827",
+                                "color": "#e5e7eb",
+                                "padding": "8px",
+                                "fontSize": "12px",
+                                "whiteSpace": "pre-wrap",
+                            },
+                        ),
+                        html.Pre(
+                            id="market-debug",
+                            style={
+                                "backgroundColor": "#111827",
+                                "color": "#e5e7eb",
+                                "padding": "8px",
+                                "fontSize": "12px",
+                                "whiteSpace": "pre-wrap",
+                            },
+                        ),
+                        html.Div(
+                            id="refresh-debug",
+                            style={"fontSize": "12px", "color": "#e5e7eb"},
+                        ),
+                    ],
+                    style={"marginTop": "8px"},
+                ),
+                html.Div("Snapshot transparency coming next."),
+            ],
+            style={"display": "none"},
+        ),
+        html.Div(
+            id="page-report",
+            children=[html.Div("Client report preview coming next.")],
+            style={"display": "none"},
+        ),
     ]
-)
+) if DASH_AVAILABLE else None
 
 
-@app.callback(
+@_callback(
     Output("strategy-subgroup", "options"),
     Output("strategy-subgroup", "value"),
     Input("strategy-group", "value"),
@@ -685,7 +703,7 @@ def _update_subgroups(group_value):
     return options, value
 
 
-@app.callback(
+@_callback(
     Output("strategy-id", "options"),
     Output("strategy-id", "value"),
     Input("strategy-group", "value"),
@@ -702,7 +720,7 @@ def _update_strategies(group_value, subgroup_value):
     return options, int(df.iloc[0]["strategy_id"])
 
 
-@app.callback(
+@_callback(
     Output("legs-table", "data"),
     Input("strategy-id", "value"),
     Input("store-market", "data"),
@@ -753,7 +771,7 @@ def _apply_legs_updates(
     return no_update
 
 
-@app.callback(
+@_callback(
     Output("store-ref", "data"),
     Output("spot-input", "value"),
     Output("spot-status", "children"),
@@ -802,7 +820,7 @@ def _ping_spot(n_submit, n_blur, ticker_value, ref_data):
         return to_jsonable(store_ref), no_update, f"Spot fetch failed for {raw_ticker}"
 
 
-@app.callback(
+@_callback(
     Output("store-market", "data"),
     Output("refresh-status", "children"),
     Input("refresh-button", "n_clicks"),
@@ -836,7 +854,7 @@ def _refresh_market(n_clicks, ref_data, ticker_value, expiry, pricing_mode, legs
     return to_jsonable(market_snapshot), status
 
 
-@app.callback(
+@_callback(
     Output("ref-debug", "children"),
     Output("market-debug", "children"),
     Output("refresh-debug", "children"),
@@ -890,7 +908,7 @@ def _render_debug(ref_data, market_data, expiry):
     return ref_view, market_view, refresh_msg
 
 
-@app.callback(
+@_callback(
     Output("store-analysis-key", "data"),
     Output("store-inputs", "data"),
     Input("run-analysis-button", "n_clicks"),
@@ -1073,7 +1091,7 @@ def _run_analysis(
     )
 
 
-@app.callback(
+@_callback(
     Output("payoff-chart", "figure"),
     Input("store-analysis-key", "data"),
     Input("store-ui", "data"),
@@ -1134,7 +1152,7 @@ def _render_chart(key_payload, ui_state):
     return fig
 
 
-@app.callback(
+@_callback(
     Output("store-ui", "data"),
     Input("pnl-toggles", "value"),
     Input("annotate-toggles", "value"),
@@ -1156,7 +1174,7 @@ def _sync_ui(pnl_values, annotate_values, current):
     return state
 
 
-@app.callback(
+@_callback(
     Output("panel-payoff-metrics", "children"),
     Output("panel-margin-capital", "children"),
     Output("panel-dividend", "children"),
@@ -1273,7 +1291,207 @@ def _render_panels(key_payload):
     return metrics_table, margin_table, dividend_table, scenario_container
 
 
-@app.callback(
+@_callback(
+    Output("risk-events-banner", "children"),
+    Input("store-analysis-key", "data"),
+)
+def _render_risk_banner(key_payload):
+    if not isinstance(key_payload, dict) or key_payload.get("error"):
+        return html.Div()
+    pack = _cache_get(key_payload.get("key"))
+    if not pack or not isinstance(pack, dict):
+        return html.Div()
+    underlying = pack.get("underlying", {})
+    if not isinstance(underlying, dict):
+        return html.Div()
+    earnings_risk = underlying.get("earnings_risk", {}) or {}
+    dividend_risk = underlying.get("dividend_risk", {}) or {}
+    messages = []
+    if isinstance(earnings_risk, dict) and earnings_risk.get("before_expiry") is True:
+        days = earnings_risk.get("days_to_earnings")
+        if days is not None:
+            messages.append(
+                html.Div(f"⚠️ Earnings in {days} days (before expiry)")
+            )
+        else:
+            messages.append(html.Div("⚠️ Earnings before expiry"))
+    if isinstance(dividend_risk, dict) and dividend_risk.get("before_expiry") is True:
+        days = dividend_risk.get("days_to_dividend")
+        if days is not None:
+            messages.append(
+                html.Div(f"⚠️ Ex-dividend in {days} days (before expiry)")
+            )
+        else:
+            messages.append(html.Div("⚠️ Ex-dividend date before expiry"))
+    if not messages:
+        return html.Div()
+    return html.Div(
+        messages,
+        style={
+            "padding": "8px",
+            "border": "1px solid #f59e0b",
+            "borderRadius": "4px",
+            "backgroundColor": "#1f2937",
+            "marginBottom": "12px",
+        },
+    )
+
+
+@_callback(
+    Output("scenario-cards", "children"),
+    Input("store-analysis-key", "data"),
+)
+def _render_scenario_cards(key_payload):
+    if not isinstance(key_payload, dict) or key_payload.get("error"):
+        return html.Div("Run Analysis to view scenario commentary.")
+    pack = _cache_get(key_payload.get("key"))
+    if not pack or not isinstance(pack, dict):
+        return html.Div("Run Analysis to view scenario commentary.")
+    narrative = pack.get("narrative_scenarios")
+    if not isinstance(narrative, dict):
+        return html.Div("Run Analysis to view scenario commentary.")
+    def _card(label, block):
+        block = block if isinstance(block, dict) else {}
+        title = block.get("title") or label
+        condition = block.get("condition") or ""
+        body = block.get("body") or "--"
+        return html.Div(
+            [
+                html.Div(title, style={"fontWeight": "600", "marginBottom": "4px"}),
+                html.Div(condition, style={"fontSize": "12px", "color": "#9ca3af"}),
+                html.Div(body, style={"marginTop": "6px", "fontSize": "12px"}),
+            ],
+            style={
+                "border": "1px solid #1f2937",
+                "padding": "8px",
+                "borderRadius": "4px",
+                "backgroundColor": "#0f172a",
+            },
+        )
+    return html.Div(
+        [
+            _card("Bearish Case", narrative.get("bear")),
+            _card("Stagnant Case", narrative.get("base")),
+            _card("Bullish Case", narrative.get("bull")),
+        ],
+        style={
+            "display": "grid",
+            "gridTemplateColumns": "repeat(3, 1fr)",
+            "gap": "8px",
+            "marginBottom": "12px",
+        },
+    )
+
+
+@_callback(
+    Output("panel-key-levels", "children"),
+    Input("store-analysis-key", "data"),
+)
+def _render_key_levels(key_payload):
+    if not isinstance(key_payload, dict) or key_payload.get("error"):
+        return html.Div("Run Analysis to view key levels.")
+    pack = _cache_get(key_payload.get("key"))
+    if not pack or not isinstance(pack, dict):
+        return html.Div("Run Analysis to view key levels.")
+    key_levels = pack.get("key_levels", {})
+    levels = key_levels.get("levels") if isinstance(key_levels, dict) else None
+    if not isinstance(levels, list) or not levels:
+        return html.Div("--")
+    def _fmt(value, suffix=""):
+        num = _coerce_float(value)
+        if num is None:
+            return "--"
+        text = f"{num:.2f}"
+        return f"{text}{suffix}" if suffix else text
+    rows = []
+    for level in levels:
+        if not isinstance(level, dict):
+            continue
+        rows.append(
+            [
+                level.get("label", "--"),
+                _fmt(level.get("price")),
+                _fmt(level.get("move_pct"), "%"),
+                _fmt(level.get("stock_pnl")),
+                _fmt(level.get("option_pnl")),
+                _fmt(level.get("net_pnl")),
+                _fmt(level.get("net_roi")),
+                level.get("source", "--"),
+            ]
+        )
+    table = html.Table(
+        [
+            html.Thead(
+                html.Tr(
+                    [
+                        html.Th("Label"),
+                        html.Th("Price"),
+                        html.Th("Move %"),
+                        html.Th("Stock PnL"),
+                        html.Th("Option PnL"),
+                        html.Th("Net PnL"),
+                        html.Th("Net ROI"),
+                        html.Th("Source"),
+                    ]
+                )
+            ),
+            html.Tbody([html.Tr([html.Td(cell) for cell in row]) for row in rows]),
+        ],
+        style={"width": "100%", "fontSize": "12px"},
+    )
+    return html.Div(
+        table, style={"maxHeight": "260px", "overflowY": "auto"}
+    )
+
+
+@_callback(
+    Output("panel-eligibility", "children"),
+    Input("store-analysis-key", "data"),
+)
+def _render_eligibility(key_payload):
+    if not isinstance(key_payload, dict) or key_payload.get("error"):
+        return html.Div("Run Analysis to view eligibility.")
+    pack = _cache_get(key_payload.get("key"))
+    if not pack or not isinstance(pack, dict):
+        return html.Div("Run Analysis to view eligibility.")
+    store_pack = analysis_pack_to_store(pack)
+    eligibility = store_pack.get("eligibility", {}) if isinstance(store_pack, dict) else {}
+    table = eligibility.get("table")
+    records = []
+    if isinstance(table, dict) and table.get("__type__") == "DataFrame":
+        records = table.get("records") or []
+    elif isinstance(table, list):
+        records = table
+    if not records:
+        return html.Div("Eligibility data unavailable for this strategy.")
+    def _icon(value):
+        if value is True:
+            return "✅"
+        if value is False:
+            return "❌"
+        text = str(value).strip().upper()
+        if text in {"Y", "YES", "TRUE", "ALLOWED"}:
+            return "✅"
+        if text in {"N", "NO", "FALSE", "NOT_ALLOWED"}:
+            return "❌"
+        return str(value) if value not in (None, "", "nan") else "--"
+    rows = []
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        rows.append(
+            [rec.get("account_type", "--"), _icon(rec.get("eligibility"))]
+        )
+    return html.Table(
+        [
+            html.Thead(html.Tr([html.Th("Account Type"), html.Th("Eligible")])),
+            html.Tbody([html.Tr([html.Td(cell) for cell in row]) for row in rows]),
+        ],
+        style={"width": "100%", "fontSize": "12px"},
+    )
+
+
+@_callback(
     Output("analysis-key-debug", "children"),
     Output("analysis-pack-debug", "children"),
     Output("analysis-render-debug", "children"),

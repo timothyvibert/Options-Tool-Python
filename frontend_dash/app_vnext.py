@@ -6,30 +6,13 @@ Run:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-import json
-import math
-import os
-import tempfile
 from time import time
+import math
 import uuid
 
-import plotly.graph_objects as go
-
-from core.analysis_pack import build_analysis_pack
-from core.models import OptionLeg, StrategyInput
-from core.strategy_map import get_strategy, list_groups, list_strategies, list_subgroups
-from frontend_dash.analysis_adapter import (
-    analysis_pack_to_store,
-    refresh_leg_premiums,
-    to_jsonable,
-)
-from frontend_dash.smart_strikes import compute_default_strike, is_number_like
-
-try:
-    import pandas as pd
-except Exception:
-    pd = None
+from core.strategy_map import list_groups, list_strategies, list_subgroups
+from frontend_dash.smart_strikes import compute_default_strike
+from frontend_dash.vnext import ids as ID
 
 try:
     from adapters.bloomberg import resolve_security as _bbg_resolve_security
@@ -41,17 +24,12 @@ except Exception:
     BLOOMBERG_AVAILABLE = False
 
 try:
-    from dash import Dash, Input, Output, State, dcc, html, dash_table, no_update, ctx
+    from dash import Dash, dcc, html, dash_table
     DASH_AVAILABLE = True
 except ModuleNotFoundError:
     DASH_AVAILABLE = False
     Dash = None
-    def _dash_stub(*args, **kwargs):
-        return None
-    Input = Output = State = _dash_stub
     dcc = html = dash_table = None
-    no_update = None
-    ctx = None
 
 
 class _DashStub:
@@ -69,37 +47,24 @@ class _DashStub:
 
 
 app = Dash(__name__) if DASH_AVAILABLE else _DashStub()
-_callback = (
-    app.callback
-    if DASH_AVAILABLE
-    else (lambda *args, **kwargs: (lambda func: func))
-)
 
-
-def _utc_now_str() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-
-
-def _coerce_float(value: object) -> float | None:
-    try:
-        numeric = float(value)
-    except (TypeError, ValueError):
+if DASH_AVAILABLE:
+    import plotly.graph_objects as go
+    from frontend_dash.vnext.layout import (
+        layout_bloomberg,
+        layout_dashboard,
+        layout_report,
+    )
+    from frontend_dash.vnext.callbacks import register_callbacks
+else:
+    def layout_dashboard():
         return None
-    if not math.isfinite(numeric):
+
+    def layout_bloomberg(*args, **kwargs):
         return None
-    return numeric
 
-
-def _normalize_spot_result(result: object) -> tuple[float | None, str | None]:
-    if isinstance(result, dict):
-        spot_value = result.get("spot")
-        if spot_value is None:
-            spot_value = result.get("px_last")
-        if spot_value is None:
-            spot_value = result.get("PX_LAST")
-        as_of = result.get("as_of") or result.get("ts")
-        return _coerce_float(spot_value), str(as_of) if as_of else None
-    return _coerce_float(result), None
+    def layout_report():
+        return None
 
 
 _ANALYSIS_CACHE: dict[str, dict] = {}
@@ -257,6 +222,16 @@ def _empty_leg_rows() -> list[dict]:
         }
         for _ in range(4)
     ]
+
+
+def _coerce_float(value: object) -> float | None:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(numeric):
+        return None
+    return numeric
 
 
 def _quote_value(quote: dict, keys: list[str]) -> float | None:
@@ -751,14 +726,18 @@ if DASH_AVAILABLE:
             layout_report(),
         ]
     )
+    register_callbacks(
+        app,
+        _cache_get,
+        _cache_put,
+        BLOOMBERG_AVAILABLE,
+        _bbg_resolve_security,
+        _bbg_fetch_spot,
+    )
 else:
     app.layout = None
 
 
-@_callback(
-    Output("vnext-page", "children"),
-    Input("vnext-tabs", "value"),
-)
 def _route_tabs(tab):
     if tab == "bloomberg":
         return layout_bloomberg()
@@ -767,10 +746,6 @@ def _route_tabs(tab):
     return layout_dashboard()
 
 
-@_callback(
-    Output("debug-container", "style"),
-    Input("debug-mode-toggle", "value"),
-)
 def _toggle_debug(value):
     if isinstance(value, list):
         enabled = "on" in value or len(value) > 0
@@ -779,21 +754,12 @@ def _toggle_debug(value):
     return {"display": "block"} if enabled else {"display": "none"}
 
 
-@_callback(
-    Output("control-plane", "style"),
-    Input("vnext-tabs", "value"),
-)
 def _toggle_control_plane(tab):
     if tab == "dashboard":
         return {"display": "block"}
     return {"display": "none"}
 
 
-@_callback(
-    Output("strategy-subgroup", "options"),
-    Output("strategy-subgroup", "value"),
-    Input("strategy-group", "value"),
-)
 def _update_subgroups(group_value):
     subgroups = _safe_list_subgroups(group_value)
     options = [{"label": sg, "value": sg} for sg in subgroups]
@@ -801,12 +767,6 @@ def _update_subgroups(group_value):
     return options, value
 
 
-@_callback(
-    Output("strategy-id", "options"),
-    Output("strategy-id", "value"),
-    Input("strategy-group", "value"),
-    Input("strategy-subgroup", "value"),
-)
 def _update_strategies(group_value, subgroup_value):
     df = _safe_list_strategies(group_value, subgroup_value)
     if df is None or df.empty:
@@ -818,14 +778,6 @@ def _update_strategies(group_value, subgroup_value):
     return options, int(df.iloc[0]["strategy_id"])
 
 
-@_callback(
-    Output("legs-table", "data"),
-    Input("strategy-id", "value"),
-    Input("store-market", "data"),
-    State("spot-input", "value"),
-    State("cp-pricing-mode", "value"),
-    State("legs-table", "data"),
-)
 def _apply_legs_updates(
     strategy_id, market_data, spot_value, pricing_mode, legs_data
 ):
@@ -874,16 +826,6 @@ def _apply_legs_updates(
     return no_update
 
 
-@_callback(
-    Output("store-ref", "data"),
-    Output("spot-input", "value"),
-    Output("spot-status", "children"),
-    Input("ticker-input", "n_submit"),
-    Input("ticker-input", "n_blur"),
-    State("ticker-input", "value"),
-    State("store-ref", "data"),
-    prevent_initial_call=True,
-)
 def _ping_spot(n_submit, n_blur, ticker_value, ref_data):
     raw_ticker = (ticker_value or "").strip()
     if not raw_ticker:
@@ -923,17 +865,6 @@ def _ping_spot(n_submit, n_blur, ticker_value, ref_data):
         return to_jsonable(store_ref), no_update, f"Spot fetch failed for {raw_ticker}"
 
 
-@_callback(
-    Output("store-market", "data"),
-    Output("refresh-status", "children"),
-    Input("refresh-button", "n_clicks"),
-    State("store-ref", "data"),
-    State("ticker-input", "value"),
-    State("cp-expiry", "value"),
-    State("cp-pricing-mode", "value"),
-    State("legs-table", "data"),
-    prevent_initial_call=True,
-)
 def _refresh_market(n_clicks, ref_data, ticker_value, expiry, pricing_mode, legs_data):
     raw_ticker = ""
     resolved = None
@@ -957,14 +888,6 @@ def _refresh_market(n_clicks, ref_data, ticker_value, expiry, pricing_mode, legs
     return to_jsonable(market_snapshot), status
 
 
-@_callback(
-    Output("ref-debug", "children"),
-    Output("market-debug", "children"),
-    Output("refresh-debug", "children"),
-    Input("store-ref", "data"),
-    Input("store-market", "data"),
-    State("cp-expiry", "value"),
-)
 def _render_debug(ref_data, market_data, expiry):
     ref_view = "--"
     if isinstance(ref_data, dict):
@@ -1011,30 +934,6 @@ def _render_debug(ref_data, market_data, expiry):
     return ref_view, market_view, refresh_msg
 
 
-@_callback(
-    Output("store-analysis-key", "data"),
-    Output("store-inputs", "data"),
-    Input("run-analysis-button", "n_clicks"),
-    State("store-ref", "data"),
-    State("ticker-input", "value"),
-    State("spot-input", "value"),
-    State("cp-expiry", "value"),
-    State("cp-stock-pos", "value"),
-    State("cp-avg-cost", "value"),
-    State("legs-table", "data"),
-    State("cp-pricing-mode", "value"),
-    State("cp-roi-policy", "value"),
-    State("cp-vol-mode", "value"),
-    State("cp-atm-iv", "value"),
-    State("cp-scenario-mode", "value"),
-    State("cp-downside", "value"),
-    State("cp-upside", "value"),
-    State("strategy-group", "value"),
-    State("strategy-subgroup", "value"),
-    State("strategy-id", "value"),
-    State("store-market", "data"),
-    prevent_initial_call=True,
-)
 def _run_analysis(
     n_clicks,
     ref_data,
@@ -1198,11 +1097,6 @@ def _run_analysis(
     )
 
 
-@_callback(
-    Output("payoff-chart", "figure"),
-    Input("store-analysis-key", "data"),
-    Input("store-ui", "data"),
-)
 def _render_chart(key_payload, ui_state):
     fig = go.Figure()
     ui_state = ui_state if isinstance(ui_state, dict) else {}
@@ -1259,12 +1153,6 @@ def _render_chart(key_payload, ui_state):
     return fig
 
 
-@_callback(
-    Output("store-ui", "data"),
-    Input("pnl-toggles", "value"),
-    Input("annotate-toggles", "value"),
-    State("store-ui", "data"),
-)
 def _sync_ui(pnl_values, annotate_values, current):
     pnl_values = pnl_values or []
     annotate_values = annotate_values or []
@@ -1281,12 +1169,6 @@ def _sync_ui(pnl_values, annotate_values, current):
     return state
 
 
-@_callback(
-    Output("panel-payoff-metrics", "children"),
-    Output("panel-margin-capital", "children"),
-    Output("panel-dividend", "children"),
-    Input("store-analysis-key", "data"),
-)
 def _render_panels(key_payload):
     def _table(headers, rows):
         return html.Table(
@@ -1349,10 +1231,6 @@ def _render_panels(key_payload):
     return metrics_table, margin_table, dividend_table
 
 
-@_callback(
-    Output("risk-events-banner", "children"),
-    Input("store-analysis-key", "data"),
-)
 def _render_risk_banner(key_payload):
     if not isinstance(key_payload, dict) or key_payload.get("error"):
         return html.Div()
@@ -1395,10 +1273,6 @@ def _render_risk_banner(key_payload):
     )
 
 
-@_callback(
-    Output("scenario-cards", "children"),
-    Input("store-analysis-key", "data"),
-)
 def _render_scenario_cards(key_payload):
     if not isinstance(key_payload, dict) or key_payload.get("error"):
         return html.Div("Run Analysis to view scenario commentary.")
@@ -1441,10 +1315,6 @@ def _render_scenario_cards(key_payload):
     )
 
 
-@_callback(
-    Output("panel-key-levels", "children"),
-    Input("store-analysis-key", "data"),
-)
 def _render_key_levels(key_payload):
     if not isinstance(key_payload, dict) or key_payload.get("error"):
         return html.Div("Run Analysis to view key levels.")
@@ -1503,10 +1373,6 @@ def _render_key_levels(key_payload):
     )
 
 
-@_callback(
-    Output("panel-eligibility", "children"),
-    Input("store-analysis-key", "data"),
-)
 def _render_eligibility(key_payload):
     if not isinstance(key_payload, dict) or key_payload.get("error"):
         return html.Div("Run Analysis to view eligibility.")
@@ -1553,12 +1419,6 @@ def _render_eligibility(key_payload):
     )
 
 
-@_callback(
-    Output("analysis-key-debug", "children"),
-    Output("analysis-pack-debug", "children"),
-    Output("analysis-render-debug", "children"),
-    Input("store-analysis-key", "data"),
-)
 def _render_analysis_debug(analysis_key):
     if not isinstance(analysis_key, dict):
         return "--", "--", "No analysis key yet"

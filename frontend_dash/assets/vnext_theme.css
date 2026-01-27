@@ -152,3 +152,27 @@ body {
 #control-plane[style*="display: none"] ~ #vnext-page {
   margin-left: 0;
 }
+
+/* Risk banner: replace corrupted glyph prefix with ASCII badge */
+#risk-events-banner > div {
+  position: relative;
+  padding-left: 64px;
+  text-indent: -6ch;
+  line-height: 1.4;
+}
+
+#risk-events-banner > div::before {
+  content: "WARN";
+  position: absolute;
+  left: 0;
+  top: 0.1em;
+  min-width: 48px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--warning);
+  color: #111827;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: center;
+}

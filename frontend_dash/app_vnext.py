@@ -310,385 +310,443 @@ else:
     _default_strategy_id = None
 
 
-app.layout = html.Div(
-    children=[
-        dcc.Store(id="store-ref"),
-        dcc.Store(id="store-market"),
-        dcc.Store(id="store-analysis-key"),
-        dcc.Store(id="store-inputs"),
-        dcc.Store(
-            id="store-ui",
-            data={
-                "show_options": True,
-                "show_stock": False,
-                "show_combined": True,
-                "show_strikes": True,
-                "show_breakevens": True,
-            },
-        ),
-        dcc.Tabs(
-            id="vnext-tabs",
-            value="dashboard",
-            children=[
-                dcc.Tab(label="Dashboard", value="dashboard"),
-                dcc.Tab(label="Bloomberg Data", value="bloomberg"),
-                dcc.Tab(label="Client Report", value="report"),
-            ],
-        ),
-        html.Div(
-            id="page-dashboard",
-            children=[
-                html.H2("Options Strategy Builder (vNext)"),
-                html.Div(id="risk-events-banner"),
-                html.Div(
-                    style={
-                        "display": "grid",
-                        "gridTemplateColumns": "1fr 2fr",
-                        "gap": "16px",
-                    },
-                    children=[
-                html.Div(
-                    children=[
-                        html.H4("Market"),
-                        html.Label("Ticker"),
-                        dcc.Input(
-                            id="ticker-input",
-                            type="text",
-                            debounce=True,
-                            value="",
-                            style={"width": "100%"},
-                        ),
-                        html.Div(id="spot-status", style={"fontSize": "12px"}),
-                        html.Label("Spot"),
-                        dcc.Input(
-                            id="spot-input",
-                            type="number",
-                            value=100.0,
-                            step=0.01,
-                            style={"width": "100%"},
-                        ),
-                        html.Button("Refresh Bloomberg Data", id="refresh-button"),
-                        html.Div(id="refresh-status", style={"fontSize": "12px"}),
-                        html.H4("Expiry"),
-                        html.Label("Expiry (YYYY-MM-DD)"),
-                        dcc.Input(
-                            id="expiry-input",
-                            type="text",
-                            value="",
-                            style={"width": "100%"},
-                        ),
-                        html.H4("Strategy"),
-                        html.Label("Strategy Group"),
-                        dcc.Dropdown(
-                            id="strategy-group",
-                            options=[{"label": g, "value": g} for g in _groups],
-                            value=_default_group,
-                            clearable=False,
-                        ),
-                        html.Label("Strategy Subgroup"),
-                        dcc.Dropdown(
-                            id="strategy-subgroup",
-                            options=[
-                                {"label": sg, "value": sg} for sg in _default_subgroups
-                            ],
-                            value=_default_subgroup,
-                            clearable=False,
-                        ),
-                        html.Label("Strategy"),
-                        dcc.Dropdown(
-                            id="strategy-id",
-                            options=(
-                                [
-                                    {
-                                        "label": row["strategy_name"],
-                                        "value": int(row["strategy_id"]),
-                                    }
-                                    for _, row in (
-                                        _default_strategy_df.iterrows()
-                                        if _default_strategy_df is not None
-                                        else []
-                                    )
+layout_dashboard = (
+    html.Div(
+        children=[
+            html.Div(
+                id="page-dashboard",
+                children=[
+                    html.H2("Options Strategy Builder (vNext)"),
+                    html.Div(id="risk-events-banner"),
+                    html.Div(
+                        style={
+                            "display": "grid",
+                            "gridTemplateColumns": "1fr 2fr",
+                            "gap": "16px",
+                        },
+                        children=[
+                            html.Div(
+                                children=[
+                                    html.H4("Market"),
+                                    html.Label("Ticker"),
+                                    dcc.Input(
+                                        id="ticker-input",
+                                        type="text",
+                                        debounce=True,
+                                        value="",
+                                        style={"width": "100%"},
+                                    ),
+                                    html.Div(id="spot-status", style={"fontSize": "12px"}),
+                                    html.Label("Spot"),
+                                    dcc.Input(
+                                        id="spot-input",
+                                        type="number",
+                                        value=100.0,
+                                        step=0.01,
+                                        style={"width": "100%"},
+                                    ),
+                                    html.Button(
+                                        "Refresh Bloomberg Data", id="refresh-button"
+                                    ),
+                                    html.Div(
+                                        id="refresh-status", style={"fontSize": "12px"}
+                                    ),
+                                    html.H4("Expiry"),
+                                    html.Label("Expiry (YYYY-MM-DD)"),
+                                    dcc.Input(
+                                        id="expiry-input",
+                                        type="text",
+                                        value="",
+                                        style={"width": "100%"},
+                                    ),
+                                    html.H4("Strategy"),
+                                    html.Label("Strategy Group"),
+                                    dcc.Dropdown(
+                                        id="strategy-group",
+                                        options=[
+                                            {"label": g, "value": g} for g in _groups
+                                        ],
+                                        value=_default_group,
+                                        clearable=False,
+                                    ),
+                                    html.Label("Strategy Subgroup"),
+                                    dcc.Dropdown(
+                                        id="strategy-subgroup",
+                                        options=[
+                                            {"label": sg, "value": sg}
+                                            for sg in _default_subgroups
+                                        ],
+                                        value=_default_subgroup,
+                                        clearable=False,
+                                    ),
+                                    html.Label("Strategy"),
+                                    dcc.Dropdown(
+                                        id="strategy-id",
+                                        options=(
+                                            [
+                                                {
+                                                    "label": row["strategy_name"],
+                                                    "value": int(row["strategy_id"]),
+                                                }
+                                                for _, row in (
+                                                    _default_strategy_df.iterrows()
+                                                    if _default_strategy_df is not None
+                                                    else []
+                                                )
+                                            ]
+                                            if _default_strategy_df is not None
+                                            else []
+                                        ),
+                                        value=_default_strategy_id,
+                                        clearable=True,
+                                    ),
+                                    html.H4("Stock Overlay"),
+                                    html.Label("Stock Position (shares)"),
+                                    dcc.Input(
+                                        id="stock-position-input",
+                                        type="number",
+                                        value=0.0,
+                                        step=1.0,
+                                        style={"width": "100%"},
+                                    ),
+                                    html.Label("Avg Cost"),
+                                    dcc.Input(
+                                        id="avg-cost-input",
+                                        type="number",
+                                        value=0.0,
+                                        step=0.01,
+                                        style={"width": "100%"},
+                                    ),
+                                    html.H4("Option Legs"),
+                                    dash_table.DataTable(
+                                        id="legs-table",
+                                        columns=[
+                                            {
+                                                "name": "Type",
+                                                "id": "kind",
+                                                "presentation": "dropdown",
+                                            },
+                                            {
+                                                "name": "Side",
+                                                "id": "side",
+                                                "presentation": "dropdown",
+                                            },
+                                            {"name": "Qty", "id": "qty"},
+                                            {"name": "Strike", "id": "strike"},
+                                            {"name": "Premium", "id": "premium"},
+                                            {
+                                                "name": "Override",
+                                                "id": "override",
+                                                "presentation": "dropdown",
+                                            },
+                                            {"name": "Option Ticker", "id": "option_ticker"},
+                                        ],
+                                        data=_default_blank_legs(100.0),
+                                        editable=True,
+                                        dropdown={
+                                            "kind": {
+                                                "options": [
+                                                    {"label": "Call", "value": "call"},
+                                                    {"label": "Put", "value": "put"},
+                                                ]
+                                            },
+                                            "side": {
+                                                "options": [
+                                                    {"label": "Long", "value": "Long"},
+                                                    {"label": "Short", "value": "Short"},
+                                                ]
+                                            },
+                                            "override": {
+                                                "options": [
+                                                    {"label": "No", "value": False},
+                                                    {"label": "Yes", "value": True},
+                                                ]
+                                            },
+                                        },
+                                        style_table={
+                                            "overflowX": "auto",
+                                            "maxHeight": "220px",
+                                            "overflowY": "auto",
+                                        },
+                                    ),
+                                    html.Div(style={"height": "12px"}),
+                                    html.H4("Pricing & ROI"),
+                                    html.Label("Pricing Mode"),
+                                    dcc.Dropdown(
+                                        id="pricing-mode-input",
+                                        options=[
+                                            {"label": "Mid", "value": "mid"},
+                                            {"label": "Bid/Ask", "value": "bid_ask"},
+                                        ],
+                                        value="mid",
+                                        clearable=False,
+                                    ),
+                                    html.Label("ROI Policy"),
+                                    dcc.Dropdown(
+                                        id="roi-policy-input",
+                                        options=[
+                                            {
+                                                "label": "Premium (Net Premium)",
+                                                "value": "premium",
+                                            },
+                                            {
+                                                "label": "Max Loss (Risk Max Loss)",
+                                                "value": "max_loss",
+                                            },
+                                            {"label": "Cash Secured", "value": "cash_secured"},
+                                            {"label": "Margin Proxy", "value": "margin"},
+                                        ],
+                                        value="premium",
+                                        clearable=False,
+                                    ),
+                                    html.Label("Vol Mode"),
+                                    dcc.Dropdown(
+                                        id="vol-mode-input",
+                                        options=[
+                                            {"label": "ATM", "value": "atm"},
+                                            {"label": "Per Leg", "value": "per_leg"},
+                                        ],
+                                        value="atm",
+                                        clearable=False,
+                                    ),
+                                    html.Label("ATM IV"),
+                                    dcc.Input(
+                                        id="atm-iv-input",
+                                        type="number",
+                                        value=0.2,
+                                        step=0.01,
+                                        style={"width": "100%"},
+                                    ),
+                                    html.H4("Scenario & Actions"),
+                                    html.Label("Scenario Mode"),
+                                    dcc.Dropdown(
+                                        id="scenario-mode-input",
+                                        options=[
+                                            {"label": "Targets", "value": "targets"},
+                                            {"label": "Strikes", "value": "strikes"},
+                                            {
+                                                "label": "Breakevens",
+                                                "value": "breakevens",
+                                            },
+                                        ],
+                                        value="targets",
+                                        clearable=False,
+                                    ),
+                                    html.Label("Downside Target (%)"),
+                                    dcc.Input(
+                                        id="downside-tgt-input",
+                                        type="number",
+                                        value=-10.0,
+                                        step=1.0,
+                                        style={"width": "100%"},
+                                    ),
+                                    html.Label("Upside Target (%)"),
+                                    dcc.Input(
+                                        id="upside-tgt-input",
+                                        type="number",
+                                        value=10.0,
+                                        step=1.0,
+                                        style={"width": "100%"},
+                                    ),
+                                    html.Div(style={"height": "8px"}),
+                                    html.Button("Run Analysis", id="run-analysis-button"),
                                 ]
-                                if _default_strategy_df is not None
-                                else []
                             ),
-                            value=_default_strategy_id,
-                            clearable=True,
-                        ),
-                        html.H4("Stock Overlay"),
-                        html.Label("Stock Position (shares)"),
-                        dcc.Input(
-                            id="stock-position-input",
-                            type="number",
-                            value=0.0,
-                            step=1.0,
-                            style={"width": "100%"},
-                        ),
-                        html.Label("Avg Cost"),
-                        dcc.Input(
-                            id="avg-cost-input",
-                            type="number",
-                            value=0.0,
-                            step=0.01,
-                            style={"width": "100%"},
-                        ),
-                        html.H4("Option Legs"),
-                        dash_table.DataTable(
-                            id="legs-table",
-                            columns=[
-                                {"name": "Type", "id": "kind", "presentation": "dropdown"},
-                                {"name": "Side", "id": "side", "presentation": "dropdown"},
-                                {"name": "Qty", "id": "qty"},
-                                {"name": "Strike", "id": "strike"},
-                                {"name": "Premium", "id": "premium"},
-                                {"name": "Override", "id": "override", "presentation": "dropdown"},
-                                {"name": "Option Ticker", "id": "option_ticker"},
-                            ],
-                            data=_default_blank_legs(100.0),
-                            editable=True,
-                            dropdown={
-                                "kind": {
-                                    "options": [
-                                        {"label": "Call", "value": "call"},
-                                        {"label": "Put", "value": "put"},
-                                    ]
-                                },
-                                "side": {
-                                    "options": [
-                                        {"label": "Long", "value": "Long"},
-                                        {"label": "Short", "value": "Short"},
-                                    ]
-                                },
-                                "override": {
-                                    "options": [
-                                        {"label": "No", "value": False},
-                                        {"label": "Yes", "value": True},
-                                    ]
-                                },
-                            },
-                            style_table={
-                                "overflowX": "auto",
-                                "maxHeight": "220px",
-                                "overflowY": "auto",
-                            },
-                        ),
-                        html.Div(style={"height": "12px"}),
-                        html.H4("Pricing & ROI"),
-                        html.Label("Pricing Mode"),
-                        dcc.Dropdown(
-                            id="pricing-mode-input",
-                            options=[
-                                {"label": "Mid", "value": "mid"},
-                                {"label": "Bid/Ask", "value": "bid_ask"},
-                            ],
-                            value="mid",
-                            clearable=False,
-                        ),
-                        html.Label("ROI Policy"),
-                        dcc.Dropdown(
-                            id="roi-policy-input",
-                            options=[
-                                {
-                                    "label": "Premium (Net Premium)",
-                                    "value": "premium",
-                                },
-                                {
-                                    "label": "Max Loss (Risk Max Loss)",
-                                    "value": "max_loss",
-                                },
-                                {"label": "Cash Secured", "value": "cash_secured"},
-                                {"label": "Margin Proxy", "value": "margin"},
-                            ],
-                            value="premium",
-                            clearable=False,
-                        ),
-                        html.Label("Vol Mode"),
-                        dcc.Dropdown(
-                            id="vol-mode-input",
-                            options=[
-                                {"label": "ATM", "value": "atm"},
-                                {"label": "Per Leg", "value": "per_leg"},
-                            ],
-                            value="atm",
-                            clearable=False,
-                        ),
-                        html.Label("ATM IV"),
-                        dcc.Input(
-                            id="atm-iv-input",
-                            type="number",
-                            value=0.2,
-                            step=0.01,
-                            style={"width": "100%"},
-                        ),
-                        html.H4("Scenario & Actions"),
-                        html.Label("Scenario Mode"),
-                        dcc.Dropdown(
-                            id="scenario-mode-input",
-                            options=[
-                                {"label": "Targets", "value": "targets"},
-                                {"label": "Strikes", "value": "strikes"},
-                                {"label": "Breakevens", "value": "breakevens"},
-                            ],
-                            value="targets",
-                            clearable=False,
-                        ),
-                        html.Label("Downside Target (%)"),
-                        dcc.Input(
-                            id="downside-tgt-input",
-                            type="number",
-                            value=-10.0,
-                            step=1.0,
-                            style={"width": "100%"},
-                        ),
-                        html.Label("Upside Target (%)"),
-                        dcc.Input(
-                            id="upside-tgt-input",
-                            type="number",
-                            value=10.0,
-                            step=1.0,
-                            style={"width": "100%"},
-                        ),
-                        html.Div(style={"height": "8px"}),
-                        html.Button("Run Analysis", id="run-analysis-button"),
-                    ]
-                ),
-                html.Div(
-                    children=[
-                        dcc.Graph(
-                            id="payoff-chart",
-                            figure=go.Figure(),
-                            style={"height": "420px"},
-                        ),
-                        html.Div(
-                            style={
-                                "display": "grid",
-                                "gridTemplateColumns": "1fr 1fr",
-                                "gap": "8px",
-                                "marginTop": "8px",
-                            },
-                            children=[
-                                dcc.Checklist(
-                                    id="pnl-toggles",
-                                    options=[
-                                        {"label": "Options", "value": "options"},
-                                        {"label": "Stock", "value": "stock"},
-                                        {"label": "Combined", "value": "combined"},
-                                    ],
-                                    value=["options", "combined"],
-                                    style={"fontSize": "12px"},
-                                ),
-                                dcc.Checklist(
-                                    id="annotate-toggles",
-                                    options=[
-                                        {"label": "Strikes", "value": "strikes"},
-                                        {"label": "Breakevens", "value": "breakevens"},
-                                    ],
-                                    value=["strikes", "breakevens"],
-                                    style={"fontSize": "12px"},
-                                ),
-                            ],
-                        ),
-                        html.H4("Payoff & Metrics"),
-                        html.Div(id="panel-payoff-metrics"),
-                        html.H4("Margin & Capital"),
-                        html.Div(id="panel-margin-capital"),
-                        html.H4("Dividend"),
-                        html.Div(id="panel-dividend"),
-                        html.H4("Account Eligibility"),
-                        html.Div(id="panel-eligibility"),
-                    ]
-                ),
-            ],
-        ),
-        html.H3("Scenario Commentary"),
-        html.Div(id="scenario-cards"),
-        html.H3("Key Levels"),
-        html.Div(id="panel-key-levels"),
-        html.H3("Scenario Table"),
-        html.Div(id="panel-scenario-table"),
-        html.H3("Analysis Debug"),
-        html.Div(
-            children=[
-                html.Pre(
-                    id="analysis-key-debug",
-                    style={
-                        "backgroundColor": "#111827",
-                        "color": "#e5e7eb",
-                        "padding": "8px",
-                        "fontSize": "12px",
-                        "whiteSpace": "pre-wrap",
-                    },
-                ),
-                html.Pre(
-                    id="analysis-pack-debug",
-                    style={
-                        "backgroundColor": "#111827",
-                        "color": "#e5e7eb",
-                        "padding": "8px",
-                        "fontSize": "12px",
-                        "whiteSpace": "pre-wrap",
-                    },
-                ),
-                html.Div(
-                    id="analysis-render-debug",
-                    style={"fontSize": "12px", "color": "#e5e7eb"},
-                ),
-            ],
-            style={"marginTop": "12px"},
-        ),
-    ],
-        ),
-        html.Div(
-            id="page-bloomberg",
-            children=[
-                html.H3("Market Debug"),
-                html.Div(
-                    children=[
-                        html.Div(
-                            id="bbg-mode",
-                            children=(
-                                "Bloomberg: "
-                                f"{'AVAILABLE' if BLOOMBERG_AVAILABLE else 'OFFLINE'}"
+                            html.Div(
+                                children=[
+                                    dcc.Graph(
+                                        id="payoff-chart",
+                                        figure=go.Figure(),
+                                        style={"height": "420px"},
+                                    ),
+                                    html.Div(
+                                        style={
+                                            "display": "grid",
+                                            "gridTemplateColumns": "1fr 1fr",
+                                            "gap": "8px",
+                                            "marginTop": "8px",
+                                        },
+                                        children=[
+                                            dcc.Checklist(
+                                                id="pnl-toggles",
+                                                options=[
+                                                    {"label": "Options", "value": "options"},
+                                                    {"label": "Stock", "value": "stock"},
+                                                    {
+                                                        "label": "Combined",
+                                                        "value": "combined",
+                                                    },
+                                                ],
+                                                value=["options", "combined"],
+                                                style={"fontSize": "12px"},
+                                            ),
+                                            dcc.Checklist(
+                                                id="annotate-toggles",
+                                                options=[
+                                                    {
+                                                        "label": "Strikes",
+                                                        "value": "strikes",
+                                                    },
+                                                    {
+                                                        "label": "Breakevens",
+                                                        "value": "breakevens",
+                                                    },
+                                                ],
+                                                value=["strikes", "breakevens"],
+                                                style={"fontSize": "12px"},
+                                            ),
+                                        ],
+                                    ),
+                                    html.H4("Payoff & Metrics"),
+                                    html.Div(id="panel-payoff-metrics"),
+                                    html.H4("Margin & Capital"),
+                                    html.Div(id="panel-margin-capital"),
+                                    html.H4("Dividend"),
+                                    html.Div(id="panel-dividend"),
+                                    html.H4("Account Eligibility"),
+                                    html.Div(id="panel-eligibility"),
+                                ]
                             ),
+                        ],
+                    ),
+                ],
+            ),
+            html.H3("Scenario Commentary"),
+            html.Div(id="scenario-cards"),
+            html.H3("Key Levels"),
+            html.Div(id="panel-key-levels"),
+            html.H3("Analysis Debug"),
+            html.Div(
+                children=[
+                    html.Pre(
+                        id="analysis-key-debug",
+                        style={
+                            "backgroundColor": "#111827",
+                            "color": "#e5e7eb",
+                            "padding": "8px",
+                            "fontSize": "12px",
+                            "whiteSpace": "pre-wrap",
+                        },
+                    ),
+                    html.Pre(
+                        id="analysis-pack-debug",
+                        style={
+                            "backgroundColor": "#111827",
+                            "color": "#e5e7eb",
+                            "padding": "8px",
+                            "fontSize": "12px",
+                            "whiteSpace": "pre-wrap",
+                        },
+                    ),
+                    html.Div(
+                        id="analysis-render-debug",
+                        style={"fontSize": "12px", "color": "#e5e7eb"},
+                    ),
+                ],
+                style={"marginTop": "12px"},
+            ),
+        ],
+    )
+    if DASH_AVAILABLE
+    else None
+)
+
+def layout_bloomberg():
+    return html.Div(
+        children=[
+            html.H3("Market Debug"),
+            html.Div(
+                children=[
+                    html.Div(
+                        id="bbg-mode",
+                        children=(
+                            "Bloomberg: "
+                            f"{'AVAILABLE' if BLOOMBERG_AVAILABLE else 'OFFLINE'}"
                         ),
-                        html.Pre(
-                            id="ref-debug",
-                            style={
-                                "backgroundColor": "#111827",
-                                "color": "#e5e7eb",
-                                "padding": "8px",
-                                "fontSize": "12px",
-                                "whiteSpace": "pre-wrap",
-                            },
-                        ),
-                        html.Pre(
-                            id="market-debug",
-                            style={
-                                "backgroundColor": "#111827",
-                                "color": "#e5e7eb",
-                                "padding": "8px",
-                                "fontSize": "12px",
-                                "whiteSpace": "pre-wrap",
-                            },
-                        ),
-                        html.Div(
-                            id="refresh-debug",
-                            style={"fontSize": "12px", "color": "#e5e7eb"},
-                        ),
-                    ],
-                    style={"marginTop": "8px"},
-                ),
-                html.Div("Snapshot transparency coming next."),
-            ],
-            style={"display": "none"},
-        ),
-        html.Div(
-            id="page-report",
-            children=[html.Div("Client report preview coming next.")],
-            style={"display": "none"},
-        ),
-    ]
-) if DASH_AVAILABLE else None
+                    ),
+                    html.Pre(
+                        id="ref-debug",
+                        style={
+                            "backgroundColor": "#111827",
+                            "color": "#e5e7eb",
+                            "padding": "8px",
+                            "fontSize": "12px",
+                            "whiteSpace": "pre-wrap",
+                        },
+                    ),
+                    html.Pre(
+                        id="market-debug",
+                        style={
+                            "backgroundColor": "#111827",
+                            "color": "#e5e7eb",
+                            "padding": "8px",
+                            "fontSize": "12px",
+                            "whiteSpace": "pre-wrap",
+                        },
+                    ),
+                    html.Div(
+                        id="refresh-debug",
+                        style={"fontSize": "12px", "color": "#e5e7eb"},
+                    ),
+                ],
+                style={"marginTop": "8px"},
+            ),
+            html.Div("Snapshot transparency coming next."),
+        ]
+    )
+
+
+def layout_report():
+    return html.Div("Client report preview coming next.")
+
+
+if DASH_AVAILABLE:
+    _base_layout = html.Div(
+        children=[
+            dcc.Store(id="store-ref"),
+            dcc.Store(id="store-market"),
+            dcc.Store(id="store-analysis-key"),
+            dcc.Store(id="store-inputs"),
+            dcc.Store(
+                id="store-ui",
+                data={
+                    "show_options": True,
+                    "show_stock": False,
+                    "show_combined": True,
+                    "show_strikes": True,
+                    "show_breakevens": True,
+                },
+            ),
+            dcc.Tabs(
+                id="vnext-tabs",
+                value="dashboard",
+                children=[
+                    dcc.Tab(label="Dashboard", value="dashboard"),
+                    dcc.Tab(label="Bloomberg Data", value="bloomberg"),
+                    dcc.Tab(label="Client Report", value="report"),
+                ],
+            ),
+            html.Div(id="vnext-page", children=layout_dashboard),
+        ]
+    )
+    app.layout = _base_layout
+    app.validation_layout = html.Div(
+        [_base_layout, layout_dashboard, layout_bloomberg(), layout_report()]
+    )
+else:
+    app.layout = None
+
+
+@_callback(
+    Output("vnext-page", "children"),
+    Input("vnext-tabs", "value"),
+)
+def _route_tabs(tab):
+    if tab == "bloomberg":
+        return layout_bloomberg()
+    if tab == "report":
+        return layout_report()
+    return layout_dashboard
 
 
 @_callback(
@@ -1178,7 +1236,6 @@ def _sync_ui(pnl_values, annotate_values, current):
     Output("panel-payoff-metrics", "children"),
     Output("panel-margin-capital", "children"),
     Output("panel-dividend", "children"),
-    Output("panel-scenario-table", "children"),
     Input("store-analysis-key", "data"),
 )
 def _render_panels(key_payload):
@@ -1195,11 +1252,11 @@ def _render_panels(key_payload):
 
     if not isinstance(key_payload, dict) or key_payload.get("error"):
         msg = "Run Analysis to view results."
-        return html.Div(msg), html.Div(msg), html.Div(msg), html.Div(msg)
+        return html.Div(msg), html.Div(msg), html.Div(msg)
     pack = _cache_get(key_payload.get("key"))
     if not pack:
         msg = "Analysis expired; rerun."
-        return html.Div(msg), html.Div(msg), html.Div(msg), html.Div(msg)
+        return html.Div(msg), html.Div(msg), html.Div(msg)
     store_pack = analysis_pack_to_store(pack)
 
     summary = store_pack.get("summary", {}) if isinstance(store_pack, dict) else {}
@@ -1240,55 +1297,7 @@ def _render_panels(key_payload):
     ]
     dividend_table = _table(["Field", "Value"], div_rows)
 
-    scenario = store_pack.get("scenario", {}) if isinstance(store_pack, dict) else {}
-    top10 = scenario.get("top10") or scenario.get("df")
-    records = []
-    if isinstance(top10, dict) and top10.get("__type__") == "DataFrame":
-        records = top10.get("records") or []
-    elif isinstance(top10, list):
-        records = top10
-    def _val(rec, keys):
-        for key in keys:
-            if key in rec:
-                return rec[key]
-        return "--"
-    scenario_rows = []
-    for rec in records[:10]:
-        if not isinstance(rec, dict):
-            continue
-        scenario_rows.append(
-            [
-                _val(rec, ["scenario", "Scenario", "label"]),
-                _val(rec, ["price", "Scenario Price", "scenario_price"]),
-                _val(rec, ["move_pct", "Move %", "move"]),
-                _val(rec, ["option_pnl", "Option PnL"]),
-                _val(rec, ["stock_pnl", "Stock PnL"]),
-                _val(rec, ["net_pnl", "Combined PnL", "combined_pnl"]),
-                _val(rec, ["net_roi", "Net ROI"]),
-                _val(rec, ["commentary", "Commentary"]),
-            ]
-        )
-    scenario_table = (
-        _table(
-            [
-                "Scenario",
-                "Scenario Price",
-                "Move %",
-                "Option PnL",
-                "Stock PnL",
-                "Combined PnL",
-                "Net ROI",
-                "Commentary",
-            ],
-            scenario_rows,
-        )
-        if scenario_rows
-        else html.Div("--")
-    )
-    scenario_container = html.Div(
-        scenario_table, style={"maxHeight": "240px", "overflowY": "auto"}
-    )
-    return metrics_table, margin_table, dividend_table, scenario_container
+    return metrics_table, margin_table, dividend_table
 
 
 @_callback(
@@ -1403,8 +1412,14 @@ def _render_key_levels(key_payload):
             return "--"
         text = f"{num:.2f}"
         return f"{text}{suffix}" if suffix else text
+    def _sort_key(level):
+        price = _coerce_float(level.get("price")) if isinstance(level, dict) else None
+        if price is None:
+            return (1, float("inf"))
+        return (0, price)
+    sorted_levels = sorted(levels, key=_sort_key)
     rows = []
-    for level in levels:
+    for level in sorted_levels:
         if not isinstance(level, dict):
             continue
         rows.append(

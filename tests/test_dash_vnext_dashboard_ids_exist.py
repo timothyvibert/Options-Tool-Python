@@ -28,10 +28,10 @@ def test_vnext_dashboard_ids_exist():
     _collect_ids(layout, ids)
     for target in (
         "vnext-tabs",
+        "vnext-page",
         "panel-payoff-metrics",
         "panel-margin-capital",
         "panel-dividend",
-        "panel-scenario-table",
         "legs-table",
         "payoff-chart",
     ):

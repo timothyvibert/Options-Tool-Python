@@ -213,6 +213,8 @@ _panel_market = html.Div(
             type="text",
             debounce=True,
             value="",
+            persistence=True,
+            persistence_type="session",
             style={"width": "100%"},
         ),
         html.Div(
@@ -225,6 +227,8 @@ _panel_market = html.Div(
             type="number",
             value=100.0,
             step=0.01,
+            persistence=True,
+            persistence_type="session",
             style={"width": "100%"},
         ),
         html.Label("Expiry (YYYY-MM-DD)"),
@@ -232,6 +236,8 @@ _panel_market = html.Div(
             id=ID.EXPIRY_INPUT,
             type="text",
             value="",
+            persistence=True,
+            persistence_type="session",
             style={"width": "100%"},
         ),
         html.Button(
@@ -269,6 +275,8 @@ _panel_strategy = html.Div(
             options=_group_options,
             value=_default_group,
             clearable=False,
+            persistence=True,
+            persistence_type="session",
         ),
         html.Label("Strategy Subgroup"),
         dcc.Dropdown(
@@ -276,6 +284,8 @@ _panel_strategy = html.Div(
             options=_subgroup_options,
             value=_default_subgroup,
             clearable=False,
+            persistence=True,
+            persistence_type="session",
         ),
         html.Label("Strategy"),
         dcc.Dropdown(
@@ -283,6 +293,8 @@ _panel_strategy = html.Div(
             options=_strategy_options,
             value=_default_strategy_id,
             clearable=True,
+            persistence=True,
+            persistence_type="session",
         ),
     ],
 )
@@ -310,6 +322,8 @@ _panel_stock_overlay = html.Div(
             type="number",
             value=0.0,
             step=1.0,
+            persistence=True,
+            persistence_type="session",
             style={"width": "100%"},
         ),
         html.Label("Avg Cost"),
@@ -318,6 +332,8 @@ _panel_stock_overlay = html.Div(
             type="number",
             value=0.0,
             step=0.01,
+            persistence=True,
+            persistence_type="session",
             style={"width": "100%"},
         ),
     ],
@@ -368,6 +384,9 @@ _panel_option_legs = html.Div(
             ],
             data=_empty_leg_rows(),
             editable=True,
+            persistence=True,
+            persistence_type="session",
+            persisted_props=["data"],
             dropdown={
                 "kind": {
                     "options": [
@@ -423,6 +442,8 @@ _panel_pricing_roi = html.Div(
             ],
             value="mid",
             clearable=False,
+            persistence=True,
+            persistence_type="session",
         ),
         html.Label("ROI Policy"),
         dcc.Dropdown(
@@ -447,6 +468,8 @@ _panel_pricing_roi = html.Div(
             ],
             value="premium",
             clearable=False,
+            persistence=True,
+            persistence_type="session",
         ),
         html.Label("Vol Mode"),
         dcc.Dropdown(
@@ -457,6 +480,8 @@ _panel_pricing_roi = html.Div(
             ],
             value="atm",
             clearable=False,
+            persistence=True,
+            persistence_type="session",
         ),
         html.Label("ATM IV"),
         dcc.Input(
@@ -464,6 +489,8 @@ _panel_pricing_roi = html.Div(
             type="number",
             value=0.2,
             step=0.01,
+            persistence=True,
+            persistence_type="session",
             style={"width": "100%"},
         ),
     ],
@@ -495,6 +522,8 @@ _panel_scenario_actions = html.Div(
             ],
             value="targets",
             clearable=False,
+            persistence=True,
+            persistence_type="session",
         ),
         html.Label("Downside Target (%)"),
         dcc.Input(
@@ -502,6 +531,8 @@ _panel_scenario_actions = html.Div(
             type="number",
             value=-10.0,
             step=1.0,
+            persistence=True,
+            persistence_type="session",
             style={"width": "100%"},
         ),
         html.Label("Upside Target (%)"),
@@ -510,6 +541,8 @@ _panel_scenario_actions = html.Div(
             type="number",
             value=10.0,
             step=1.0,
+            persistence=True,
+            persistence_type="session",
             style={"width": "100%"},
         ),
         html.Button(

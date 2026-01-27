@@ -168,6 +168,17 @@ def layout_dashboard():
     return _layout_dashboard
 
 
+def get_validation_layout(base_layout, bloomberg_available: bool = False):
+    return html.Div(
+        [
+            base_layout,
+            layout_dashboard(),
+            layout_bloomberg(bloomberg_available),
+            layout_report(),
+        ]
+    )
+
+
 def layout_bloomberg(bloomberg_available: bool = False):
     return html.Div(
         className="vnext-app",

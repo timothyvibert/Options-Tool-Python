@@ -51,12 +51,18 @@ app = Dash(__name__) if DASH_AVAILABLE else _DashStub()
 if DASH_AVAILABLE:
     import plotly.graph_objects as go
     from frontend_dash.vnext.layout import (
-        layout_bloomberg,
-        layout_dashboard,
-        layout_report,
+        get_validation_layout,
+        layout_bloomberg as vnext_layout_bloomberg,
+        layout_dashboard as vnext_layout_dashboard,
+        layout_report as vnext_layout_report,
     )
     from frontend_dash.vnext.callbacks import register_callbacks
 else:
+    get_validation_layout = None
+    vnext_layout_bloomberg = None
+    vnext_layout_dashboard = None
+    vnext_layout_report = None
+
     def layout_dashboard():
         return None
 
@@ -384,107 +390,22 @@ _layout_dashboard = (
 )
 
 def layout_dashboard():
-    return _layout_dashboard
+    if not DASH_AVAILABLE or vnext_layout_dashboard is None:
+        return None
+    return vnext_layout_dashboard()
 
-def layout_bloomberg():
-    return html.Div(
-        children=[
-            html.H3("Bloomberg Data"),
-            dcc.Checklist(
-                id="debug-mode-toggle",
-                options=[{"label": "Debug Mode", "value": "on"}],
-                value=[],
-                style={"fontSize": "12px"},
-            ),
-            html.Div(
-                id="debug-container",
-                style={"display": "none"},
-                children=[
-                    html.H3("Market Debug"),
-                    html.Div(
-                        children=[
-                            html.Div(
-                                id="bbg-mode",
-                                children=(
-                                    "Bloomberg: "
-                                    f"{'AVAILABLE' if BLOOMBERG_AVAILABLE else 'OFFLINE'}"
-                                ),
-                            ),
-                            html.Pre(
-                                id="ref-debug",
-                                style={
-                                    "backgroundColor": "#111827",
-                                    "color": "#e5e7eb",
-                                    "padding": "8px",
-                                    "fontSize": "12px",
-                                    "whiteSpace": "pre-wrap",
-                                },
-                            ),
-                            html.Pre(
-                                id="market-debug",
-                                style={
-                                    "backgroundColor": "#111827",
-                                    "color": "#e5e7eb",
-                                    "padding": "8px",
-                                    "fontSize": "12px",
-                                    "whiteSpace": "pre-wrap",
-                                },
-                            ),
-                            html.Div(
-                                id="refresh-debug",
-                                style={"fontSize": "12px", "color": "#e5e7eb"},
-                            ),
-                        ],
-                        style={"marginTop": "8px"},
-                    ),
-                    html.H3("Analysis Debug"),
-                    html.Div(
-                        children=[
-                            html.Pre(
-                                id="analysis-key-debug",
-                                style={
-                                    "backgroundColor": "#111827",
-                                    "color": "#e5e7eb",
-                                    "padding": "8px",
-                                    "fontSize": "12px",
-                                    "whiteSpace": "pre-wrap",
-                                },
-                            ),
-                            html.Pre(
-                                id="analysis-pack-debug",
-                                style={
-                                    "backgroundColor": "#111827",
-                                    "color": "#e5e7eb",
-                                    "padding": "8px",
-                                    "fontSize": "12px",
-                                    "whiteSpace": "pre-wrap",
-                                },
-                            ),
-                            html.Div(
-                                id="analysis-render-debug",
-                                style={"fontSize": "12px", "color": "#e5e7eb"},
-                            ),
-                        ],
-                        style={"marginTop": "12px"},
-                    ),
-                ],
-            ),
-            html.Div("Snapshot transparency coming next."),
-        ]
-    )
+def layout_bloomberg(bloomberg_available: bool | None = None):
+    if not DASH_AVAILABLE or vnext_layout_bloomberg is None:
+        return None
+    if bloomberg_available is None:
+        bloomberg_available = BLOOMBERG_AVAILABLE
+    return vnext_layout_bloomberg(bloomberg_available)
 
 
 def layout_report():
-    return html.Div(
-        children=[
-            html.H3("Client Report"),
-            html.Div("Coming next."),
-            html.Div(
-                "PDF export is disabled (reportlab not installed).",
-                style={"fontSize": "12px", "marginTop": "6px"},
-            ),
-        ]
-    )
+    if not DASH_AVAILABLE or vnext_layout_report is None:
+        return None
+    return vnext_layout_report()
 
 
 if DASH_AVAILABLE:
@@ -718,14 +639,7 @@ if DASH_AVAILABLE:
         ]
     )
     app.layout = _base_layout
-    app.validation_layout = html.Div(
-        [
-            _base_layout,
-            layout_dashboard(),
-            layout_bloomberg(),
-            layout_report(),
-        ]
-    )
+    app.validation_layout = get_validation_layout(_base_layout, BLOOMBERG_AVAILABLE)
     register_callbacks(
         app,
         _cache_get,

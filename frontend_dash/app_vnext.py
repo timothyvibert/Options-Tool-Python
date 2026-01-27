@@ -411,15 +411,6 @@ def layout_report():
 if DASH_AVAILABLE:
     _base_layout = html.Div(
         children=[
-            dcc.Tabs(
-                id="vnext-tabs",
-                value="dashboard",
-                children=[
-                    dcc.Tab(label="Dashboard", value="dashboard"),
-                    dcc.Tab(label="Bloomberg Data", value="bloomberg"),
-                    dcc.Tab(label="Client Report", value="report"),
-                ],
-            ),
             html.Div(
                 id="control-plane",
                 style={"display": "none"},
@@ -440,7 +431,94 @@ if DASH_AVAILABLE:
                     ),
                 ],
             ),
-            html.Div(id="vnext-page"),
+            html.Div(
+                className="ae-shell",
+                children=[
+                    html.Aside(
+                        className="ae-sidebar",
+                        children=[
+                            html.Div(
+                                children=[
+                                    html.Div("ALPHA ENGINE", className="ae-brand"),
+                                    html.Div("Institutional Sales", className="ae-sub"),
+                                ]
+                            ),
+                            html.Div("Core Workflow", className="ae-nav-h"),
+                            html.Button(
+                                "Options Builder",
+                                className="ae-item active",
+                                type="button",
+                            ),
+                            html.Button(
+                                "Idea Generator",
+                                className="ae-item disabled",
+                                type="button",
+                            ),
+                            html.Button(
+                                "Structuring Lab",
+                                className="ae-item disabled",
+                                type="button",
+                            ),
+                            html.Div("Client & Book", className="ae-nav-h"),
+                            html.Button(
+                                "Sales Triggers",
+                                className="ae-item disabled",
+                                type="button",
+                            ),
+                            html.Button(
+                                "Resonance Matrix",
+                                className="ae-item disabled",
+                                type="button",
+                            ),
+                            html.Button(
+                                "Content Factory",
+                                className="ae-item disabled",
+                                type="button",
+                            ),
+                        ],
+                    ),
+                    html.Div(
+                        className="ae-main",
+                        children=[
+                            html.Header(
+                                className="ae-topbar",
+                                children=[
+                                    html.Div("Options Builder", className="ae-title"),
+                                    html.Div(
+                                        className="ae-status",
+                                        children=[
+                                            html.Div("Live Data", className="ae-pill"),
+                                            html.Div("09:41 ET", className="ae-pill"),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                            html.Div(
+                                className="ae-content",
+                                children=[
+                                    dcc.Tabs(
+                                        id="vnext-tabs",
+                                        value="dashboard",
+                                        children=[
+                                            dcc.Tab(
+                                                label="Dashboard", value="dashboard"
+                                            ),
+                                            dcc.Tab(
+                                                label="Bloomberg Data",
+                                                value="bloomberg",
+                                            ),
+                                            dcc.Tab(
+                                                label="Client Report", value="report"
+                                            ),
+                                        ],
+                                    ),
+                                    html.Div(id="vnext-page"),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
         ]
     )
     app.layout = _base_layout

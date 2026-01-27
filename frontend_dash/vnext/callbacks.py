@@ -423,9 +423,8 @@ def register_callbacks(
         Output(ID.REFRESH_DEBUG, "children"),
         Input(ID.STORE_REF, "data"),
         Input(ID.STORE_MARKET, "data"),
-        State(ID.EXPIRY_INPUT, "value"),
     )
-    def _render_debug(ref_data, market_data, expiry):
+    def _render_debug(ref_data, market_data):
         ref_view = "--"
         if isinstance(ref_data, dict):
             ref_view = json.dumps(
@@ -443,7 +442,9 @@ def register_callbacks(
         market_view = "--"
         errors = []
         refreshed_at = None
+        expiry_value = ""
         if isinstance(market_data, dict):
+            expiry_value = str(market_data.get("expiry") or "").strip()
             errors = market_data.get("errors") or []
             refreshed_at = market_data.get("refreshed_at")
             leg_quotes = market_data.get("leg_quotes") or []
@@ -460,9 +461,10 @@ def register_callbacks(
                 indent=2,
                 sort_keys=True,
             )
-        expiry_value = (expiry or "").strip()
+        if not expiry_value and isinstance(ref_data, dict):
+            expiry_value = str(ref_data.get("expiry") or "").strip()
         if not expiry_value:
-            refresh_msg = "Refresh blocked: expiry required (YYYY-MM-DD)"
+            refresh_msg = "Refresh blocked: expiry not available"
         elif errors:
             first_error = errors[0] if errors else "--"
             refresh_msg = f"Refresh completed with {len(errors)} errors: {first_error}"

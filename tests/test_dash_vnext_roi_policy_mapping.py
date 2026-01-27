@@ -28,8 +28,8 @@ def test_vnext_roi_policy_dropdown_options():
     layout = getattr(dash_app.app, "validation_layout", None) or dash_app.app.layout
     if callable(layout):
         layout = layout()
-    dropdown = _find_component_by_id(layout, "roi-policy-input")
-    assert dropdown is not None, "roi-policy-input not found in layout"
+    dropdown = _find_component_by_id(layout, "cp-roi-policy")
+    assert dropdown is not None, "cp-roi-policy not found in layout"
     options = getattr(dropdown, "options", [])
     values = {opt.get("value") for opt in options if isinstance(opt, dict)}
     assert values == {"premium", "max_loss", "cash_secured", "margin"}

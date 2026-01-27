@@ -310,7 +310,7 @@ else:
     _default_strategy_id = None
 
 
-layout_dashboard = (
+_layout_dashboard = (
     html.Div(
         children=[
             html.Div(
@@ -319,294 +319,49 @@ layout_dashboard = (
                     html.H2("Options Strategy Builder (vNext)"),
                     html.Div(id="risk-events-banner"),
                     html.Div(
-                        style={
-                            "display": "grid",
-                            "gridTemplateColumns": "1fr 2fr",
-                            "gap": "16px",
-                        },
                         children=[
+                            dcc.Graph(
+                                id="payoff-chart",
+                                figure=go.Figure(),
+                                style={"height": "420px"},
+                            ),
                             html.Div(
+                                style={
+                                    "display": "grid",
+                                    "gridTemplateColumns": "1fr 1fr",
+                                    "gap": "8px",
+                                    "marginTop": "8px",
+                                },
                                 children=[
-                                    html.H4("Market"),
-                                    html.Label("Ticker"),
-                                    dcc.Input(
-                                        id="ticker-input",
-                                        type="text",
-                                        debounce=True,
-                                        value="",
-                                        style={"width": "100%"},
-                                    ),
-                                    html.Div(id="spot-status", style={"fontSize": "12px"}),
-                                    html.Label("Spot"),
-                                    dcc.Input(
-                                        id="spot-input",
-                                        type="number",
-                                        value=100.0,
-                                        step=0.01,
-                                        style={"width": "100%"},
-                                    ),
-                                    html.Button(
-                                        "Refresh Bloomberg Data", id="refresh-button"
-                                    ),
-                                    html.Div(
-                                        id="refresh-status", style={"fontSize": "12px"}
-                                    ),
-                                    html.H4("Expiry"),
-                                    html.Label("Expiry (YYYY-MM-DD)"),
-                                    dcc.Input(
-                                        id="expiry-input",
-                                        type="text",
-                                        value="",
-                                        style={"width": "100%"},
-                                    ),
-                                    html.H4("Strategy"),
-                                    html.Label("Strategy Group"),
-                                    dcc.Dropdown(
-                                        id="strategy-group",
+                                    dcc.Checklist(
+                                        id="pnl-toggles",
                                         options=[
-                                            {"label": g, "value": g} for g in _groups
+                                            {"label": "Options", "value": "options"},
+                                            {"label": "Stock", "value": "stock"},
+                                            {"label": "Combined", "value": "combined"},
                                         ],
-                                        value=_default_group,
-                                        clearable=False,
+                                        value=["options", "combined"],
+                                        style={"fontSize": "12px"},
                                     ),
-                                    html.Label("Strategy Subgroup"),
-                                    dcc.Dropdown(
-                                        id="strategy-subgroup",
+                                    dcc.Checklist(
+                                        id="annotate-toggles",
                                         options=[
-                                            {"label": sg, "value": sg}
-                                            for sg in _default_subgroups
-                                        ],
-                                        value=_default_subgroup,
-                                        clearable=False,
-                                    ),
-                                    html.Label("Strategy"),
-                                    dcc.Dropdown(
-                                        id="strategy-id",
-                                        options=(
-                                            [
-                                                {
-                                                    "label": row["strategy_name"],
-                                                    "value": int(row["strategy_id"]),
-                                                }
-                                                for _, row in (
-                                                    _default_strategy_df.iterrows()
-                                                    if _default_strategy_df is not None
-                                                    else []
-                                                )
-                                            ]
-                                            if _default_strategy_df is not None
-                                            else []
-                                        ),
-                                        value=_default_strategy_id,
-                                        clearable=True,
-                                    ),
-                                    html.H4("Stock Overlay"),
-                                    html.Label("Stock Position (shares)"),
-                                    dcc.Input(
-                                        id="stock-position-input",
-                                        type="number",
-                                        value=0.0,
-                                        step=1.0,
-                                        style={"width": "100%"},
-                                    ),
-                                    html.Label("Avg Cost"),
-                                    dcc.Input(
-                                        id="avg-cost-input",
-                                        type="number",
-                                        value=0.0,
-                                        step=0.01,
-                                        style={"width": "100%"},
-                                    ),
-                                    html.H4("Option Legs"),
-                                    dash_table.DataTable(
-                                        id="legs-table",
-                                        columns=[
-                                            {
-                                                "name": "Type",
-                                                "id": "kind",
-                                                "presentation": "dropdown",
-                                            },
-                                            {
-                                                "name": "Side",
-                                                "id": "side",
-                                                "presentation": "dropdown",
-                                            },
-                                            {"name": "Qty", "id": "qty"},
-                                            {"name": "Strike", "id": "strike"},
-                                            {"name": "Premium", "id": "premium"},
-                                            {
-                                                "name": "Override",
-                                                "id": "override",
-                                                "presentation": "dropdown",
-                                            },
-                                            {"name": "Option Ticker", "id": "option_ticker"},
-                                        ],
-                                        data=_default_blank_legs(100.0),
-                                        editable=True,
-                                        dropdown={
-                                            "kind": {
-                                                "options": [
-                                                    {"label": "Call", "value": "call"},
-                                                    {"label": "Put", "value": "put"},
-                                                ]
-                                            },
-                                            "side": {
-                                                "options": [
-                                                    {"label": "Long", "value": "Long"},
-                                                    {"label": "Short", "value": "Short"},
-                                                ]
-                                            },
-                                            "override": {
-                                                "options": [
-                                                    {"label": "No", "value": False},
-                                                    {"label": "Yes", "value": True},
-                                                ]
-                                            },
-                                        },
-                                        style_table={
-                                            "overflowX": "auto",
-                                            "maxHeight": "220px",
-                                            "overflowY": "auto",
-                                        },
-                                    ),
-                                    html.Div(style={"height": "12px"}),
-                                    html.H4("Pricing & ROI"),
-                                    html.Label("Pricing Mode"),
-                                    dcc.Dropdown(
-                                        id="pricing-mode-input",
-                                        options=[
-                                            {"label": "Mid", "value": "mid"},
-                                            {"label": "Bid/Ask", "value": "bid_ask"},
-                                        ],
-                                        value="mid",
-                                        clearable=False,
-                                    ),
-                                    html.Label("ROI Policy"),
-                                    dcc.Dropdown(
-                                        id="roi-policy-input",
-                                        options=[
-                                            {
-                                                "label": "Premium (Net Premium)",
-                                                "value": "premium",
-                                            },
-                                            {
-                                                "label": "Max Loss (Risk Max Loss)",
-                                                "value": "max_loss",
-                                            },
-                                            {"label": "Cash Secured", "value": "cash_secured"},
-                                            {"label": "Margin Proxy", "value": "margin"},
-                                        ],
-                                        value="premium",
-                                        clearable=False,
-                                    ),
-                                    html.Label("Vol Mode"),
-                                    dcc.Dropdown(
-                                        id="vol-mode-input",
-                                        options=[
-                                            {"label": "ATM", "value": "atm"},
-                                            {"label": "Per Leg", "value": "per_leg"},
-                                        ],
-                                        value="atm",
-                                        clearable=False,
-                                    ),
-                                    html.Label("ATM IV"),
-                                    dcc.Input(
-                                        id="atm-iv-input",
-                                        type="number",
-                                        value=0.2,
-                                        step=0.01,
-                                        style={"width": "100%"},
-                                    ),
-                                    html.H4("Scenario & Actions"),
-                                    html.Label("Scenario Mode"),
-                                    dcc.Dropdown(
-                                        id="scenario-mode-input",
-                                        options=[
-                                            {"label": "Targets", "value": "targets"},
                                             {"label": "Strikes", "value": "strikes"},
-                                            {
-                                                "label": "Breakevens",
-                                                "value": "breakevens",
-                                            },
+                                            {"label": "Breakevens", "value": "breakevens"},
                                         ],
-                                        value="targets",
-                                        clearable=False,
+                                        value=["strikes", "breakevens"],
+                                        style={"fontSize": "12px"},
                                     ),
-                                    html.Label("Downside Target (%)"),
-                                    dcc.Input(
-                                        id="downside-tgt-input",
-                                        type="number",
-                                        value=-10.0,
-                                        step=1.0,
-                                        style={"width": "100%"},
-                                    ),
-                                    html.Label("Upside Target (%)"),
-                                    dcc.Input(
-                                        id="upside-tgt-input",
-                                        type="number",
-                                        value=10.0,
-                                        step=1.0,
-                                        style={"width": "100%"},
-                                    ),
-                                    html.Div(style={"height": "8px"}),
-                                    html.Button("Run Analysis", id="run-analysis-button"),
-                                ]
+                                ],
                             ),
-                            html.Div(
-                                children=[
-                                    dcc.Graph(
-                                        id="payoff-chart",
-                                        figure=go.Figure(),
-                                        style={"height": "420px"},
-                                    ),
-                                    html.Div(
-                                        style={
-                                            "display": "grid",
-                                            "gridTemplateColumns": "1fr 1fr",
-                                            "gap": "8px",
-                                            "marginTop": "8px",
-                                        },
-                                        children=[
-                                            dcc.Checklist(
-                                                id="pnl-toggles",
-                                                options=[
-                                                    {"label": "Options", "value": "options"},
-                                                    {"label": "Stock", "value": "stock"},
-                                                    {
-                                                        "label": "Combined",
-                                                        "value": "combined",
-                                                    },
-                                                ],
-                                                value=["options", "combined"],
-                                                style={"fontSize": "12px"},
-                                            ),
-                                            dcc.Checklist(
-                                                id="annotate-toggles",
-                                                options=[
-                                                    {
-                                                        "label": "Strikes",
-                                                        "value": "strikes",
-                                                    },
-                                                    {
-                                                        "label": "Breakevens",
-                                                        "value": "breakevens",
-                                                    },
-                                                ],
-                                                value=["strikes", "breakevens"],
-                                                style={"fontSize": "12px"},
-                                            ),
-                                        ],
-                                    ),
-                                    html.H4("Payoff & Metrics"),
-                                    html.Div(id="panel-payoff-metrics"),
-                                    html.H4("Margin & Capital"),
-                                    html.Div(id="panel-margin-capital"),
-                                    html.H4("Dividend"),
-                                    html.Div(id="panel-dividend"),
-                                    html.H4("Account Eligibility"),
-                                    html.Div(id="panel-eligibility"),
-                                ]
-                            ),
+                            html.H4("Payoff & Metrics"),
+                            html.Div(id="panel-payoff-metrics"),
+                            html.H4("Margin & Capital"),
+                            html.Div(id="panel-margin-capital"),
+                            html.H4("Dividend"),
+                            html.Div(id="panel-dividend"),
+                            html.H4("Account Eligibility"),
+                            html.Div(id="panel-eligibility"),
                         ],
                     ),
                 ],
@@ -650,6 +405,9 @@ layout_dashboard = (
     if DASH_AVAILABLE
     else None
 )
+
+def layout_dashboard():
+    return _layout_dashboard
 
 def layout_bloomberg():
     return html.Div(
@@ -726,12 +484,218 @@ if DASH_AVAILABLE:
                     dcc.Tab(label="Client Report", value="report"),
                 ],
             ),
-            html.Div(id="vnext-page", children=layout_dashboard),
+            html.Div(
+                id="control-plane",
+                style={"display": "none"},
+                children=[
+                    html.H3("Inputs"),
+                    html.H4("Market"),
+                    html.Label("Ticker"),
+                    dcc.Input(
+                        id="ticker-input",
+                        type="text",
+                        debounce=True,
+                        value="",
+                        style={"width": "100%"},
+                    ),
+                    html.Div(id="spot-status", style={"fontSize": "12px"}),
+                    html.Label("Spot"),
+                    dcc.Input(
+                        id="spot-input",
+                        type="number",
+                        value=100.0,
+                        step=0.01,
+                        style={"width": "100%"},
+                    ),
+                    html.Button("Refresh Bloomberg Data", id="refresh-button"),
+                    html.Div(id="refresh-status", style={"fontSize": "12px"}),
+                    html.H4("Expiry"),
+                    html.Label("Expiry (YYYY-MM-DD)"),
+                    dcc.Input(
+                        id="cp-expiry",
+                        type="text",
+                        value="",
+                        style={"width": "100%"},
+                    ),
+                    html.H4("Strategy"),
+                    html.Label("Strategy Group"),
+                    dcc.Dropdown(
+                        id="strategy-group",
+                        options=[{"label": g, "value": g} for g in _groups],
+                        value=_default_group,
+                        clearable=False,
+                    ),
+                    html.Label("Strategy Subgroup"),
+                    dcc.Dropdown(
+                        id="strategy-subgroup",
+                        options=[
+                            {"label": sg, "value": sg} for sg in _default_subgroups
+                        ],
+                        value=_default_subgroup,
+                        clearable=False,
+                    ),
+                    html.Label("Strategy"),
+                    dcc.Dropdown(
+                        id="strategy-id",
+                        options=(
+                            [
+                                {
+                                    "label": row["strategy_name"],
+                                    "value": int(row["strategy_id"]),
+                                }
+                                for _, row in (
+                                    _default_strategy_df.iterrows()
+                                    if _default_strategy_df is not None
+                                    else []
+                                )
+                            ]
+                            if _default_strategy_df is not None
+                            else []
+                        ),
+                        value=_default_strategy_id,
+                        clearable=True,
+                    ),
+                    html.H4("Stock Overlay"),
+                    html.Label("Stock Position (shares)"),
+                    dcc.Input(
+                        id="cp-stock-pos",
+                        type="number",
+                        value=0.0,
+                        step=1.0,
+                        style={"width": "100%"},
+                    ),
+                    html.Label("Avg Cost"),
+                    dcc.Input(
+                        id="cp-avg-cost",
+                        type="number",
+                        value=0.0,
+                        step=0.01,
+                        style={"width": "100%"},
+                    ),
+                    html.H4("Option Legs"),
+                    dash_table.DataTable(
+                        id="legs-table",
+                        columns=[
+                            {"name": "Type", "id": "kind", "presentation": "dropdown"},
+                            {"name": "Side", "id": "side", "presentation": "dropdown"},
+                            {"name": "Qty", "id": "qty"},
+                            {"name": "Strike", "id": "strike"},
+                            {"name": "Premium", "id": "premium"},
+                            {"name": "Override", "id": "override", "presentation": "dropdown"},
+                            {"name": "Option Ticker", "id": "option_ticker"},
+                        ],
+                        data=_default_blank_legs(100.0),
+                        editable=True,
+                        dropdown={
+                            "kind": {
+                                "options": [
+                                    {"label": "Call", "value": "call"},
+                                    {"label": "Put", "value": "put"},
+                                ]
+                            },
+                            "side": {
+                                "options": [
+                                    {"label": "Long", "value": "Long"},
+                                    {"label": "Short", "value": "Short"},
+                                ]
+                            },
+                            "override": {
+                                "options": [
+                                    {"label": "No", "value": False},
+                                    {"label": "Yes", "value": True},
+                                ]
+                            },
+                        },
+                        style_table={
+                            "overflowX": "auto",
+                            "maxHeight": "220px",
+                            "overflowY": "auto",
+                        },
+                    ),
+                    html.Div(style={"height": "12px"}),
+                    html.H4("Pricing & ROI"),
+                    html.Label("Pricing Mode"),
+                    dcc.Dropdown(
+                        id="cp-pricing-mode",
+                        options=[
+                            {"label": "Mid", "value": "mid"},
+                            {"label": "Bid/Ask", "value": "bid_ask"},
+                        ],
+                        value="mid",
+                        clearable=False,
+                    ),
+                    html.Label("ROI Policy"),
+                    dcc.Dropdown(
+                        id="cp-roi-policy",
+                        options=[
+                            {"label": "Premium (Net Premium)", "value": "premium"},
+                            {"label": "Max Loss (Risk Max Loss)", "value": "max_loss"},
+                            {"label": "Cash Secured", "value": "cash_secured"},
+                            {"label": "Margin Proxy", "value": "margin"},
+                        ],
+                        value="premium",
+                        clearable=False,
+                    ),
+                    html.Label("Vol Mode"),
+                    dcc.Dropdown(
+                        id="cp-vol-mode",
+                        options=[
+                            {"label": "ATM", "value": "atm"},
+                            {"label": "Per Leg", "value": "per_leg"},
+                        ],
+                        value="atm",
+                        clearable=False,
+                    ),
+                    html.Label("ATM IV"),
+                    dcc.Input(
+                        id="cp-atm-iv",
+                        type="number",
+                        value=0.2,
+                        step=0.01,
+                        style={"width": "100%"},
+                    ),
+                    html.H4("Scenario & Actions"),
+                    html.Label("Scenario Mode"),
+                    dcc.Dropdown(
+                        id="cp-scenario-mode",
+                        options=[
+                            {"label": "Targets", "value": "targets"},
+                            {"label": "Infinity", "value": "infinity"},
+                        ],
+                        value="targets",
+                        clearable=False,
+                    ),
+                    html.Label("Downside Target (%)"),
+                    dcc.Input(
+                        id="cp-downside",
+                        type="number",
+                        value=-10.0,
+                        step=1.0,
+                        style={"width": "100%"},
+                    ),
+                    html.Label("Upside Target (%)"),
+                    dcc.Input(
+                        id="cp-upside",
+                        type="number",
+                        value=10.0,
+                        step=1.0,
+                        style={"width": "100%"},
+                    ),
+                    html.Div(style={"height": "8px"}),
+                    html.Button("Run Analysis", id="run-analysis-button"),
+                ],
+            ),
+            html.Div(id="vnext-page"),
         ]
     )
     app.layout = _base_layout
     app.validation_layout = html.Div(
-        [_base_layout, layout_dashboard, layout_bloomberg(), layout_report()]
+        [
+            _base_layout,
+            layout_dashboard(),
+            layout_bloomberg(),
+            layout_report(),
+        ]
     )
 else:
     app.layout = None
@@ -746,7 +710,17 @@ def _route_tabs(tab):
         return layout_bloomberg()
     if tab == "report":
         return layout_report()
-    return layout_dashboard
+    return layout_dashboard()
+
+
+@_callback(
+    Output("control-plane", "style"),
+    Input("vnext-tabs", "value"),
+)
+def _toggle_control_plane(tab):
+    if tab == "dashboard":
+        return {"display": "block"}
+    return {"display": "none"}
 
 
 @_callback(
@@ -783,7 +757,7 @@ def _update_strategies(group_value, subgroup_value):
     Input("strategy-id", "value"),
     Input("store-market", "data"),
     State("spot-input", "value"),
-    State("pricing-mode-input", "value"),
+    State("cp-pricing-mode", "value"),
     State("legs-table", "data"),
 )
 def _apply_legs_updates(
@@ -884,8 +858,8 @@ def _ping_spot(n_submit, n_blur, ticker_value, ref_data):
     Input("refresh-button", "n_clicks"),
     State("store-ref", "data"),
     State("ticker-input", "value"),
-    State("expiry-input", "value"),
-    State("pricing-mode-input", "value"),
+    State("cp-expiry", "value"),
+    State("cp-pricing-mode", "value"),
     State("legs-table", "data"),
     prevent_initial_call=True,
 )
@@ -918,7 +892,7 @@ def _refresh_market(n_clicks, ref_data, ticker_value, expiry, pricing_mode, legs
     Output("refresh-debug", "children"),
     Input("store-ref", "data"),
     Input("store-market", "data"),
-    State("expiry-input", "value"),
+    State("cp-expiry", "value"),
 )
 def _render_debug(ref_data, market_data, expiry):
     ref_view = "--"
@@ -973,17 +947,17 @@ def _render_debug(ref_data, market_data, expiry):
     State("store-ref", "data"),
     State("ticker-input", "value"),
     State("spot-input", "value"),
-    State("expiry-input", "value"),
-    State("stock-position-input", "value"),
-    State("avg-cost-input", "value"),
+    State("cp-expiry", "value"),
+    State("cp-stock-pos", "value"),
+    State("cp-avg-cost", "value"),
     State("legs-table", "data"),
-    State("pricing-mode-input", "value"),
-    State("roi-policy-input", "value"),
-    State("vol-mode-input", "value"),
-    State("atm-iv-input", "value"),
-    State("scenario-mode-input", "value"),
-    State("downside-tgt-input", "value"),
-    State("upside-tgt-input", "value"),
+    State("cp-pricing-mode", "value"),
+    State("cp-roi-policy", "value"),
+    State("cp-vol-mode", "value"),
+    State("cp-atm-iv", "value"),
+    State("cp-scenario-mode", "value"),
+    State("cp-downside", "value"),
+    State("cp-upside", "value"),
     State("strategy-group", "value"),
     State("strategy-subgroup", "value"),
     State("strategy-id", "value"),
@@ -1043,6 +1017,9 @@ def _run_analysis(
                 multiplier=int(multiplier),
             )
         )
+    scenario_mode_ui = (scenario_mode or "targets").strip().lower()
+    scenario_mode_backend = "INFINITY" if scenario_mode_ui == "infinity" else "targets"
+
     inputs_snapshot = {
         "ticker": raw_ticker,
         "raw_ticker": raw_ticker,
@@ -1056,7 +1033,8 @@ def _run_analysis(
         "roi_policy": roi_policy,
         "vol_mode": vol_mode,
         "atm_iv": atm_iv,
-        "scenario_mode": scenario_mode,
+        "scenario_mode": scenario_mode_ui,
+        "scenario_mode_backend": scenario_mode_backend,
         "downside_pct": downside_pct,
         "upside_pct": upside_pct,
         "strategy_group": group_value,
@@ -1134,7 +1112,7 @@ def _run_analysis(
             atm_iv=_coerce_float(atm_iv) or 0.2,
             underlying_profile=underlying_profile,
             bbg_leg_snapshots=bbg_leg_snapshots,
-            scenario_mode=scenario_mode or "targets",
+            scenario_mode=scenario_mode_backend,
             downside_tgt=downside_factor,
             upside_tgt=upside_factor,
         )

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import plotly.graph_objects as go
-from dash import dcc, html
+from dash import dcc, html, dash_table
 
 from frontend_dash.vnext import ids as ID
 
@@ -13,32 +13,68 @@ _layout_dashboard = html.Div(
     children=[
         html.Div(
             id=ID.PAGE_DASHBOARD,
+            className="vnext-shell",
             children=[
                 html.Div(
-                    className="vnext-header",
+                    className="vnext-header-row",
                     children=[
                         html.Div("Options Strategy Builder", className="vnext-title"),
-                        html.Div(className="vnext-header-actions"),
+                        html.Div(
+                            className="vnext-header-actions",
+                            children=[
+                                html.Button(
+                                    "Refresh Bloomberg Data",
+                                    id=ID.BTN_REFRESH,
+                                    className="vnext-btn",
+                                ),
+                                html.Button(
+                                    "Run Analysis",
+                                    id=ID.BTN_RUN,
+                                    className="vnext-btn vnext-btn-primary",
+                                ),
+                            ],
+                        ),
                     ],
                 ),
                 html.Div(
-                    className="vnext-grid",
+                    className="vnext-dashboard",
                     children=[
                         html.Div(
-                            className="vnext-main",
+                            className="vnext-left-rail",
                             children=[
                                 html.Div(
                                     className="vnext-panel",
                                     children=[
                                         html.Div(
-                                            "Payoff",
+                                            "Scenario Commentary",
                                             className="vnext-panel-title",
                                         ),
+                                        html.Div(id=ID.SCENARIO_CARDS),
+                                    ],
+                                ),
+                                html.Div(
+                                    className="vnext-panel",
+                                    children=[
+                                        html.Div(
+                                            "Key Levels",
+                                            className="vnext-panel-title",
+                                        ),
+                                        html.Div(id=ID.PANEL_KEY_LEVELS),
+                                    ],
+                                ),
+                            ],
+                        ),
+                        html.Div(
+                            className="vnext-main",
+                            children=[
+                                html.Div(
+                                    className="vnext-panel vnext-hero",
+                                    children=[
                                         html.Div(id=ID.RISK_BANNER),
                                         dcc.Graph(
                                             id=ID.PAYOFF_CHART,
                                             figure=go.Figure(),
-                                            style={"height": "420px"},
+                                            className="vnext-hero-chart",
                                         ),
                                         html.Div(
                                             className="vnext-row",
@@ -119,26 +155,6 @@ _layout_dashboard = html.Div(
                                     ],
                                 ),
                             ],
-                        ),
-                    ],
-                ),
-                html.Div(
-                    className="vnext-section",
-                    children=[
-                        html.Div(
-                            "Scenario Commentary",
-                            className="vnext-section-title",
-                        ),
-                        html.Div(id=ID.SCENARIO_CARDS),
-                    ],
-                ),
-                html.Div(
-                    className="vnext-section",
-                    children=[
-                        html.Div("Key Levels", className="vnext-section-title"),
-                        html.Div(
-                            className="vnext-panel",
-                            children=[html.Div(id=ID.PANEL_KEY_LEVELS)],
                         ),
                     ],
                 ),

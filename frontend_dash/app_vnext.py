@@ -407,72 +407,85 @@ def layout_dashboard():
 def layout_bloomberg():
     return html.Div(
         children=[
-            html.H3("Market Debug"),
-            html.Div(
-                children=[
-                    html.Div(
-                        id="bbg-mode",
-                        children=(
-                            "Bloomberg: "
-                            f"{'AVAILABLE' if BLOOMBERG_AVAILABLE else 'OFFLINE'}"
-                        ),
-                    ),
-                    html.Pre(
-                        id="ref-debug",
-                        style={
-                            "backgroundColor": "#111827",
-                            "color": "#e5e7eb",
-                            "padding": "8px",
-                            "fontSize": "12px",
-                            "whiteSpace": "pre-wrap",
-                        },
-                    ),
-                    html.Pre(
-                        id="market-debug",
-                        style={
-                            "backgroundColor": "#111827",
-                            "color": "#e5e7eb",
-                            "padding": "8px",
-                            "fontSize": "12px",
-                            "whiteSpace": "pre-wrap",
-                        },
-                    ),
-                    html.Div(
-                        id="refresh-debug",
-                        style={"fontSize": "12px", "color": "#e5e7eb"},
-                    ),
-                ],
-                style={"marginTop": "8px"},
+            html.H3("Bloomberg Data"),
+            dcc.Checklist(
+                id="debug-mode-toggle",
+                options=[{"label": "Debug Mode", "value": "on"}],
+                value=[],
+                style={"fontSize": "12px"},
             ),
-            html.H3("Analysis Debug"),
             html.Div(
+                id="debug-container",
+                style={"display": "none"},
                 children=[
-                    html.Pre(
-                        id="analysis-key-debug",
-                        style={
-                            "backgroundColor": "#111827",
-                            "color": "#e5e7eb",
-                            "padding": "8px",
-                            "fontSize": "12px",
-                            "whiteSpace": "pre-wrap",
-                        },
-                    ),
-                    html.Pre(
-                        id="analysis-pack-debug",
-                        style={
-                            "backgroundColor": "#111827",
-                            "color": "#e5e7eb",
-                            "padding": "8px",
-                            "fontSize": "12px",
-                            "whiteSpace": "pre-wrap",
-                        },
-                    ),
+                    html.H3("Market Debug"),
                     html.Div(
-                        id="analysis-render-debug",
-                        style={"fontSize": "12px", "color": "#e5e7eb"},
+                        children=[
+                            html.Div(
+                                id="bbg-mode",
+                                children=(
+                                    "Bloomberg: "
+                                    f"{'AVAILABLE' if BLOOMBERG_AVAILABLE else 'OFFLINE'}"
+                                ),
+                            ),
+                            html.Pre(
+                                id="ref-debug",
+                                style={
+                                    "backgroundColor": "#111827",
+                                    "color": "#e5e7eb",
+                                    "padding": "8px",
+                                    "fontSize": "12px",
+                                    "whiteSpace": "pre-wrap",
+                                },
+                            ),
+                            html.Pre(
+                                id="market-debug",
+                                style={
+                                    "backgroundColor": "#111827",
+                                    "color": "#e5e7eb",
+                                    "padding": "8px",
+                                    "fontSize": "12px",
+                                    "whiteSpace": "pre-wrap",
+                                },
+                            ),
+                            html.Div(
+                                id="refresh-debug",
+                                style={"fontSize": "12px", "color": "#e5e7eb"},
+                            ),
+                        ],
+                        style={"marginTop": "8px"},
+                    ),
+                    html.H3("Analysis Debug"),
+                    html.Div(
+                        children=[
+                            html.Pre(
+                                id="analysis-key-debug",
+                                style={
+                                    "backgroundColor": "#111827",
+                                    "color": "#e5e7eb",
+                                    "padding": "8px",
+                                    "fontSize": "12px",
+                                    "whiteSpace": "pre-wrap",
+                                },
+                            ),
+                            html.Pre(
+                                id="analysis-pack-debug",
+                                style={
+                                    "backgroundColor": "#111827",
+                                    "color": "#e5e7eb",
+                                    "padding": "8px",
+                                    "fontSize": "12px",
+                                    "whiteSpace": "pre-wrap",
+                                },
+                            ),
+                            html.Div(
+                                id="analysis-render-debug",
+                                style={"fontSize": "12px", "color": "#e5e7eb"},
+                            ),
+                        ],
+                        style={"marginTop": "12px"},
                     ),
                 ],
-                style={"marginTop": "12px"},
             ),
             html.Div("Snapshot transparency coming next."),
         ]
@@ -736,6 +749,18 @@ def _route_tabs(tab):
     if tab == "report":
         return layout_report()
     return layout_dashboard()
+
+
+@_callback(
+    Output("debug-container", "style"),
+    Input("debug-mode-toggle", "value"),
+)
+def _toggle_debug(value):
+    if isinstance(value, list):
+        enabled = "on" in value or len(value) > 0
+    else:
+        enabled = bool(value)
+    return {"display": "block"} if enabled else {"display": "none"}
 
 
 @_callback(

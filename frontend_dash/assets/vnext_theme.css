@@ -284,3 +284,17 @@ body {
   display: flex;
   flex-direction: row;
 }
+
+#control-plane {
+  display: none !important;
+  width: 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+}
+
+#control-plane[style*="display: block"] ~ #vnext-page,
+#control-plane[style*="display: none"] ~ #vnext-page {
+  margin-left: 0;
+}

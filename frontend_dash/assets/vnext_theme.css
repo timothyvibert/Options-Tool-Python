@@ -1,3 +1,13 @@
+:root {
+  --gap-sm: 8px;
+  --gap: 12px;
+  --gap-lg: 16px;
+  --pad-sm: 8px;
+  --pad: 12px;
+  --pad-lg: 16px;
+  --panel: var(--surface);
+}
+
 .vnext-app {
   --bg: #0b1220;
   --surface: #0f172a;
@@ -8,8 +18,13 @@
   --accent: #22d3ee;
   --warning: #f59e0b;
   --radius: 10px;
+  --gap-sm: 8px;
   --gap: 12px;
+  --gap-lg: 16px;
+  --pad-sm: 8px;
   --pad: 12px;
+  --pad-lg: 16px;
+  --panel: var(--surface);
   --font: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
   color: var(--text);
 }
@@ -164,4 +179,48 @@ body {
   font-size: 11px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.gap-sm {
+  gap: var(--gap-sm);
+}
+
+.gap-md {
+  gap: var(--gap);
+}
+
+.gap-lg {
+  gap: var(--gap-lg);
+}
+
+.pad-sm {
+  padding: var(--pad-sm);
+}
+
+.pad-md {
+  padding: var(--pad);
+}
+
+.pad-lg {
+  padding: var(--pad-lg);
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.panel.pad {
+  padding: var(--pad);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  flex-direction: row;
 }

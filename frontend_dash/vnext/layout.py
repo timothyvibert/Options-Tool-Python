@@ -13,7 +13,7 @@ _layout_dashboard = html.Div(
     children=[
         html.Div(
             id=ID.PAGE_DASHBOARD,
-            className="vnext-shell",
+            className="vnext-shell stack gap-md",
             children=[
                 html.Div(
                     className="vnext-header-row",
@@ -37,13 +37,13 @@ _layout_dashboard = html.Div(
                     ],
                 ),
                 html.Div(
-                    className="vnext-dashboard",
+                    className="vnext-dashboard row gap-lg pad-lg",
                     children=[
                         html.Div(
-                            className="vnext-left-rail",
+                            className="vnext-left-rail stack gap-md",
                             children=[
                                 html.Div(
-                                    className="vnext-panel",
+                                    className="vnext-panel panel pad",
                                     children=[
                                         html.Div(
                                             "Scenario Commentary",
@@ -53,7 +53,7 @@ _layout_dashboard = html.Div(
                                     ],
                                 ),
                                 html.Div(
-                                    className="vnext-panel",
+                                    className="vnext-panel panel pad",
                                     children=[
                                         html.Div(
                                             "Key Levels",
@@ -65,10 +65,10 @@ _layout_dashboard = html.Div(
                             ],
                         ),
                         html.Div(
-                            className="vnext-main",
+                            className="vnext-main stack gap-md",
                             children=[
                                 html.Div(
-                                    className="vnext-panel vnext-hero",
+                                    className="vnext-panel vnext-hero panel pad",
                                     children=[
                                         html.Div(id=ID.RISK_BANNER),
                                         dcc.Graph(
@@ -115,7 +115,7 @@ _layout_dashboard = html.Div(
                                     ],
                                 ),
                                 html.Div(
-                                    className="vnext-panel",
+                                    className="vnext-panel panel pad",
                                     children=[
                                         html.Div(
                                             "Payoff & Metrics",
@@ -125,7 +125,7 @@ _layout_dashboard = html.Div(
                                     ],
                                 ),
                                 html.Div(
-                                    className="vnext-panel",
+                                    className="vnext-panel panel pad",
                                     children=[
                                         html.Div(
                                             "Margin & Capital",
@@ -135,7 +135,7 @@ _layout_dashboard = html.Div(
                                     ],
                                 ),
                                 html.Div(
-                                    className="vnext-panel",
+                                    className="vnext-panel panel pad",
                                     children=[
                                         html.Div(
                                             "Dividend",
@@ -145,7 +145,7 @@ _layout_dashboard = html.Div(
                                     ],
                                 ),
                                 html.Div(
-                                    className="vnext-panel",
+                                    className="vnext-panel panel pad",
                                     children=[
                                         html.Div(
                                             "Account Eligibility",

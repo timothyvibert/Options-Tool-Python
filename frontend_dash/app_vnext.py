@@ -770,6 +770,9 @@ def _apply_legs_updates(
         quotes = market_data.get("leg_quotes")
         if not isinstance(quotes, list):
             return no_update
+        leg_tickers = market_data.get("leg_tickers")
+        if not isinstance(leg_tickers, list):
+            leg_tickers = []
         rows = legs_data if isinstance(legs_data, list) else []
         updated_rows = []
         for idx, row in enumerate(rows):
@@ -783,6 +786,8 @@ def _apply_legs_updates(
             premium = _select_premium_from_quote(quote, position, pricing_mode or "mid")
             updated = dict(row)
             updated["premium"] = abs(float(premium))
+            if idx < len(leg_tickers):
+                updated["option_ticker"] = leg_tickers[idx]
             updated_rows.append(updated)
         return updated_rows
     if trigger_id == "strategy-id" or trigger_id is None:

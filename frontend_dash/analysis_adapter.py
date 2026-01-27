@@ -234,13 +234,18 @@ def refresh_leg_premiums(
     market_snapshot = {
         "refreshed_at": timestamp,
         "resolved_underlying": None,
+        "market_spot": None,
+        "underlying_profile": None,
         "leg_quotes": [],
+        "leg_tickers": [],
         "per_leg_iv": [],
         "errors": [],
     }
     errors: list[str] = []
     try:
         from adapters.bloomberg import (
+            fetch_spot,
+            fetch_underlying_snapshot,
             fetch_option_snapshot,
             resolve_option_ticker_from_strike,
             resolve_security,
@@ -262,6 +267,29 @@ def refresh_leg_premiums(
             base = raw
     market_snapshot["resolved_underlying"] = base or None
 
+    try:
+        spot_result = fetch_spot(base)
+        if isinstance(spot_result, dict):
+            spot_value = spot_result.get("spot")
+            if spot_value is None:
+                spot_value = spot_result.get("px_last")
+            if spot_value is None:
+                spot_value = spot_result.get("PX_LAST")
+        else:
+            spot_value = spot_result
+        market_snapshot["market_spot"] = to_jsonable(spot_value)
+    except Exception as exc:
+        errors.append(f"Spot fetch failed: {exc}")
+
+    try:
+        underlying = fetch_underlying_snapshot(base)
+        if hasattr(underlying, "to_dict"):
+            underlying = underlying.to_dict()
+        market_snapshot["underlying_profile"] = to_jsonable(underlying) if underlying else {}
+    except Exception as exc:
+        errors.append(f"Underlying snapshot failed: {exc}")
+        market_snapshot["underlying_profile"] = {}
+
     option_tickers: list[str] = []
     row_tickers: list[str | None] = []
     updated_rows: list[dict] = []
@@ -269,14 +297,14 @@ def refresh_leg_premiums(
         if not isinstance(row, dict):
             row_tickers.append(None)
             updated_rows.append(row)
-            errors.append(f"Leg {idx + 1}: invalid row")
             continue
         kind = str(row.get("kind", "")).strip().lower()
         strike = row.get("strike")
         if kind not in {"call", "put"} or strike is None:
             row_tickers.append(None)
-            updated_rows.append(dict(row))
-            errors.append(f"Leg {idx + 1}: missing kind/strike")
+            updated_row = dict(row)
+            updated_row["option_ticker"] = None
+            updated_rows.append(updated_row)
             continue
         put_call = "CALL" if kind == "call" else "PUT"
         try:
@@ -288,13 +316,10 @@ def refresh_leg_premiums(
             errors.append(f"Leg {idx + 1}: ticker resolve failed ({exc})")
         row_tickers.append(ticker)
         updated_row = dict(row)
-        if ticker and "bbg_ticker" in row:
-            updated_row["bbg_ticker"] = ticker
+        updated_row["option_ticker"] = ticker
         updated_rows.append(updated_row)
         if ticker:
             option_tickers.append(ticker)
-        else:
-            errors.append(f"Leg {idx + 1}: no valid ticker")
 
     unique_tickers = list(dict.fromkeys(option_tickers))
     quotes_by_ticker: dict[str, dict] = {}
@@ -388,6 +413,7 @@ def refresh_leg_premiums(
     if errors:
         status = f"{status} (errors: {len(errors)})"
     market_snapshot["leg_quotes"] = leg_quotes
+    market_snapshot["leg_tickers"] = row_tickers
     market_snapshot["per_leg_iv"] = per_leg_iv
     market_snapshot["errors"] = errors
     return updated_with_premiums, market_snapshot, status

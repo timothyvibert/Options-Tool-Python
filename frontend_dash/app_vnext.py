@@ -299,6 +299,31 @@ def _row_position(row: dict) -> float:
     return qty
 
 
+def _sort_key_levels(levels: list[dict]) -> list[dict]:
+    priority = {
+        "spot": 0,
+        "strike": 1,
+        "breakeven": 2,
+        "downside": 3,
+        "upside": 4,
+        "sentinel": 5,
+    }
+
+    def _sort_key(level: dict):
+        if not isinstance(level, dict):
+            return (0, float("inf"), 6)
+        price = _coerce_float(level.get("price"))
+        price_key = price if price is not None else float("inf")
+        source = str(level.get("source", "")).strip().lower()
+        label = str(level.get("label", "")).lower()
+        level_id = str(level.get("id", "")).lower()
+        is_infinity = level_id == "infinity" or "infinity" in label
+        rank = priority.get(source, 6)
+        return (1 if is_infinity else 0, price_key, rank)
+
+    return sorted(levels, key=_sort_key)
+
+
 _groups = _safe_list_groups()
 _default_group = _groups[0] if _groups else None
 _default_subgroups = _safe_list_subgroups(_default_group)
@@ -370,36 +395,6 @@ _layout_dashboard = (
             html.Div(id="scenario-cards"),
             html.H3("Key Levels"),
             html.Div(id="panel-key-levels"),
-            html.H3("Analysis Debug"),
-            html.Div(
-                children=[
-                    html.Pre(
-                        id="analysis-key-debug",
-                        style={
-                            "backgroundColor": "#111827",
-                            "color": "#e5e7eb",
-                            "padding": "8px",
-                            "fontSize": "12px",
-                            "whiteSpace": "pre-wrap",
-                        },
-                    ),
-                    html.Pre(
-                        id="analysis-pack-debug",
-                        style={
-                            "backgroundColor": "#111827",
-                            "color": "#e5e7eb",
-                            "padding": "8px",
-                            "fontSize": "12px",
-                            "whiteSpace": "pre-wrap",
-                        },
-                    ),
-                    html.Div(
-                        id="analysis-render-debug",
-                        style={"fontSize": "12px", "color": "#e5e7eb"},
-                    ),
-                ],
-                style={"marginTop": "12px"},
-            ),
         ],
     )
     if DASH_AVAILABLE
@@ -448,6 +443,36 @@ def layout_bloomberg():
                     ),
                 ],
                 style={"marginTop": "8px"},
+            ),
+            html.H3("Analysis Debug"),
+            html.Div(
+                children=[
+                    html.Pre(
+                        id="analysis-key-debug",
+                        style={
+                            "backgroundColor": "#111827",
+                            "color": "#e5e7eb",
+                            "padding": "8px",
+                            "fontSize": "12px",
+                            "whiteSpace": "pre-wrap",
+                        },
+                    ),
+                    html.Pre(
+                        id="analysis-pack-debug",
+                        style={
+                            "backgroundColor": "#111827",
+                            "color": "#e5e7eb",
+                            "padding": "8px",
+                            "fontSize": "12px",
+                            "whiteSpace": "pre-wrap",
+                        },
+                    ),
+                    html.Div(
+                        id="analysis-render-debug",
+                        style={"fontSize": "12px", "color": "#e5e7eb"},
+                    ),
+                ],
+                style={"marginTop": "12px"},
             ),
             html.Div("Snapshot transparency coming next."),
         ]
@@ -1395,12 +1420,7 @@ def _render_key_levels(key_payload):
             return "--"
         text = f"{num:.2f}"
         return f"{text}{suffix}" if suffix else text
-    def _sort_key(level):
-        price = _coerce_float(level.get("price")) if isinstance(level, dict) else None
-        if price is None:
-            return (1, float("inf"))
-        return (0, price)
-    sorted_levels = sorted(levels, key=_sort_key)
+    sorted_levels = _sort_key_levels(levels)
     rows = []
     for level in sorted_levels:
         if not isinstance(level, dict):
@@ -1462,23 +1482,26 @@ def _render_eligibility(key_payload):
         records = table
     if not records:
         return html.Div("Eligibility data unavailable for this strategy.")
-    def _icon(value):
+    def _format_eligibility(value):
         if value is True:
-            return "✅"
+            return "? Allowed"
         if value is False:
-            return "❌"
+            return "? Not allowed"
         text = str(value).strip().upper()
-        if text in {"Y", "YES", "TRUE", "ALLOWED"}:
-            return "✅"
-        if text in {"N", "NO", "FALSE", "NOT_ALLOWED"}:
-            return "❌"
+        if text in {"ALLOWED", "Y", "YES", "TRUE"}:
+            return "? Allowed"
+        if text in {"RESTRICTED"}:
+            return "? Restricted"
+        if text in {"NOT_ALLOWED", "N", "NO", "FALSE"}:
+            return "? Not allowed"
         return str(value) if value not in (None, "", "nan") else "--"
+
     rows = []
     for rec in records:
         if not isinstance(rec, dict):
             continue
         rows.append(
-            [rec.get("account_type", "--"), _icon(rec.get("eligibility"))]
+            [rec.get("account_type", "--"), _format_eligibility(rec.get("eligibility"))]
         )
     return html.Table(
         [

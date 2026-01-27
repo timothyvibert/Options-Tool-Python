@@ -831,18 +831,44 @@ def register_callbacks(
             days = earnings_risk.get("days_to_earnings")
             if days is not None:
                 messages.append(
-                    html.Div(f"ƒsÿ‹,? Earnings in {days} days (before expiry)")
+                    html.Div(
+                        [
+                            html.Span("WARN", className="risk-badge"),
+                            html.Span(f"Earnings in {days} days (before expiry)"),
+                        ]
+                    )
                 )
             else:
-                messages.append(html.Div("ƒsÿ‹,? Earnings before expiry"))
+                messages.append(
+                    html.Div(
+                        [
+                            html.Span("WARN", className="risk-badge"),
+                            html.Span("Earnings before expiry"),
+                        ]
+                    )
+                )
         if isinstance(dividend_risk, dict) and dividend_risk.get("before_expiry") is True:
             days = dividend_risk.get("days_to_dividend")
             if days is not None:
                 messages.append(
-                    html.Div(f"ƒsÿ‹,? Ex-dividend in {days} days (before expiry)")
+                    html.Div(
+                        [
+                            html.Span("WARN", className="risk-badge"),
+                            html.Span(
+                                f"Ex-dividend in {days} days (before expiry)"
+                            ),
+                        ]
+                    )
                 )
             else:
-                messages.append(html.Div("ƒsÿ‹,? Ex-dividend date before expiry"))
+                messages.append(
+                    html.Div(
+                        [
+                            html.Span("WARN", className="risk-badge"),
+                            html.Span("Ex-dividend date before expiry"),
+                        ]
+                    )
+                )
         if not messages:
             return html.Div()
         return html.Div(

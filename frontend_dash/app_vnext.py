@@ -9,6 +9,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import json
 import math
+import os
+import tempfile
 from time import time
 import uuid
 
@@ -23,6 +25,11 @@ from frontend_dash.analysis_adapter import (
     to_jsonable,
 )
 from frontend_dash.smart_strikes import compute_default_strike, is_number_like
+
+try:
+    import pandas as pd
+except Exception:
+    pd = None
 
 try:
     from adapters.bloomberg import resolve_security as _bbg_resolve_security
@@ -493,7 +500,16 @@ def layout_bloomberg():
 
 
 def layout_report():
-    return html.Div("Client report preview coming next.")
+    return html.Div(
+        children=[
+            html.H3("Client Report"),
+            html.Div("Coming next."),
+            html.Div(
+                "PDF export is disabled (reportlab not installed).",
+                style={"fontSize": "12px", "marginTop": "6px"},
+            ),
+        ]
+    )
 
 
 if DASH_AVAILABLE:

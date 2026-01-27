@@ -4,6 +4,8 @@ Run:
   python -m frontend_dash.app_vnext
 """
 
+# Legacy prototype entrypoint. For vNext run: python -m frontend_dash.run_vnext
+
 from __future__ import annotations
 
 from time import time

@@ -181,6 +181,66 @@ body {
   text-transform: uppercase;
 }
 
+.h1 {
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.h2 {
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.h3 {
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 12px;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--gap-sm);
+}
+
+.panel-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap-sm);
+}
+
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+}
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: var(--gap-sm) 0;
+}
+
+.panel .dash-table-container {
+  margin-top: var(--gap-sm);
+}
+
 .gap-sm {
   gap: var(--gap-sm);
 }

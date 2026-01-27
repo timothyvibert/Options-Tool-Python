@@ -46,8 +46,18 @@ _layout_dashboard = html.Div(
                                     className="vnext-panel panel pad",
                                     children=[
                                         html.Div(
-                                            "Scenario Commentary",
-                                            className="vnext-panel-title",
+                                            className="panel-header",
+                                            children=[
+                                                html.Div(
+                                                    className="panel-title",
+                                                    children=[
+                                                        html.Div(
+                                                            "Scenario Commentary",
+                                                            className="h2",
+                                                        )
+                                                    ],
+                                                )
+                                            ],
                                         ),
                                         html.Div(id=ID.SCENARIO_CARDS),
                                     ],
@@ -56,8 +66,18 @@ _layout_dashboard = html.Div(
                                     className="vnext-panel panel pad",
                                     children=[
                                         html.Div(
-                                            "Key Levels",
-                                            className="vnext-panel-title",
+                                            className="panel-header",
+                                            children=[
+                                                html.Div(
+                                                    className="panel-title",
+                                                    children=[
+                                                        html.Div(
+                                                            "Key Levels",
+                                                            className="h2",
+                                                        )
+                                                    ],
+                                                )
+                                            ],
                                         ),
                                         html.Div(id=ID.PANEL_KEY_LEVELS),
                                     ],
@@ -118,8 +138,18 @@ _layout_dashboard = html.Div(
                                     className="vnext-panel panel pad",
                                     children=[
                                         html.Div(
-                                            "Payoff & Metrics",
-                                            className="vnext-panel-title",
+                                            className="panel-header",
+                                            children=[
+                                                html.Div(
+                                                    className="panel-title",
+                                                    children=[
+                                                        html.Div(
+                                                            "Payoff & Metrics",
+                                                            className="h2",
+                                                        )
+                                                    ],
+                                                )
+                                            ],
                                         ),
                                         html.Div(id=ID.PANEL_PAYOFF_METRICS),
                                     ],
@@ -128,8 +158,18 @@ _layout_dashboard = html.Div(
                                     className="vnext-panel panel pad",
                                     children=[
                                         html.Div(
-                                            "Margin & Capital",
-                                            className="vnext-panel-title",
+                                            className="panel-header",
+                                            children=[
+                                                html.Div(
+                                                    className="panel-title",
+                                                    children=[
+                                                        html.Div(
+                                                            "Margin & Capital",
+                                                            className="h2",
+                                                        )
+                                                    ],
+                                                )
+                                            ],
                                         ),
                                         html.Div(id=ID.PANEL_MARGIN_CAPITAL),
                                     ],
@@ -138,8 +178,18 @@ _layout_dashboard = html.Div(
                                     className="vnext-panel panel pad",
                                     children=[
                                         html.Div(
-                                            "Dividend",
-                                            className="vnext-panel-title",
+                                            className="panel-header",
+                                            children=[
+                                                html.Div(
+                                                    className="panel-title",
+                                                    children=[
+                                                        html.Div(
+                                                            "Dividend",
+                                                            className="h2",
+                                                        )
+                                                    ],
+                                                )
+                                            ],
                                         ),
                                         html.Div(id=ID.PANEL_DIVIDEND),
                                     ],
@@ -148,8 +198,18 @@ _layout_dashboard = html.Div(
                                     className="vnext-panel panel pad",
                                     children=[
                                         html.Div(
-                                            "Account Eligibility",
-                                            className="vnext-panel-title",
+                                            className="panel-header",
+                                            children=[
+                                                html.Div(
+                                                    className="panel-title",
+                                                    children=[
+                                                        html.Div(
+                                                            "Account Eligibility",
+                                                            className="h2",
+                                                        )
+                                                    ],
+                                                )
+                                            ],
                                         ),
                                         html.Div(id=ID.PANEL_ELIGIBILITY),
                                     ],

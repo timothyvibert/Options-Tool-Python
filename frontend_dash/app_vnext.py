@@ -52,6 +52,8 @@ if DASH_AVAILABLE:
     import plotly.graph_objects as go
     from frontend_dash.vnext.layout import (
         get_validation_layout,
+        layout_control_plane_stores,
+        layout_shell,
         layout_bloomberg as vnext_layout_bloomberg,
         layout_dashboard as vnext_layout_dashboard,
         layout_report as vnext_layout_report,
@@ -59,6 +61,8 @@ if DASH_AVAILABLE:
     from frontend_dash.vnext.callbacks import register_callbacks
 else:
     get_validation_layout = None
+    layout_control_plane_stores = None
+    layout_shell = None
     vnext_layout_bloomberg = None
     vnext_layout_dashboard = None
     vnext_layout_report = None
@@ -411,118 +415,14 @@ def layout_report():
 if DASH_AVAILABLE:
     _base_layout = html.Div(
         children=[
-            html.Div(
-                id="control-plane",
-                style={"display": "none"},
-                children=[
-                    dcc.Store(id="store-ref"),
-                    dcc.Store(id="store-market"),
-                    dcc.Store(id="store-analysis-key"),
-                    dcc.Store(id="store-inputs"),
-                    dcc.Store(
-                        id="store-ui",
-                        data={
-                            "show_options": True,
-                            "show_stock": False,
-                            "show_combined": True,
-                            "show_strikes": True,
-                            "show_breakevens": True,
-                        },
-                    ),
-                ],
-            ),
-            html.Div(
-                className="ae-shell",
-                children=[
-                    html.Aside(
-                        className="ae-sidebar",
-                        children=[
-                            html.Div(
-                                children=[
-                                    html.Div("ALPHA ENGINE", className="ae-brand"),
-                                    html.Div("Institutional Sales", className="ae-sub"),
-                                ]
-                            ),
-                            html.Div("Core Workflow", className="ae-nav-h"),
-                            html.Button(
-                                "Options Builder",
-                                className="ae-item active",
-                                type="button",
-                            ),
-                            html.Button(
-                                "Idea Generator",
-                                className="ae-item disabled",
-                                type="button",
-                            ),
-                            html.Button(
-                                "Structuring Lab",
-                                className="ae-item disabled",
-                                type="button",
-                            ),
-                            html.Div("Client & Book", className="ae-nav-h"),
-                            html.Button(
-                                "Sales Triggers",
-                                className="ae-item disabled",
-                                type="button",
-                            ),
-                            html.Button(
-                                "Resonance Matrix",
-                                className="ae-item disabled",
-                                type="button",
-                            ),
-                            html.Button(
-                                "Content Factory",
-                                className="ae-item disabled",
-                                type="button",
-                            ),
-                        ],
-                    ),
-                    html.Div(
-                        className="ae-main",
-                        children=[
-                            html.Header(
-                                className="ae-topbar",
-                                children=[
-                                    html.Div("Options Builder", className="ae-title"),
-                                    html.Div(
-                                        className="ae-status",
-                                        children=[
-                                            html.Div("Live Data", className="ae-pill"),
-                                            html.Div("09:41 ET", className="ae-pill"),
-                                        ],
-                                    ),
-                                ],
-                            ),
-                            html.Div(
-                                className="ae-content",
-                                children=[
-                                    dcc.Tabs(
-                                        id="vnext-tabs",
-                                        value="dashboard",
-                                        children=[
-                                            dcc.Tab(
-                                                label="Dashboard", value="dashboard"
-                                            ),
-                                            dcc.Tab(
-                                                label="Bloomberg Data",
-                                                value="bloomberg",
-                                            ),
-                                            dcc.Tab(
-                                                label="Client Report", value="report"
-                                            ),
-                                        ],
-                                    ),
-                                    html.Div(id="vnext-page"),
-                                ],
-                            ),
-                        ],
-                    ),
-                ],
-            ),
+            layout_control_plane_stores(),
+            layout_shell(),
         ]
     )
     app.layout = _base_layout
-    app.validation_layout = get_validation_layout(_base_layout, BLOOMBERG_AVAILABLE)
+    app.validation_layout = get_validation_layout(
+        bloomberg_available=BLOOMBERG_AVAILABLE
+    )
     register_callbacks(
         app,
         _cache_get,

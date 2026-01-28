@@ -8,6 +8,7 @@ import math
 
 import plotly.graph_objects as go
 from dash import Input, Output, State, no_update, ctx, html
+from dash.exceptions import PreventUpdate
 
 from core.analysis_pack import build_analysis_pack
 from core.models import OptionLeg, StrategyInput
@@ -184,6 +185,25 @@ def _row_position(row: dict) -> float:
     return qty
 
 
+def _legs_have_content(rows: object) -> bool:
+    if not isinstance(rows, list):
+        return False
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        kind = str(row.get("kind", "")).strip().lower()
+        strike = row.get("strike")
+        opt_ticker = str(row.get("option_ticker", "") or "").strip()
+        prem = _coerce_float(row.get("premium"))
+        if kind in {"call", "put"} and strike not in (None, ""):
+            return True
+        if opt_ticker:
+            return True
+        if prem is not None:
+            return True
+    return False
+
+
 def _sort_key_levels(levels: list[dict]) -> list[dict]:
     priority = {
         "spot": 0,
@@ -218,15 +238,19 @@ def register_callbacks(
     bbg_fetch_spot=None,
 ) -> None:
     @app.callback(
-        Output(ID.PAGE, "children"),
+        Output(ID.PAGE_DASHBOARD, "style"),
+        Output(ID.PAGE_BLOOMBERG, "style"),
+        Output(ID.PAGE_REPORT, "style"),
         Input(ID.TABS, "value"),
     )
-    def _route_tabs(tab):
+    def _toggle_pages(tab):
+        show = {"display": "block"}
+        hide = {"display": "none"}
         if tab == "bloomberg":
-            return layout_bloomberg(bloomberg_available)
+            return hide, show, hide
         if tab == "report":
-            return layout_report()
-        return layout_dashboard()
+            return hide, hide, show
+        return show, hide, hide
 
     @app.callback(
         Output(ID.DEBUG_CONTAINER, "style"),
@@ -315,11 +339,15 @@ def register_callbacks(
         strategy_id, market_data, spot_value, pricing_mode, legs_data, ui_state
     ):
         trigger_id = ctx.triggered_id if ctx else None
-        stored_legs = None
         stored_strategy_id = None
         if isinstance(ui_state, dict):
-            stored_legs = ui_state.get("legs")
             stored_strategy_id = ui_state.get("strategy_id")
+            try:
+                stored_strategy_id = (
+                    int(stored_strategy_id) if stored_strategy_id is not None else None
+                )
+            except (TypeError, ValueError):
+                stored_strategy_id = None
         if trigger_id == ID.STORE_MARKET:
             if not isinstance(market_data, dict):
                 return no_update
@@ -349,16 +377,26 @@ def register_callbacks(
                 updated_rows.append(updated)
             return updated_rows
         if trigger_id == ID.STRATEGY_ID or trigger_id is None:
-            if (
-                isinstance(stored_legs, list)
-                and stored_legs
-                and (stored_strategy_id == strategy_id or stored_strategy_id is None)
-            ):
-                return stored_legs
-            if not strategy_id:
+            incoming_strategy_id = None
+            try:
+                incoming_strategy_id = (
+                    int(strategy_id) if strategy_id is not None else None
+                )
+            except (TypeError, ValueError):
+                incoming_strategy_id = None
+            rows = legs_data if isinstance(legs_data, list) else None
+            if _legs_have_content(rows):
+                if (
+                    incoming_strategy_id is not None
+                    and stored_strategy_id == incoming_strategy_id
+                ):
+                    return no_update
+                if trigger_id is None:
+                    return no_update
+            if not incoming_strategy_id:
                 return no_update
             spot = _coerce_float(spot_value) or 100.0
-            strategy_df = get_strategy(strategy_id)
+            strategy_df = get_strategy(incoming_strategy_id)
             row = strategy_df.iloc[0].to_dict() if not strategy_df.empty else None
             template_kind = ""
             if isinstance(row, dict):
@@ -724,8 +762,11 @@ def register_callbacks(
         Output(ID.PAYOFF_CHART, "figure"),
         Input(ID.STORE_ANALYSIS_KEY, "data"),
         Input(ID.STORE_UI, "data"),
+        Input(ID.TABS, "value"),
     )
-    def _render_chart(key_payload, ui_state):
+    def _render_chart(key_payload, ui_state, tab_value):
+        if tab_value != "dashboard":
+            raise PreventUpdate
         fig = go.Figure()
         ui_state = ui_state if isinstance(ui_state, dict) else {}
         show_options = bool(ui_state.get("show_options", True))
@@ -962,8 +1003,11 @@ def register_callbacks(
         Output(ID.PANEL_MARGIN_CAPITAL, "children"),
         Output(ID.PANEL_DIVIDEND, "children"),
         Input(ID.STORE_ANALYSIS_KEY, "data"),
+        Input(ID.TABS, "value"),
     )
-    def _render_panels(key_payload):
+    def _render_panels(key_payload, tab_value):
+        if tab_value != "dashboard":
+            raise PreventUpdate
         def _table(headers, rows):
             return html.Table(
                 [
@@ -1100,8 +1144,11 @@ def register_callbacks(
     @app.callback(
         Output(ID.SCENARIO_CARDS, "children"),
         Input(ID.STORE_ANALYSIS_KEY, "data"),
+        Input(ID.TABS, "value"),
     )
-    def _render_scenario_cards(key_payload):
+    def _render_scenario_cards(key_payload, tab_value):
+        if tab_value != "dashboard":
+            raise PreventUpdate
         if not isinstance(key_payload, dict) or key_payload.get("error"):
             return html.Div("Run Analysis to view scenario commentary.")
         pack = cache_get(key_payload.get("key"))
@@ -1147,8 +1194,11 @@ def register_callbacks(
     @app.callback(
         Output(ID.PANEL_KEY_LEVELS, "children"),
         Input(ID.STORE_ANALYSIS_KEY, "data"),
+        Input(ID.TABS, "value"),
     )
-    def _render_key_levels(key_payload):
+    def _render_key_levels(key_payload, tab_value):
+        if tab_value != "dashboard":
+            raise PreventUpdate
         if not isinstance(key_payload, dict) or key_payload.get("error"):
             return html.Div("Run Analysis to view key levels.")
         pack = cache_get(key_payload.get("key"))
@@ -1208,8 +1258,11 @@ def register_callbacks(
     @app.callback(
         Output(ID.PANEL_ELIGIBILITY, "children"),
         Input(ID.STORE_ANALYSIS_KEY, "data"),
+        Input(ID.TABS, "value"),
     )
-    def _render_eligibility(key_payload):
+    def _render_eligibility(key_payload, tab_value):
+        if tab_value != "dashboard":
+            raise PreventUpdate
         if not isinstance(key_payload, dict) or key_payload.get("error"):
             return html.Div("Run Analysis to view eligibility.")
         pack = cache_get(key_payload.get("key"))

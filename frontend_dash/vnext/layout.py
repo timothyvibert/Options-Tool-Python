@@ -90,9 +90,16 @@ def layout_control_plane_stores():
     )
 
 
-def layout_shell(page_container=None):
+def layout_shell(page_container=None, bloomberg_available: bool = False):
     if page_container is None:
-        page_container = html.Div(id=ID.PAGE)
+        page_container = html.Div(
+            id=ID.PAGE,
+            children=[
+                layout_dashboard(),
+                layout_bloomberg(bloomberg_available),
+                layout_report(),
+            ],
+        )
     return html.Div(
         className="ae-shell",
         children=[
@@ -828,17 +835,10 @@ def get_validation_layout(base_layout=None, bloomberg_available: bool = False):
         base_layout = html.Div(
             [
                 layout_control_plane_stores(),
-                layout_shell(),
+                layout_shell(bloomberg_available=bloomberg_available),
             ]
         )
-    return html.Div(
-        [
-            base_layout,
-            layout_dashboard(),
-            layout_bloomberg(bloomberg_available),
-            layout_report(),
-        ]
-    )
+    return base_layout
 
 
 def layout_bloomberg(bloomberg_available: bool = False):
@@ -901,7 +901,11 @@ def layout_bloomberg(bloomberg_available: bool = False):
         ),
         html.Div("Snapshot transparency coming next.", className="vnext-muted"),
     ]
-    return layout_page_frame(main_children, include_left_rail=False)
+    return layout_page_frame(
+        main_children,
+        page_id=ID.PAGE_BLOOMBERG,
+        include_left_rail=False,
+    )
 
 
 def layout_report():
@@ -913,4 +917,8 @@ def layout_report():
             className="vnext-muted",
         ),
     ]
-    return layout_page_frame(main_children, include_left_rail=False)
+    return layout_page_frame(
+        main_children,
+        page_id=ID.PAGE_REPORT,
+        include_left_rail=False,
+    )

@@ -95,7 +95,7 @@ if DASH_AVAILABLE:
     _base_layout = html.Div(
         children=[
             layout_control_plane_stores(),
-            layout_shell(),
+            layout_shell(bloomberg_available=BLOOMBERG_AVAILABLE),
         ]
     )
     app.layout = _base_layout

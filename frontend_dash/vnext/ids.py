@@ -5,6 +5,8 @@ TABS = "vnext-tabs"
 PAGE = "vnext-page"
 CONTROL_PLANE = "control-plane"
 PAGE_DASHBOARD = "page-dashboard"
+PAGE_BLOOMBERG = "page-bloomberg"
+PAGE_REPORT = "page-report"
 
 # Stores
 STORE_REF = "store-ref"

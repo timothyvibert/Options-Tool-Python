@@ -114,6 +114,8 @@ body {
   background: transparent;
   color: var(--ae-muted);
   cursor: pointer;
+  position: relative;
+  z-index: 50;
 }
 
 .ae-sidebar-toggle:hover {
@@ -175,6 +177,29 @@ body {
 .ae-sidebar.collapsed {
   width: 72px;
   padding: var(--ae-s-16) var(--ae-s-8);
+}
+
+.ae-sidebar.collapsed .ae-brand-row {
+  justify-content: center;
+  gap: 0;
+  position: relative;
+}
+
+.ae-sidebar.collapsed .ae-brand-badge {
+  display: none !important;
+  pointer-events: none;
+}
+
+.ae-sidebar.collapsed .ae-brand-mark {
+  display: block;
+  pointer-events: none;
+}
+
+.ae-sidebar.collapsed #btn-sidebar-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  pointer-events: auto;
 }
 
 .ae-sidebar.collapsed .ae-brand-block,
@@ -353,9 +378,9 @@ body {
 /* Date picker dark theme */
 .ae-date .SingleDatePickerInput,
 .ae-date .SingleDatePickerInput__withBorder {
-  background: var(--ae-surface-2);
-  border: 1px solid var(--ae-border);
-  border-radius: var(--ae-r-8);
+  background: var(--ae-surface-2) !important;
+  border: 1px solid var(--ae-border) !important;
+  border-radius: 10px !important;
 }
 
 .ae-date .SingleDatePicker,
@@ -365,12 +390,22 @@ body {
 }
 
 .ae-date .DateInput_input {
-  background: var(--ae-surface-2);
-  color: var(--ae-text);
-  border: 1px solid var(--ae-border);
-  font-size: var(--ae-f-12);
-  padding: 10px 12px !important;
-  height: 38px !important;
+  background: var(--ae-surface-2) !important;
+  color: var(--ae-text) !important;
+  border: 1px solid var(--ae-border) !important;
+  font-size: 12px !important;
+  padding: 0 10px !important;
+  height: 34px !important;
+  line-height: 34px !important;
+}
+
+.ae-date .DateInput_input::placeholder {
+  color: var(--ae-muted) !important;
+  opacity: 1;
+}
+
+.ae-expiry-wrap {
+  margin-top: 8px;
 }
 
 .ae-date .SingleDatePicker_picker {
@@ -440,6 +475,40 @@ body {
 .ae-side-stack {
   display: grid;
   gap: var(--ae-gap);
+}
+
+.ae-chart-toggles {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.ae-chart-toggles .vnext-checklist {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.ae-chart-toggles label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.ae-fixed-table {
+  max-height: 260px;
+  overflow: auto;
+}
+
+.ae-spacer-md {
+  height: 16px;
+}
+
+.ae-duo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ae-s-12);
 }
 
 .ae-card,

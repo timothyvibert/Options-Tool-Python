@@ -381,14 +381,19 @@ _panel_market = html.Div(
             persistence_type="session",
             style={"width": "100%"},
         ),
-        html.Label("Select Expiration"),
-        dcc.DatePickerSingle(
-            id=ID.EXPIRY_INPUT,
-            display_format="YYYY-MM-DD",
-            placeholder="YYYY-MM-DD",
-            persistence=True,
-            persistence_type="session",
-            className="ae-date",
+        html.Div(
+            className="ae-expiry-wrap",
+            children=[
+                html.Label("Select Expiration"),
+                dcc.DatePickerSingle(
+                    id=ID.EXPIRY_INPUT,
+                    display_format="YYYY-MM-DD",
+                    placeholder="YYYY-MM-DD",
+                    persistence=True,
+                    persistence_type="session",
+                    className="ae-date",
+                ),
+            ],
         ),
         html.Div(
             className="ae-btn-row",
@@ -650,15 +655,6 @@ _panel_scenario_actions = html.Div(
     ],
 )
 
-_left_rail_children = [
-    _panel_market,
-    _panel_strategy,
-    _panel_stock_overlay,
-    _panel_option_legs,
-    _panel_pricing_roi,
-    _panel_scenario_actions,
-]
-
 def layout_page_frame(
     main_children, page_id: str | None = None, include_left_rail: bool = True
 ):
@@ -724,7 +720,7 @@ _panel_hero = html.Div(
                 className="vnext-hero-chart",
             ),
             html.Div(
-                className="vnext-row ae-hero-toggles",
+                className="ae-chart-toggles",
                 children=[
                     dcc.Checklist(
                         id=ID.PNL_TOGGLES,
@@ -768,7 +764,9 @@ _panel_payoff_metrics = html.Div(
             className="ae-card__header",
             children=[html.Div("Payoff & Metrics", className="ae-card__title")],
         ),
-        html.Div(id=ID.PANEL_PAYOFF_METRICS, className="ae-card__body"),
+        html.Div(
+            id=ID.PANEL_PAYOFF_METRICS, className="ae-card__body ae-fixed-table"
+        ),
     ],
 )
 
@@ -790,7 +788,7 @@ _panel_key_levels = html.Div(
             className="ae-card__header",
             children=[html.Div("Key Levels", className="ae-card__title")],
         ),
-        html.Div(id=ID.PANEL_KEY_LEVELS, className="ae-card__body"),
+        html.Div(id=ID.PANEL_KEY_LEVELS, className="ae-card__body ae-fixed-table"),
     ],
 )
 
@@ -827,25 +825,35 @@ _panel_eligibility = html.Div(
     ],
 )
 
+_left_rail_children = [
+    _panel_market,
+    _panel_strategy,
+    _panel_stock_overlay,
+    _panel_option_legs,
+    _panel_payoff_metrics,
+]
+
 _dashboard_main_children = [
     html.Div(
         className="ae-main-grid",
         children=[
             _panel_hero,
-            html.Div(
-                className="ae-results-grid",
-                children=[
-                    _panel_payoff_metrics,
-                    _panel_key_levels,
-                ],
-            ),
+            html.Div(className="ae-spacer-md"),
             _panel_scenario_commentary,
+            _panel_key_levels,
             html.Div(
                 className="ae-bottom-grid",
                 children=[
                     _panel_margin_capital,
                     _panel_dividend,
                     _panel_eligibility,
+                ],
+            ),
+            html.Div(
+                className="ae-duo-grid",
+                children=[
+                    _panel_pricing_roi,
+                    _panel_scenario_actions,
                 ],
             ),
         ],

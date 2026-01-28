@@ -103,6 +103,34 @@ def _fmt_percent_point(value: object, decimals: int = 1) -> str:
     return f"{num:.{decimals}f}%"
 
 
+def _nice_step(min_val: float, max_val: float) -> float:
+    span = abs(max_val - min_val)
+    if span <= 0:
+        return 1.0
+    raw = span / 7.0
+    mag = 10 ** math.floor(math.log10(raw)) if raw > 0 else 1.0
+    norm = raw / mag
+    if norm <= 1.5:
+        nice = 1.0
+    elif norm <= 3.0:
+        nice = 2.5
+    elif norm <= 7.0:
+        nice = 5.0
+    else:
+        nice = 10.0
+    return nice * mag
+
+
+def _snap_range(req_min: float, req_max: float, step: float) -> tuple[float, float]:
+    if step <= 0:
+        return req_min, req_max
+    snap_min = math.floor(req_min / step) * step
+    snap_max = math.ceil(req_max / step) * step
+    if snap_min == snap_max:
+        snap_max = snap_min + step
+    return snap_min, snap_max
+
+
 def _normalize_spot_result(result: object) -> tuple[float | None, str | None]:
     if isinstance(result, dict):
         spot_value = result.get("spot")
@@ -902,6 +930,75 @@ def register_callbacks(
             for be in _numeric_list(payoff.get("breakevens")):
                 fig.add_vline(x=be, line_dash="dash", line_color="#f59e0b")
                 fig.add_annotation(x=be, y=1.08, yref="paper", text=f"BE={be:g}")
+        x_vals = [_coerce_float(v) for v in x]
+        x_pairs = [v for v in x_vals if v is not None]
+        if x_pairs:
+            x_min_data = min(x_pairs)
+            x_max_data = max(x_pairs)
+            anchors = []
+            strikes = payoff.get("strikes") or []
+            breakevens = payoff.get("breakevens") or []
+            for item in strikes + breakevens:
+                num = _coerce_float(item)
+                if num is not None:
+                    anchors.append(num)
+            underlying = pack_store.get("underlying") if isinstance(pack_store, dict) else {}
+            spot = None
+            if isinstance(underlying, dict):
+                spot = _coerce_float(underlying.get("spot"))
+            if spot is not None:
+                anchors.append(spot)
+            if anchors:
+                anchor_min = min(anchors)
+                anchor_max = max(anchors)
+                pad = 0.25 * spot if spot else 0.25 * (anchor_max - anchor_min or 1.0)
+                x_min_req = anchor_min - pad
+                x_max_req = anchor_max + pad
+            else:
+                x_min_req = 0.0
+                x_max_req = x_max_data
+            x_min_req = max(x_min_req, x_min_data)
+            x_max_req = min(x_max_req, x_max_data)
+            x_step = _nice_step(x_min_req, x_max_req)
+            x_min, x_max = _snap_range(x_min_req, x_max_req, x_step)
+
+            y_vals = []
+            def _add_visible(series):
+                if not isinstance(series, list):
+                    return
+                for xv, yv in zip(x_vals, series):
+                    if xv is None:
+                        continue
+                    if xv < x_min or xv > x_max:
+                        continue
+                    y_num = _coerce_float(yv)
+                    if y_num is not None:
+                        y_vals.append(y_num)
+
+            if show_options:
+                _add_visible(options)
+            if show_stock:
+                _add_visible(stock)
+            if show_combined:
+                _add_visible(combined)
+
+            if y_vals:
+                y_min_req = min(y_vals)
+                y_max_req = max(y_vals)
+                span = y_max_req - y_min_req
+                if span == 0:
+                    span = abs(y_max_req) * 0.1
+                if span == 0:
+                    span = 100.0
+                y_min_req -= 0.10 * span
+                y_max_req += 0.10 * span
+                y_step = _nice_step(y_min_req, y_max_req)
+                y_min, y_max = _snap_range(y_min_req, y_max_req, y_step)
+                fig.update_layout(
+                    xaxis={"range": [x_min, x_max], "dtick": x_step},
+                    yaxis={"range": [y_min, y_max], "dtick": y_step},
+                )
+
         fig.update_layout(title="Payoff at Expiry", height=420, template="plotly_dark")
         return fig
 

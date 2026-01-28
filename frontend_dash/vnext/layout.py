@@ -60,12 +60,17 @@ def layout_control_plane_stores():
             dcc.Store(id=ID.STORE_ANALYSIS_KEY, storage_type="session"),
             dcc.Store(id=ID.STORE_INPUTS, storage_type="session"),
             dcc.Store(
+                id="store-shell",
+                storage_type="session",
+                data={"sidebar_collapsed": False},
+            ),
+            dcc.Store(
                 id=ID.STORE_UI,
                 storage_type="session",
                 data={
                     "ticker": "",
                     "spot": 100.0,
-                    "expiry": "",
+                    "expiry": None,
                     "strategy_group": default_group,
                     "strategy_subgroup": default_subgroup,
                     "strategy_id": default_strategy_id,
@@ -104,60 +109,151 @@ def layout_shell(page_container=None, bloomberg_available: bool = False):
         className="ae-shell",
         children=[
             html.Aside(
+                id="ae-sidebar",
                 className="ae-sidebar",
                 children=[
                     html.Div(
+                        className="ae-brand-row",
                         children=[
-                            html.Div("ALPHA ENGINE", className="ae-brand"),
-                            html.Div("Institutional Sales", className="ae-sub"),
-                        ]
+                            html.Div(
+                                className="ae-brand-left",
+                                children=[
+                                    html.Div("AE", className="ae-brand-badge"),
+                                    html.Div(
+                                        className="ae-brand-block",
+                                        children=[
+                                            html.Div(
+                                                "ALPHA ENGINE", className="ae-brand"
+                                            ),
+                                            html.Div(
+                                                "INSTITUTIONAL SALES",
+                                                className="ae-sub",
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                            html.Div("AE", className="ae-brand-mark"),
+                            html.Button(
+                                "≡",
+                                id="btn-sidebar-toggle",
+                                className="ae-sidebar-toggle",
+                                type="button",
+                            ),
+                        ],
                     ),
-                    html.Div("Core Workflow", className="ae-nav-h"),
-                    html.Button(
-                        "Options Builder",
-                        className="ae-item active",
-                        type="button",
-                    ),
-                    html.Button(
-                        "Idea Generator",
-                        className="ae-item disabled",
-                        type="button",
-                    ),
-                    html.Button(
-                        "Structuring Lab",
-                        className="ae-item disabled",
-                        type="button",
-                    ),
-                    html.Div("Client & Book", className="ae-nav-h"),
-                    html.Button(
-                        "Sales Triggers",
-                        className="ae-item disabled",
-                        type="button",
-                    ),
-                    html.Button(
-                        "Resonance Matrix",
-                        className="ae-item disabled",
-                        type="button",
-                    ),
-                    html.Button(
-                        "Content Factory",
-                        className="ae-item disabled",
-                        type="button",
+                    html.Div(
+                        className="ae-sidebar-nav",
+                        children=[
+                            html.Div("Core Workflow", className="ae-nav-h"),
+                            html.Button(
+                                "Options Builder",
+                                className="ae-item active",
+                                type="button",
+                            ),
+                            html.Button(
+                                "Idea Generator",
+                                className="ae-item disabled",
+                                type="button",
+                            ),
+                            html.Button(
+                                "Structuring Lab",
+                                className="ae-item disabled",
+                                type="button",
+                            ),
+                            html.Div("Client & Book", className="ae-nav-h"),
+                            html.Button(
+                                "Sales Triggers",
+                                className="ae-item disabled",
+                                type="button",
+                            ),
+                            html.Button(
+                                "Resonance Matrix",
+                                className="ae-item disabled",
+                                type="button",
+                            ),
+                            html.Button(
+                                "Content Factory",
+                                className="ae-item disabled",
+                                type="button",
+                            ),
+                        ],
                     ),
                 ],
             ),
             html.Div(
                 className="ae-main",
                 children=[
-                    html.Header(
-                        className="ae-topbar",
+                    html.Div(
+                        className="ae-topbar-stack",
                         children=[
-                            html.Div("Options Builder", className="ae-title"),
                             html.Div(
-                                className="ae-status",
+                                className="ae-ticker-tape",
                                 children=[
-                                    html.Div("Live Data", className="ae-pill"),
-                                    html.Div("09:41 ET", className="ae-pill"),
+                                    html.Div(
+                                        className="ae-ticker-tape__track",
+                                        children=[
+                                            html.Span(
+                                                "SPX 4,856.12 +0.8%",
+                                                className="ae-ticker-item",
+                                            ),
+                                            html.Span(
+                                                "NDX 17,942.44 +1.1%",
+                                                className="ae-ticker-item",
+                                            ),
+                                            html.Span(
+                                                "VIX 14.2 -1.1%",
+                                                className="ae-ticker-item",
+                                            ),
+                                            html.Span(
+                                                "US10Y 4.08% +2bp",
+                                                className="ae-ticker-item",
+                                            ),
+                                            html.Span(
+                                                "EURUSD 1.09 +0.2%",
+                                                className="ae-ticker-item",
+                                            ),
+                                            html.Span(
+                                                "SPX 4,856.12 +0.8%",
+                                                className="ae-ticker-item",
+                                            ),
+                                            html.Span(
+                                                "NDX 17,942.44 +1.1%",
+                                                className="ae-ticker-item",
+                                            ),
+                                            html.Span(
+                                                "VIX 14.2 -1.1%",
+                                                className="ae-ticker-item",
+                                            ),
+                                        ],
+                                    )
+                                ],
+                            ),
+                            html.Header(
+                                className="ae-topbar",
+                                children=[
+                                    html.Div(
+                                        "Options Builder",
+                                        className="ae-title",
+                                    ),
+                                    dcc.Input(
+                                        className="ae-commandbar",
+                                        type="text",
+                                        placeholder="CMD: Ticker / Client / Command...",
+                                    ),
+                                    html.Div(
+                                        className="ae-status",
+                                        children=[
+                                            html.Div(
+                                                "Live Data",
+                                                className="ae-pill",
+                                            ),
+                                            html.Div(
+                                                "09:41 ET",
+                                                className="ae-pill",
+                                            ),
+                                        ],
+                                    ),
                                 ],
                             ),
                         ],
@@ -165,19 +261,26 @@ def layout_shell(page_container=None, bloomberg_available: bool = False):
                     html.Div(
                         className="ae-content",
                         children=[
-                            dcc.Tabs(
-                                id=ID.TABS,
-                                value="dashboard",
+                            html.Div(
+                                className="ae-tabs",
                                 children=[
-                                    dcc.Tab(
-                                        label="Dashboard", value="dashboard"
-                                    ),
-                                    dcc.Tab(
-                                        label="Bloomberg Data", value="bloomberg"
-                                    ),
-                                    dcc.Tab(
-                                        label="Client Report", value="report"
-                                    ),
+                                    dcc.Tabs(
+                                        id=ID.TABS,
+                                        value="dashboard",
+                                        children=[
+                                            dcc.Tab(
+                                                label="Dashboard", value="dashboard"
+                                            ),
+                                            dcc.Tab(
+                                                label="Bloomberg Data",
+                                                value="bloomberg",
+                                            ),
+                                            dcc.Tab(
+                                                label="Client Report",
+                                                value="report",
+                                            ),
+                                        ],
+                                    )
                                 ],
                             ),
                             page_container,
@@ -250,21 +353,11 @@ else:
     _default_strategy_id = None
 
 _panel_market = html.Div(
-    className="vnext-panel panel pad",
+    className="ae-card",
     children=[
         html.Div(
-            className="panel-header",
-            children=[
-                html.Div(
-                    className="panel-title",
-                    children=[
-                        html.Div(
-                            "Market",
-                            className="h2",
-                        )
-                    ],
-                )
-            ],
+            className="ae-card__header",
+            children=[html.Div("Market", className="ae-card__title")],
         ),
         html.Label("Ticker"),
         dcc.Input(
@@ -288,18 +381,29 @@ _panel_market = html.Div(
             persistence_type="session",
             style={"width": "100%"},
         ),
-        html.Label("Expiry (YYYY-MM-DD)"),
-        dcc.Input(
+        html.Label("Select Expiration"),
+        dcc.DatePickerSingle(
             id=ID.EXPIRY_INPUT,
-            type="text",
+            display_format="YYYY-MM-DD",
+            placeholder="YYYY-MM-DD",
             persistence=True,
             persistence_type="session",
-            style={"width": "100%"},
+            className="ae-date",
         ),
-        html.Button(
-            "Refresh Bloomberg Data",
-            id=ID.BTN_REFRESH,
-            className="vnext-btn",
+        html.Div(
+            className="ae-btn-row",
+            children=[
+                html.Button(
+                    "REFRESH DATA",
+                    id=ID.BTN_REFRESH,
+                    className="ae-btn ae-btn-primary ae-btn-pill",
+                ),
+                html.Button(
+                    "Run Analysis",
+                    id=ID.BTN_RUN,
+                    className="ae-btn ae-btn-primary ae-btn-pill",
+                ),
+            ],
         ),
         html.Div(
             id=ID.REFRESH_STATUS,
@@ -309,21 +413,11 @@ _panel_market = html.Div(
 )
 
 _panel_strategy = html.Div(
-    className="vnext-panel panel pad",
+    className="ae-card",
     children=[
         html.Div(
-            className="panel-header",
-            children=[
-                html.Div(
-                    className="panel-title",
-                    children=[
-                        html.Div(
-                            "Strategy",
-                            className="h2",
-                        )
-                    ],
-                )
-            ],
+            className="ae-card__header",
+            children=[html.Div("Strategy", className="ae-card__title")],
         ),
         html.Label("Strategy Group"),
         dcc.Dropdown(
@@ -353,21 +447,11 @@ _panel_strategy = html.Div(
 )
 
 _panel_stock_overlay = html.Div(
-    className="vnext-panel panel pad",
+    className="ae-card",
     children=[
         html.Div(
-            className="panel-header",
-            children=[
-                html.Div(
-                    className="panel-title",
-                    children=[
-                        html.Div(
-                            "Stock Overlay",
-                            className="h2",
-                        )
-                    ],
-                )
-            ],
+            className="ae-card__header",
+            children=[html.Div("Stock Overlay", className="ae-card__title")],
         ),
         html.Label("Stock Position (shares)"),
         dcc.Input(
@@ -391,21 +475,11 @@ _panel_stock_overlay = html.Div(
 )
 
 _panel_option_legs = html.Div(
-    className="vnext-panel panel pad",
+    className="ae-card",
     children=[
         html.Div(
-            className="panel-header",
-            children=[
-                html.Div(
-                    className="panel-title",
-                    children=[
-                        html.Div(
-                            "Option Legs",
-                            className="h2",
-                        )
-                    ],
-                )
-            ],
+            className="ae-card__header",
+            children=[html.Div("Option Legs", className="ae-card__title")],
         ),
         dash_table.DataTable(
             id=ID.LEGS_TABLE,
@@ -468,21 +542,11 @@ _panel_option_legs = html.Div(
 )
 
 _panel_pricing_roi = html.Div(
-    className="vnext-panel panel pad",
+    className="ae-card",
     children=[
         html.Div(
-            className="panel-header",
-            children=[
-                html.Div(
-                    className="panel-title",
-                    children=[
-                        html.Div(
-                            "Pricing & ROI",
-                            className="h2",
-                        )
-                    ],
-                )
-            ],
+            className="ae-card__header",
+            children=[html.Div("Pricing & ROI", className="ae-card__title")],
         ),
         html.Label("Pricing Mode"),
         dcc.Dropdown(
@@ -544,21 +608,11 @@ _panel_pricing_roi = html.Div(
 )
 
 _panel_scenario_actions = html.Div(
-    className="vnext-panel panel pad",
+    className="ae-card",
     children=[
         html.Div(
-            className="panel-header",
-            children=[
-                html.Div(
-                    className="panel-title",
-                    children=[
-                        html.Div(
-                            "Scenario & Actions",
-                            className="h2",
-                        )
-                    ],
-                )
-            ],
+            className="ae-card__header",
+            children=[html.Div("Scenario & Actions", className="ae-card__title")],
         ),
         html.Label("Scenario Mode"),
         dcc.Dropdown(
@@ -589,10 +643,9 @@ _panel_scenario_actions = html.Div(
             persistence_type="session",
             style={"width": "100%"},
         ),
-        html.Button(
-            "Run Analysis",
-            id=ID.BTN_RUN,
-            className="vnext-btn vnext-btn-primary",
+        html.Div(
+            "Run Analysis is available in Market.",
+            className="ae-muted",
         ),
     ],
 )
@@ -615,31 +668,31 @@ def layout_page_frame(
     if include_left_rail:
         columns.append(
             html.Div(
-                className="vnext-left-rail stack gap-md",
+                className="vnext-left-rail ae-left-rail stack gap-md",
                 children=_left_rail_children,
             )
         )
     columns.append(
         html.Div(
-            className="vnext-main stack gap-md",
+            className="vnext-main ae-main-col stack gap-md",
             children=list(main_children),
         )
     )
     shell_kwargs = {
-        "className": "vnext-shell stack gap-md",
+        "className": "vnext-shell ae-page-shell stack gap-md",
         "children": [
             html.Div(
-                className="vnext-header-row",
-                        children=[
-                            html.Div("Options Strategy Builder", className="vnext-title"),
-                            html.Div(
-                                className="vnext-header-actions",
-                                children=[],
-                            ),
-                        ],
+                className="vnext-header-row ae-page-header",
+                children=[
+                    html.Div("Options Strategy Builder", className="vnext-title"),
+                    html.Div(
+                        className="vnext-header-actions",
+                        children=[],
+                    ),
+                ],
             ),
             html.Div(
-                className="vnext-dashboard row gap-lg pad-lg",
+                className="vnext-dashboard ae-dashboard row gap-lg pad-lg",
                 children=columns,
             ),
         ],
@@ -652,18 +705,26 @@ def layout_page_frame(
     )
 
 
-_dashboard_main_children = [
-    html.Div(
-        className="vnext-panel vnext-hero panel pad",
-        children=[
+_hero_fig = go.Figure()
+_hero_fig.update_layout(
+    template="plotly_dark",
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+    font={"color": "#e5e7eb"},
+)
+
+_panel_hero = html.Div(
+    className="ae-card ae-card--hero",
+    children=[
+        html.Div(className="ae-card__body", children=[
             html.Div(id=ID.RISK_BANNER),
             dcc.Graph(
                 id=ID.PAYOFF_CHART,
-                figure=go.Figure(),
+                figure=_hero_fig,
                 className="vnext-hero-chart",
             ),
             html.Div(
-                className="vnext-row",
+                className="vnext-row ae-hero-toggles",
                 children=[
                     dcc.Checklist(
                         id=ID.PNL_TOGGLES,
@@ -696,128 +757,99 @@ _dashboard_main_children = [
                     ),
                 ],
             ),
-        ],
-    ),
+        ]),
+    ],
+)
+
+_panel_payoff_metrics = html.Div(
+    className="ae-card",
+    children=[
+        html.Div(
+            className="ae-card__header",
+            children=[html.Div("Payoff & Metrics", className="ae-card__title")],
+        ),
+        html.Div(id=ID.PANEL_PAYOFF_METRICS, className="ae-card__body"),
+    ],
+)
+
+_panel_scenario_commentary = html.Div(
+    className="ae-card",
+    children=[
+        html.Div(
+            className="ae-card__header",
+            children=[html.Div("Scenario Commentary", className="ae-card__title")],
+        ),
+        html.Div(id=ID.SCENARIO_CARDS, className="ae-card__body"),
+    ],
+)
+
+_panel_key_levels = html.Div(
+    className="ae-card",
+    children=[
+        html.Div(
+            className="ae-card__header",
+            children=[html.Div("Key Levels", className="ae-card__title")],
+        ),
+        html.Div(id=ID.PANEL_KEY_LEVELS, className="ae-card__body"),
+    ],
+)
+
+_panel_margin_capital = html.Div(
+    className="ae-card",
+    children=[
+        html.Div(
+            className="ae-card__header",
+            children=[html.Div("Margin & Capital", className="ae-card__title")],
+        ),
+        html.Div(id=ID.PANEL_MARGIN_CAPITAL, className="ae-card__body"),
+    ],
+)
+
+_panel_dividend = html.Div(
+    className="ae-card",
+    children=[
+        html.Div(
+            className="ae-card__header",
+            children=[html.Div("Dividend", className="ae-card__title")],
+        ),
+        html.Div(id=ID.PANEL_DIVIDEND, className="ae-card__body"),
+    ],
+)
+
+_panel_eligibility = html.Div(
+    className="ae-card",
+    children=[
+        html.Div(
+            className="ae-card__header",
+            children=[html.Div("Account Eligibility", className="ae-card__title")],
+        ),
+        html.Div(id=ID.PANEL_ELIGIBILITY, className="ae-card__body"),
+    ],
+)
+
+_dashboard_main_children = [
     html.Div(
-        className="vnext-panel panel pad",
+        className="ae-main-grid",
         children=[
+            _panel_hero,
             html.Div(
-                className="panel-header",
+                className="ae-results-grid",
                 children=[
-                    html.Div(
-                        className="panel-title",
-                        children=[
-                            html.Div(
-                                "Payoff & Metrics",
-                                className="h2",
-                            )
-                        ],
-                    )
+                    _panel_payoff_metrics,
+                    _panel_key_levels,
                 ],
             ),
-            html.Div(id=ID.PANEL_PAYOFF_METRICS),
-        ],
-    ),
-    html.Div(
-        className="vnext-panel panel pad",
-        children=[
+            _panel_scenario_commentary,
             html.Div(
-                className="panel-header",
+                className="ae-bottom-grid",
                 children=[
-                    html.Div(
-                        className="panel-title",
-                        children=[
-                            html.Div(
-                                "Scenario Commentary",
-                                className="h2",
-                            )
-                        ],
-                    )
+                    _panel_margin_capital,
+                    _panel_dividend,
+                    _panel_eligibility,
                 ],
             ),
-            html.Div(id=ID.SCENARIO_CARDS),
         ],
-    ),
-    html.Div(
-        className="vnext-panel panel pad",
-        children=[
-            html.Div(
-                className="panel-header",
-                children=[
-                    html.Div(
-                        className="panel-title",
-                        children=[
-                            html.Div(
-                                "Key Levels",
-                                className="h2",
-                            )
-                        ],
-                    )
-                ],
-            ),
-            html.Div(id=ID.PANEL_KEY_LEVELS),
-        ],
-    ),
-    html.Div(
-        className="vnext-panel panel pad",
-        children=[
-            html.Div(
-                className="panel-header",
-                children=[
-                    html.Div(
-                        className="panel-title",
-                        children=[
-                            html.Div(
-                                "Margin & Capital",
-                                className="h2",
-                            )
-                        ],
-                    )
-                ],
-            ),
-            html.Div(id=ID.PANEL_MARGIN_CAPITAL),
-        ],
-    ),
-    html.Div(
-        className="vnext-panel panel pad",
-        children=[
-            html.Div(
-                className="panel-header",
-                children=[
-                    html.Div(
-                        className="panel-title",
-                        children=[
-                            html.Div(
-                                "Dividend",
-                                className="h2",
-                            )
-                        ],
-                    )
-                ],
-            ),
-            html.Div(id=ID.PANEL_DIVIDEND),
-        ],
-    ),
-    html.Div(
-        className="vnext-panel panel pad",
-        children=[
-            html.Div(
-                className="panel-header",
-                children=[
-                    html.Div(
-                        className="panel-title",
-                        children=[
-                            html.Div(
-                                "Account Eligibility",
-                                className="h2",
-                            )
-                        ],
-                    )
-                ],
-            ),
-            html.Div(id=ID.PANEL_ELIGIBILITY),
-        ],
-    ),
+    )
 ]
 
 _layout_dashboard = layout_page_frame(
@@ -843,7 +875,7 @@ def get_validation_layout(base_layout=None, bloomberg_available: bool = False):
 
 def layout_bloomberg(bloomberg_available: bool = False):
     main_children = [
-        html.Div("Bloomberg Data", className="vnext-section-title"),
+        html.Div("Bloomberg Data", className="vnext-section-title ae-section-title"),
         dcc.Checklist(
             id=ID.DEBUG_TOGGLE,
             options=[{"label": "Debug Mode", "value": "on"}],
@@ -854,7 +886,7 @@ def layout_bloomberg(bloomberg_available: bool = False):
             id=ID.DEBUG_CONTAINER,
             style={"display": "none"},
             children=[
-                html.Div("Market Debug", className="vnext-section-title"),
+                html.Div("Market Debug", className="vnext-section-title ae-section-title"),
                 html.Div(
                     children=[
                         html.Div(
@@ -877,9 +909,9 @@ def layout_bloomberg(bloomberg_available: bool = False):
                             className="vnext-muted",
                         ),
                     ],
-                    className="vnext-panel",
+                    className="ae-card",
                 ),
-                html.Div("Analysis Debug", className="vnext-section-title"),
+                html.Div("Analysis Debug", className="vnext-section-title ae-section-title"),
                 html.Div(
                     children=[
                         html.Pre(
@@ -895,7 +927,7 @@ def layout_bloomberg(bloomberg_available: bool = False):
                             className="vnext-muted",
                         ),
                     ],
-                    className="vnext-panel",
+                    className="ae-card",
                 ),
             ],
         ),
@@ -910,7 +942,7 @@ def layout_bloomberg(bloomberg_available: bool = False):
 
 def layout_report():
     main_children = [
-        html.Div("Client Report", className="vnext-section-title"),
+        html.Div("Client Report", className="vnext-section-title ae-section-title"),
         html.Div("Coming next."),
         html.Div(
             "PDF export is disabled (reportlab not installed).",

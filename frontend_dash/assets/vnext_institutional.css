@@ -1,0 +1,912 @@
+:root {
+  --ae-bg: #020617;
+  --ae-surface: #0b1220;
+  --ae-surface-2: #0f172a;
+  --ae-panel: var(--ae-surface-2);
+  --ae-border: #1f2937;
+  --ae-text: #e2e8f0;
+  --ae-muted: #94a3b8;
+  --ae-accent: #3b82f6;
+  --ae-warn: #f59e0b;
+  --ae-error: #ef4444;
+  --ae-success: #22c55e;
+  --ae-warning: var(--ae-warn);
+  --ae-r-8: 8px;
+  --ae-r-12: 12px;
+  --ae-r-16: 16px;
+  --ae-radius: var(--ae-r-12);
+  --ae-s-4: 4px;
+  --ae-s-8: 8px;
+  --ae-s-12: 12px;
+  --ae-s-16: 16px;
+  --ae-s-24: 24px;
+  --ae-f-10: 10px;
+  --ae-f-12: 12px;
+  --ae-f-14: 14px;
+  --ae-f-16: 16px;
+  --ae-f-20: 20px;
+  --ae-gap: 10px;
+  --ae-gap-lg: 14px;
+  --ae-pad: 12px;
+  --ae-pad-lg: 16px;
+  --ae-sidebar-width: 260px;
+  --ae-left-rail-width: 460px;
+  --ae-shadow: 0 18px 40px rgba(2, 6, 23, 0.45);
+}
+
+html,
+body {
+  background: var(--ae-bg);
+  color: var(--ae-text);
+  font-family: "Manrope", "IBM Plex Sans", "Segoe UI", sans-serif;
+}
+
+.ae-shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--ae-bg);
+  color: var(--ae-text);
+}
+
+.ae-sidebar {
+  width: var(--ae-sidebar-width);
+  border-right: 1px solid var(--ae-border);
+  background: #020617;
+  padding: var(--ae-pad-lg);
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.ae-brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ae-s-8);
+}
+
+.ae-brand-left {
+  display: flex;
+  align-items: center;
+  gap: var(--ae-s-8);
+}
+
+.ae-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--ae-s-16);
+}
+
+.ae-brand-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  color: var(--ae-text);
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ae-brand-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.ae-brand-mark {
+  display: none;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  font-size: 12px;
+}
+
+.ae-sidebar-toggle {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ae-r-8);
+  border: 1px solid var(--ae-border);
+  background: transparent;
+  color: var(--ae-muted);
+  cursor: pointer;
+}
+
+.ae-sidebar-toggle:hover {
+  border-color: rgba(59, 130, 246, 0.5);
+  color: var(--ae-text);
+}
+
+.ae-brand {
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  font-size: 14px;
+}
+
+.ae-sub {
+  margin-top: 6px;
+  font-size: 9px;
+  text-transform: uppercase;
+  color: rgba(59, 130, 246, 0.7);
+  letter-spacing: 0.24em;
+}
+
+.ae-nav-h {
+  margin-top: 24px;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--ae-muted);
+  letter-spacing: 0.28em;
+}
+
+.ae-item {
+  width: 100%;
+  text-align: left;
+  padding: 9px 10px;
+  border-radius: 10px;
+  color: var(--ae-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.ae-item:hover {
+  background: rgba(148, 163, 184, 0.08);
+  color: var(--ae-text);
+}
+
+.ae-item.active {
+  background: rgba(59, 130, 246, 0.35);
+  border-color: rgba(59, 130, 246, 0.6);
+  color: var(--ae-text);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.35),
+    0 8px 18px rgba(59, 130, 246, 0.2);
+}
+
+.ae-item.disabled {
+  opacity: 0.45;
+}
+
+.ae-sidebar.collapsed {
+  width: 72px;
+  padding: var(--ae-s-16) var(--ae-s-8);
+}
+
+.ae-sidebar.collapsed .ae-brand-block,
+.ae-sidebar.collapsed .ae-nav-h,
+.ae-sidebar.collapsed .ae-item {
+  display: none;
+}
+
+.ae-sidebar.collapsed .ae-brand-mark {
+  display: block;
+}
+
+.ae-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ae-topbar-stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.ae-ticker-tape {
+  background: rgba(2, 6, 23, 0.9);
+  border-bottom: 1px solid var(--ae-border);
+  overflow: hidden;
+}
+
+.ae-ticker-tape__track {
+  display: inline-flex;
+  gap: 22px;
+  padding: 6px 16px;
+  white-space: nowrap;
+  animation: ae-ticker-scroll 22s linear infinite;
+}
+
+.ae-ticker-item {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ae-muted);
+}
+
+@keyframes ae-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.ae-topbar {
+  height: 58px;
+  display: grid;
+  grid-template-columns: 1fr minmax(320px, 560px) 1fr;
+  align-items: center;
+  gap: var(--ae-gap);
+  padding: 0 var(--ae-pad-lg);
+  border-bottom: 1px solid var(--ae-border);
+  background: rgba(11, 18, 32, 0.95);
+}
+
+.ae-title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ae-commandbar {
+  width: 100%;
+  background: var(--ae-surface);
+  color: var(--ae-text);
+  border: 1px solid var(--ae-border);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-family: "JetBrains Mono", "IBM Plex Mono", "SFMono-Regular", "Segoe UI",
+    monospace;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08),
+    0 8px 20px rgba(2, 6, 23, 0.35);
+}
+
+.ae-commandbar:focus {
+  outline: none;
+  border-color: var(--ae-accent);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+.ae-status {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ae-pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.15);
+  font-size: var(--ae-f-10);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.ae-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.ae-tabs {
+  margin-bottom: var(--ae-s-12);
+}
+
+#vnext-tabs {
+  background: var(--ae-surface-2);
+  border: 1px solid var(--ae-border);
+  border-radius: var(--ae-r-12);
+  padding: var(--ae-s-4) var(--ae-s-8);
+}
+
+#vnext-tabs .tab {
+  background: transparent !important;
+  color: var(--ae-muted) !important;
+  border: none !important;
+  padding: 6px 12px;
+  font-size: var(--ae-f-12);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#vnext-tabs .tab--selected {
+  color: var(--ae-text) !important;
+  border-bottom: 2px solid var(--ae-accent) !important;
+}
+
+#vnext-tabs .tab:hover {
+  color: var(--ae-text) !important;
+}
+
+.ae-dashboard {
+  display: grid;
+  grid-template-columns: var(--ae-left-rail-width) minmax(0, 1fr);
+  gap: var(--ae-gap-lg);
+  padding: var(--ae-pad-lg);
+}
+
+.ae-page-header {
+  margin-top: var(--ae-s-12);
+}
+
+.ae-dashboard-grid {
+  display: grid;
+  grid-template-columns: var(--ae-left-rail-width) minmax(0, 1fr);
+  gap: var(--ae-s-16);
+}
+
+.ae-left-rail {
+  width: var(--ae-left-rail-width);
+  flex: 0 0 var(--ae-left-rail-width);
+}
+
+.ae-left-rail input,
+.ae-left-rail .Select-control,
+.ae-left-rail .SingleDatePickerInput,
+.ae-left-rail .DateInput_input {
+  background: var(--ae-surface-2) !important;
+  border-color: rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Date picker dark theme */
+.ae-date .SingleDatePickerInput,
+.ae-date .SingleDatePickerInput__withBorder {
+  background: var(--ae-surface-2);
+  border: 1px solid var(--ae-border);
+  border-radius: var(--ae-r-8);
+}
+
+.ae-date .SingleDatePicker,
+.ae-date .DateInput,
+.ae-date .DateInput_input {
+  width: 100%;
+}
+
+.ae-date .DateInput_input {
+  background: var(--ae-surface-2);
+  color: var(--ae-text);
+  border: 1px solid var(--ae-border);
+  font-size: var(--ae-f-12);
+  padding: 10px 12px !important;
+  height: 38px !important;
+}
+
+.ae-date .SingleDatePicker_picker {
+  background: var(--ae-surface);
+}
+
+.ae-date .DayPicker,
+.ae-date .CalendarMonth,
+.ae-date .CalendarMonth_table {
+  background: var(--ae-surface);
+  color: var(--ae-text);
+}
+
+.ae-date .CalendarDay {
+  background: transparent !important;
+  color: var(--ae-text) !important;
+  border: 1px solid transparent !important;
+}
+
+.ae-date .CalendarDay__selected,
+.ae-date .CalendarDay__selected_span {
+  background: rgba(59, 130, 246, 0.4);
+  color: #fff;
+  border: 1px solid rgba(59, 130, 246, 0.6);
+}
+
+.ae-date .CalendarDay__hovered_span,
+.ae-date .CalendarDay__hovered_span:hover,
+.ae-date .CalendarDay__hovered {
+  background: var(--ae-surface-2) !important;
+}
+
+.ae-date .DayPickerNavigation_button,
+.ae-date .DayPickerNavigation_button__default {
+  border: 1px solid var(--ae-border) !important;
+  background: transparent !important;
+  color: var(--ae-text) !important;
+}
+
+.ae-main-col {
+  min-width: 0;
+}
+
+.ae-main-grid {
+  display: grid;
+  gap: var(--ae-gap-lg);
+}
+
+.ae-results-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: var(--ae-s-12);
+}
+
+.ae-bottom-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--ae-s-12);
+}
+
+.ae-split-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr);
+  gap: var(--ae-gap-lg);
+}
+
+.ae-side-stack {
+  display: grid;
+  gap: var(--ae-gap);
+}
+
+.ae-card,
+.vnext-panel {
+  background: var(--ae-panel);
+  border: 1px solid var(--ae-border);
+  border-radius: var(--ae-radius);
+  box-shadow: var(--ae-shadow);
+  padding: var(--ae-s-12);
+}
+
+.ae-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--ae-s-8);
+}
+
+.ae-card__title {
+  font-size: var(--ae-f-12);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #cbd5f5;
+  font-weight: 600;
+}
+
+.vnext-title {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ae-card__body {
+  display: block;
+}
+
+.ae-btn {
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  background: rgba(59, 130, 246, 0.22);
+  color: var(--ae-text);
+  padding: 8px 14px;
+  font-size: var(--ae-f-12);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.ae-btn-primary {
+  background: rgba(59, 130, 246, 0.45);
+  border-color: rgba(59, 130, 246, 0.7);
+  box-shadow: 0 8px 16px rgba(59, 130, 246, 0.2);
+}
+
+.ae-btn-pill {
+  border-radius: 999px;
+}
+
+.ae-card--hero {
+  padding: var(--ae-s-12);
+}
+
+@media (min-width: 1200px) {
+  .ae-card--hero {
+    position: sticky;
+    top: 84px;
+  }
+}
+
+.panel-header {
+  margin-bottom: var(--ae-s-8);
+}
+
+.panel-title .h2 {
+  font-size: var(--ae-f-12);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ae-muted);
+}
+
+.vnext-hero {
+  padding: var(--ae-pad);
+}
+
+.vnext-hero-chart {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.ae-hero-toggles {
+  margin-top: 8px;
+  gap: 12px;
+}
+
+.vnext-checklist label {
+  font-size: 11px;
+  color: var(--ae-muted);
+  letter-spacing: 0.06em;
+}
+
+.ae-card label,
+.vnext-panel label {
+  color: var(--ae-muted);
+  font-size: var(--ae-f-10);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ae-card input,
+.ae-card textarea,
+.ae-card .Select-control,
+.vnext-panel input,
+.vnext-panel textarea,
+.vnext-panel .Select-control {
+  background: var(--ae-surface);
+  color: var(--ae-text);
+  border: 1px solid var(--ae-border);
+  border-radius: 8px;
+  min-height: 32px;
+}
+
+.ae-card input:focus,
+.ae-card textarea:focus,
+.ae-card .Select-control:focus-within,
+.vnext-panel input:focus,
+.vnext-panel textarea:focus,
+.vnext-panel .Select-control:focus-within {
+  border-color: var(--ae-accent);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.ae-btn-row {
+  display: flex;
+  gap: var(--ae-s-8);
+  align-items: center;
+  margin-top: var(--ae-s-8);
+}
+
+.ae-btn-row .vnext-btn {
+  flex: 1;
+}
+
+.ae-btn-row .ae-btn {
+  flex: 1;
+}
+
+.ae-btn-pill {
+  border-radius: 999px;
+  height: 38px;
+  min-width: 180px;
+}
+
+#payoff-chart,
+#payoff-chart * {
+  background: transparent !important;
+}
+
+#payoff-chart .js-plotly-plot,
+#payoff-chart .plot-container,
+#payoff-chart .svg-container,
+#payoff-chart .main-svg {
+  background: transparent !important;
+}
+
+/* Dash React-Select dropdowns */
+.Select-control,
+.Select-menu-outer,
+.Select-menu {
+  background: var(--ae-surface) !important;
+  border-color: var(--ae-border) !important;
+  color: var(--ae-text) !important;
+}
+
+.Select-control {
+  background: var(--ae-surface-2) !important;
+  box-shadow: none !important;
+}
+
+.Select-placeholder,
+.Select-value,
+.Select-value-label,
+.Select-input input {
+  color: var(--ae-text) !important;
+}
+
+.Select--single > .Select-control .Select-value {
+  color: var(--ae-text) !important;
+}
+
+.Select-option {
+  background: transparent !important;
+  color: var(--ae-text) !important;
+}
+
+.Select-option.is-focused,
+.Select-option.is-selected {
+  background: rgba(59, 130, 246, 0.2) !important;
+  color: var(--ae-text) !important;
+}
+
+.Select.is-open > .Select-control,
+.Select.is-focused > .Select-control {
+  border-color: var(--ae-accent) !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Fallback selectors for newer react-select classnames */
+div[class*="react-select"] .Select-control,
+div[class*="react-select"] .Select-menu-outer,
+div[class*="react-select"] .Select-menu {
+  background: var(--ae-surface) !important;
+  border-color: var(--ae-border) !important;
+  color: var(--ae-text) !important;
+}
+
+div[class*="react-select"] .Select-option {
+  background: transparent !important;
+  color: var(--ae-text) !important;
+}
+
+div[class*="react-select"] .Select-option.is-focused,
+div[class*="react-select"] .Select-option.is-selected {
+  background: rgba(59, 130, 246, 0.2) !important;
+  color: var(--ae-text) !important;
+}
+
+.Select-control,
+.Select.has-value .Select-control,
+.Select.is-open > .Select-control,
+.Select.is-focused > .Select-control,
+div[class*="Select-control"] {
+  background: var(--ae-surface-2) !important;
+  color: var(--ae-text) !important;
+  border: 1px solid var(--ae-border) !important;
+  box-shadow: none !important;
+}
+
+.Select-placeholder,
+.Select--single > .Select-control .Select-value,
+.Select--single > .Select-control .Select-value-label,
+.Select-input input {
+  color: var(--ae-text) !important;
+}
+
+.Select-menu-outer,
+.Select-menu {
+  background: var(--ae-surface) !important;
+  border: 1px solid var(--ae-border) !important;
+}
+
+.Select-option {
+  background: transparent !important;
+  color: var(--ae-text) !important;
+}
+
+.Select-option.is-focused {
+  background: var(--ae-surface-2) !important;
+}
+
+.Select-option.is-selected {
+  background: rgba(56, 189, 248, 0.18) !important;
+}
+
+.Select-arrow,
+.Select-clear-zone,
+.Select-control .Select-arrow-zone {
+  color: var(--ae-muted) !important;
+}
+
+.dash-table-container {
+  border: 1px solid var(--ae-border);
+  border-radius: var(--ae-r-12);
+  overflow: hidden;
+  background: var(--ae-surface);
+}
+
+.dash-table-container .dash-spreadsheet-container {
+  background: var(--ae-surface);
+  color: var(--ae-text);
+}
+
+.dash-spreadsheet,
+.dash-spreadsheet-inner {
+  background: var(--ae-surface);
+  color: var(--ae-text);
+}
+
+.dash-spreadsheet-container .dash-header,
+.dash-spreadsheet-container .dash-header th,
+.dash-spreadsheet-container .dash-header td {
+  background: var(--ae-surface-2);
+  color: var(--ae-text);
+  border-color: var(--ae-border);
+}
+
+.dash-spreadsheet-container .dash-cell {
+  background: var(--ae-surface);
+  color: var(--ae-text);
+  border-color: var(--ae-border);
+}
+
+.dash-spreadsheet-container .dash-cell.focused,
+.dash-spreadsheet-container .dash-cell.selected {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--ae-text);
+}
+
+.dash-spreadsheet-container .dash-filter input {
+  background: var(--ae-surface);
+  color: var(--ae-text);
+  border-color: var(--ae-border);
+}
+
+.dash-spreadsheet-container table,
+.dash-spreadsheet-container th,
+.dash-spreadsheet-container td {
+  background: transparent;
+  color: inherit;
+  border-color: var(--ae-border);
+}
+
+.dash-spreadsheet-container table {
+  font-size: 12px;
+}
+
+.dash-spreadsheet-container th {
+  background: var(--ae-surface-2);
+  color: var(--ae-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: var(--ae-f-10);
+}
+
+.dash-spreadsheet-container tr:nth-child(even) {
+  background: rgba(15, 23, 42, 0.7);
+}
+
+.dash-spreadsheet-container td[data-dash-column="qty"],
+.dash-spreadsheet-container td[data-dash-column="strike"],
+.dash-spreadsheet-container td[data-dash-column="premium"],
+.dash-spreadsheet-container td[data-dash-column="multiplier"],
+.dash-spreadsheet-container td[data-dash-column="net_pnl"],
+.dash-spreadsheet-container td[data-dash-column="net_roi"] {
+  text-align: right;
+}
+
+.ae-card table,
+.vnext-panel table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.ae-card table th,
+.ae-card table td,
+.vnext-panel table th,
+.vnext-panel table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--ae-border);
+}
+
+.ae-card table th,
+.vnext-panel table th {
+  color: var(--ae-muted);
+  text-transform: uppercase;
+  font-size: var(--ae-f-10);
+  letter-spacing: 0.08em;
+}
+
+.ae-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--ae-border);
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--ae-text);
+  font-size: var(--ae-f-10);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ae-section-title {
+  font-size: var(--ae-f-12);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ae-muted);
+}
+
+.ae-muted,
+.vnext-muted {
+  color: var(--ae-muted);
+}
+
+.ae-empty,
+.ae-error,
+.ae-warn {
+  padding: var(--ae-s-12);
+  border-radius: var(--ae-r-12);
+  border: 1px dashed var(--ae-border);
+  background: rgba(15, 23, 42, 0.6);
+  font-size: var(--ae-f-12);
+}
+
+.ae-error {
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #fecaca;
+}
+
+.ae-warn {
+  border-color: rgba(245, 158, 11, 0.6);
+  color: #fde68a;
+}
+
+.risk-badge {
+  border-color: var(--ae-warning);
+  color: var(--ae-warning);
+}
+
+/* DataTable hard overrides for dark theme */
+.dash-table-container,
+.dash-spreadsheet-container,
+.dash-spreadsheet-container .dash-spreadsheet-inner,
+.dash-spreadsheet {
+  background: var(--ae-surface) !important;
+  color: var(--ae-text) !important;
+}
+
+.dash-spreadsheet td,
+.dash-spreadsheet th,
+.dash-cell,
+.dash-header {
+  background: var(--ae-surface) !important;
+  color: var(--ae-text) !important;
+  border-color: var(--ae-border) !important;
+}
+
+.dash-spreadsheet th {
+  background: var(--ae-surface-2) !important;
+  font-weight: 600 !important;
+  color: var(--ae-muted) !important;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+.dash-cell.focused,
+.dash-cell.cell--selected,
+.dash-cell.selected,
+.dash-spreadsheet td.focused {
+  background: rgba(56, 189, 248, 0.1) !important;
+  outline: 1px solid rgba(56, 189, 248, 0.35) !important;
+}
+
+.dash-spreadsheet .Select-control {
+  background: var(--ae-surface-2) !important;
+  color: var(--ae-text) !important;
+  border-color: var(--ae-border) !important;
+}
+
+.dash-spreadsheet .Select-menu-outer {
+  background: var(--ae-surface) !important;
+  border-color: var(--ae-border) !important;
+}
+
+.dash-spreadsheet .Select-option {
+  color: var(--ae-text) !important;
+}
+
+.dash-spreadsheet .Select-option.is-focused {
+  background: var(--ae-surface-2) !important;
+}

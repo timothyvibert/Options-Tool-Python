@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import json
 import math
+import re
 
 import plotly.graph_objects as go
 from dash import Input, Output, State, no_update, ctx, html
@@ -39,6 +40,39 @@ def _coerce_float(value: object) -> float | None:
     if not math.isfinite(numeric):
         return None
     return numeric
+
+
+_DATE_RE = re.compile(r"^\\d{4}-\\d{2}-\\d{2}$")
+
+
+def _normalize_iso_date(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text == "":
+        return None
+    if _DATE_RE.match(text):
+        return text
+    head = text[:10]
+    if _DATE_RE.match(head):
+        return head
+    return None
+
+
+def _normalize_expiry(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return None
+        return value
+    if hasattr(value, "strftime"):
+        try:
+            return value.strftime("%Y-%m-%d")
+        except Exception:
+            return None
+    return None
 
 
 def _fmt_money(value: object) -> str:
@@ -301,6 +335,28 @@ def register_callbacks(
         return {"display": "none"}
 
     @app.callback(
+        Output("store-shell", "data"),
+        Input("btn-sidebar-toggle", "n_clicks"),
+        State("store-shell", "data"),
+        prevent_initial_call=True,
+    )
+    def _toggle_sidebar(n_clicks, shell_state):
+        state = dict(shell_state) if isinstance(shell_state, dict) else {}
+        collapsed = bool(state.get("sidebar_collapsed", False))
+        state["sidebar_collapsed"] = not collapsed
+        return state
+
+    @app.callback(
+        Output("ae-sidebar", "className"),
+        Input("store-shell", "data"),
+    )
+    def _apply_sidebar_class(shell_state):
+        collapsed = False
+        if isinstance(shell_state, dict):
+            collapsed = bool(shell_state.get("sidebar_collapsed"))
+        return "ae-sidebar collapsed" if collapsed else "ae-sidebar"
+
+    @app.callback(
         Output(ID.STRATEGY_SUBGROUP, "options"),
         Output(ID.STRATEGY_SUBGROUP, "value"),
         Input(ID.STRATEGY_GROUP, "value"),
@@ -506,7 +562,7 @@ def register_callbacks(
         Input(ID.BTN_REFRESH, "n_clicks"),
         State(ID.STORE_REF, "data"),
         State(ID.TICKER_INPUT, "value"),
-        State(ID.EXPIRY_INPUT, "value"),
+        State(ID.EXPIRY_INPUT, "date"),
         State(ID.PRICING_MODE, "value"),
         State(ID.LEGS_TABLE, "data"),
         prevent_initial_call=True,
@@ -519,7 +575,7 @@ def register_callbacks(
             resolved = ref_data.get("resolved_ticker")
         if not raw_ticker:
             raw_ticker = (ticker_value or "").strip()
-        expiry_value = (expiry or "").strip()
+        expiry_value = _normalize_expiry(expiry)
         if not expiry_value:
             status = "Refresh failed: expiry required (YYYY-MM-DD)"
             return no_update, status
@@ -577,8 +633,7 @@ def register_callbacks(
                 indent=2,
                 sort_keys=True,
             )
-        if not expiry_value and isinstance(ref_data, dict):
-            expiry_value = str(ref_data.get("expiry") or "").strip()
+        expiry_value = _normalize_iso_date(expiry_value)
         if not expiry_value:
             refresh_msg = "Refresh blocked: expiry not available"
         elif errors:
@@ -597,7 +652,7 @@ def register_callbacks(
         State(ID.STORE_REF, "data"),
         State(ID.TICKER_INPUT, "value"),
         State(ID.SPOT_INPUT, "value"),
-        State(ID.EXPIRY_INPUT, "value"),
+        State(ID.EXPIRY_INPUT, "date"),
         State(ID.STOCK_POSITION, "value"),
         State(ID.AVG_COST, "value"),
         State(ID.LEGS_TABLE, "data"),
@@ -641,7 +696,7 @@ def register_callbacks(
             raw_ticker = ref_data.get("raw_ticker") or raw_ticker
             resolved_ticker = ref_data.get("resolved_ticker") or resolved_ticker
         spot = _coerce_float(spot_value) or 0.0
-        expiry_value = (expiry or "").strip()
+        expiry_value = _normalize_expiry(expiry)
         stock_pos = _coerce_float(stock_position) or 0.0
         avg_cost_val = _coerce_float(avg_cost) or 0.0
         legs_rows = legs_table if isinstance(legs_table, list) else []
@@ -855,7 +910,7 @@ def register_callbacks(
         Input(ID.TICKER_INPUT, "n_submit"),
         Input(ID.TICKER_INPUT, "n_blur"),
         Input(ID.SPOT_INPUT, "value"),
-        Input(ID.EXPIRY_INPUT, "value"),
+        Input(ID.EXPIRY_INPUT, "date"),
         Input(ID.STRATEGY_GROUP, "value"),
         Input(ID.STRATEGY_SUBGROUP, "value"),
         Input(ID.STRATEGY_ID, "value"),
@@ -917,7 +972,7 @@ def register_callbacks(
                     state["spot"] = spot_from_ref
         value_map = {
             ID.TICKER_INPUT: ("ticker", ticker_value),
-            ID.EXPIRY_INPUT: ("expiry", expiry_value),
+        ID.EXPIRY_INPUT: ("expiry", _normalize_iso_date(expiry_value)),
             ID.STRATEGY_GROUP: ("strategy_group", strategy_group),
             ID.STRATEGY_SUBGROUP: ("strategy_subgroup", strategy_subgroup),
             ID.STRATEGY_ID: ("strategy_id", strategy_id),
@@ -955,7 +1010,7 @@ def register_callbacks(
 
     @app.callback(
         Output(ID.TICKER_INPUT, "value"),
-        Output(ID.EXPIRY_INPUT, "value"),
+        Output(ID.EXPIRY_INPUT, "date"),
         Output(ID.STRATEGY_GROUP, "value"),
         Output(ID.STOCK_POSITION, "value"),
         Output(ID.AVG_COST, "value"),
@@ -983,7 +1038,7 @@ def register_callbacks(
             return default
 
         ticker = _value("ticker", "")
-        expiry = _value("expiry", "")
+        expiry = _normalize_iso_date(_value("expiry", None))
         strategy_group = _value("strategy_group", None)
         stock_position = _value("stock_position", 0.0)
         avg_cost = _value("avg_cost", 0.0)

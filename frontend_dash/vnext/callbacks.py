@@ -252,10 +252,18 @@ def register_callbacks(
         Output(ID.STRATEGY_SUBGROUP, "options"),
         Output(ID.STRATEGY_SUBGROUP, "value"),
         Input(ID.STRATEGY_GROUP, "value"),
+        State(ID.STORE_UI, "data"),
     )
-    def _update_subgroups(group_value):
+    def _update_subgroups(group_value, ui_state):
         subgroups = _safe_list_subgroups(group_value)
         options = [{"label": sg, "value": sg} for sg in subgroups]
+        stored_group = None
+        stored_value = None
+        if isinstance(ui_state, dict):
+            stored_group = ui_state.get("strategy_group")
+            stored_value = ui_state.get("strategy_subgroup")
+        if stored_group == group_value and stored_value in subgroups:
+            return options, stored_value
         value = subgroups[0] if subgroups else None
         return options, value
 
@@ -264,8 +272,9 @@ def register_callbacks(
         Output(ID.STRATEGY_ID, "value"),
         Input(ID.STRATEGY_GROUP, "value"),
         Input(ID.STRATEGY_SUBGROUP, "value"),
+        State(ID.STORE_UI, "data"),
     )
-    def _update_strategies(group_value, subgroup_value):
+    def _update_strategies(group_value, subgroup_value, ui_state):
         df = _safe_list_strategies(group_value, subgroup_value)
         if df is None or df.empty:
             return [], None
@@ -273,6 +282,24 @@ def register_callbacks(
             {"label": row["strategy_name"], "value": int(row["strategy_id"])}
             for _, row in df.iterrows()
         ]
+        stored_group = None
+        stored_subgroup = None
+        stored_value = None
+        if isinstance(ui_state, dict):
+            stored_group = ui_state.get("strategy_group")
+            stored_subgroup = ui_state.get("strategy_subgroup")
+            stored_value = ui_state.get("strategy_id")
+        try:
+            stored_value = int(stored_value) if stored_value is not None else None
+        except (TypeError, ValueError):
+            stored_value = None
+        option_values = {opt["value"] for opt in options}
+        if (
+            stored_group == group_value
+            and stored_subgroup == subgroup_value
+            and stored_value in option_values
+        ):
+            return options, stored_value
         return options, int(df.iloc[0]["strategy_id"])
 
     @app.callback(
@@ -282,11 +309,17 @@ def register_callbacks(
         State(ID.SPOT_INPUT, "value"),
         State(ID.PRICING_MODE, "value"),
         State(ID.LEGS_TABLE, "data"),
+        State(ID.STORE_UI, "data"),
     )
     def _apply_legs_updates(
-        strategy_id, market_data, spot_value, pricing_mode, legs_data
+        strategy_id, market_data, spot_value, pricing_mode, legs_data, ui_state
     ):
         trigger_id = ctx.triggered_id if ctx else None
+        stored_legs = None
+        stored_strategy_id = None
+        if isinstance(ui_state, dict):
+            stored_legs = ui_state.get("legs")
+            stored_strategy_id = ui_state.get("strategy_id")
         if trigger_id == ID.STORE_MARKET:
             if not isinstance(market_data, dict):
                 return no_update
@@ -316,6 +349,12 @@ def register_callbacks(
                 updated_rows.append(updated)
             return updated_rows
         if trigger_id == ID.STRATEGY_ID or trigger_id is None:
+            if (
+                isinstance(stored_legs, list)
+                and stored_legs
+                and (stored_strategy_id == strategy_id or stored_strategy_id is None)
+            ):
+                return stored_legs
             if not strategy_id:
                 return no_update
             spot = _coerce_float(spot_value) or 100.0
@@ -334,7 +373,6 @@ def register_callbacks(
 
     @app.callback(
         Output(ID.STORE_REF, "data"),
-        Output(ID.SPOT_INPUT, "value"),
         Output(ID.SPOT_STATUS, "children"),
         Input(ID.TICKER_INPUT, "n_submit"),
         Input(ID.TICKER_INPUT, "n_blur"),
@@ -345,16 +383,16 @@ def register_callbacks(
     def _ping_spot(n_submit, n_blur, ticker_value, ref_data):
         raw_ticker = (ticker_value or "").strip()
         if not raw_ticker:
-            return no_update, no_update, "Enter a ticker"
+            return no_update, "Enter a ticker"
         trigger = ctx.triggered[0]["prop_id"] if ctx and ctx.triggered else ""
         is_submit = trigger.endswith(".n_submit")
         last_ticker = None
         if isinstance(ref_data, dict):
             last_ticker = ref_data.get("raw_ticker")
         if not is_submit and last_ticker == raw_ticker:
-            return no_update, no_update, no_update
+            return no_update, no_update
         if not bloomberg_available or bbg_resolve_security is None or bbg_fetch_spot is None:
-            return no_update, no_update, "Bloomberg unavailable (offline mode)"
+            return no_update, "Bloomberg unavailable (offline mode)"
         try:
             resolved = bbg_resolve_security(raw_ticker)
             spot_result = bbg_fetch_spot(resolved)
@@ -368,7 +406,7 @@ def register_callbacks(
                 "status": "ok",
                 "error": None,
             }
-            return to_jsonable(store_ref), spot_value, f"Spot updated ({as_of_text})"
+            return to_jsonable(store_ref), f"Spot updated ({as_of_text})"
         except Exception as exc:
             store_ref = {
                 "raw_ticker": raw_ticker,
@@ -378,11 +416,23 @@ def register_callbacks(
                 "status": "error",
                 "error": str(exc),
             }
-            return (
-                to_jsonable(store_ref),
-                no_update,
-                f"Spot fetch failed for {raw_ticker}",
-            )
+            return to_jsonable(store_ref), f"Spot fetch failed for {raw_ticker}"
+
+    @app.callback(
+        Output(ID.SPOT_INPUT, "value"),
+        Input(ID.STORE_REF, "data"),
+        prevent_initial_call=True,
+    )
+    def _display_spot_from_ref(ref_data):
+        if not isinstance(ref_data, dict):
+            return no_update
+        spot = ref_data.get("spot")
+        if spot is None:
+            return no_update
+        try:
+            return float(spot)
+        except (TypeError, ValueError):
+            return no_update
 
     @app.callback(
         Output(ID.STORE_MARKET, "data"),
@@ -583,13 +633,13 @@ def register_callbacks(
             net_premium += leg.position * leg.premium
         net_premium_per_share = -net_premium
         roi_policy_ui = (roi_policy or "premium").strip().lower()
+        roi_policy_effective = roi_policy_ui
+        warning_msg = None
         if roi_policy_ui == "premium" and abs(net_premium_per_share) < 1e-9:
-            error = (
-                "Net premium is 0 under ROI policy Premium. Enter premiums (or Refresh Bloomberg) "
-                "or choose a different ROI policy."
-            )
-            return {"key": None, "as_of": _utc_now_str(), "error": error}, to_jsonable(
-                inputs_snapshot
+            roi_policy_effective = "max_loss"
+            warning_msg = (
+                "Premium ROI selected but net premium is 0; computing ROI using Max Loss until premiums are provided "
+                "(enter premiums / Refresh Bloomberg, or choose a different ROI policy)."
             )
 
         roi_map = {
@@ -598,8 +648,9 @@ def register_callbacks(
             "cash_secured": "CASH_SECURED",
             "margin": "MARGIN_PROXY",
         }
-        roi_backend = roi_map.get(roi_policy_ui, "NET_PREMIUM")
+        roi_backend = roi_map.get(roi_policy_effective, "NET_PREMIUM")
         inputs_snapshot["roi_policy_ui"] = roi_policy_ui
+        inputs_snapshot["roi_policy_effective"] = roi_policy_effective
         inputs_snapshot["roi_policy_backend"] = roi_backend
 
         downside_factor = 1.0 + ((downside_pct or 0.0) / 100.0)
@@ -658,9 +709,16 @@ def register_callbacks(
             )
 
         key = cache_put(pack)
-        return {"key": key, "as_of": _utc_now_str(), "error": None}, to_jsonable(
-            inputs_snapshot
-        )
+        key_payload = {
+            "key": key,
+            "as_of": _utc_now_str(),
+            "error": None,
+            "roi_policy_ui": roi_policy_ui,
+            "roi_policy_effective": roi_policy_effective,
+        }
+        if warning_msg:
+            key_payload["warning"] = warning_msg
+        return key_payload, to_jsonable(inputs_snapshot)
 
     @app.callback(
         Output(ID.PAYOFF_CHART, "figure"),
@@ -725,24 +783,179 @@ def register_callbacks(
 
     @app.callback(
         Output(ID.STORE_UI, "data"),
+        Input(ID.TICKER_INPUT, "n_submit"),
+        Input(ID.TICKER_INPUT, "n_blur"),
+        Input(ID.SPOT_INPUT, "value"),
+        Input(ID.EXPIRY_INPUT, "value"),
+        Input(ID.STRATEGY_GROUP, "value"),
+        Input(ID.STRATEGY_SUBGROUP, "value"),
+        Input(ID.STRATEGY_ID, "value"),
+        Input(ID.STOCK_POSITION, "value"),
+        Input(ID.AVG_COST, "value"),
+        Input(ID.PRICING_MODE, "value"),
+        Input(ID.ROI_POLICY, "value"),
+        Input(ID.VOL_MODE, "value"),
+        Input(ID.ATM_IV, "value"),
+        Input(ID.SCENARIO_MODE, "value"),
+        Input(ID.DOWNSIDE_TGT, "value"),
+        Input(ID.UPSIDE_TGT, "value"),
+        Input(ID.LEGS_TABLE, "data"),
         Input(ID.PNL_TOGGLES, "value"),
         Input(ID.ANNOTATE_TOGGLES, "value"),
+        Input(ID.STORE_REF, "data"),
+        State(ID.TICKER_INPUT, "value"),
         State(ID.STORE_UI, "data"),
+        prevent_initial_call=True,
     )
-    def _sync_ui(pnl_values, annotate_values, current):
+    def _sync_ui(
+        ticker_submit,
+        ticker_blur,
+        spot_value,
+        expiry_value,
+        strategy_group,
+        strategy_subgroup,
+        strategy_id,
+        stock_position,
+        avg_cost,
+        pricing_mode,
+        roi_policy,
+        vol_mode,
+        atm_iv,
+        scenario_mode,
+        downside_pct,
+        upside_pct,
+        legs_data,
+        pnl_values,
+        annotate_values,
+        ref_data,
+        ticker_value,
+        current,
+    ):
+        triggered = {
+            item.get("prop_id", "").split(".", 1)[0]
+            for item in (ctx.triggered or [])
+        }
+        if not triggered:
+            return no_update
+        state = dict(current) if isinstance(current, dict) else {}
+        if ID.STORE_REF in triggered and isinstance(ref_data, dict):
+            raw_ticker = ref_data.get("raw_ticker")
+            if raw_ticker:
+                state["ticker"] = raw_ticker
+            if ID.SPOT_INPUT in triggered:
+                spot_from_ref = ref_data.get("spot")
+                if spot_from_ref is not None:
+                    state["spot"] = spot_from_ref
+        value_map = {
+            ID.TICKER_INPUT: ("ticker", ticker_value),
+            ID.EXPIRY_INPUT: ("expiry", expiry_value),
+            ID.STRATEGY_GROUP: ("strategy_group", strategy_group),
+            ID.STRATEGY_SUBGROUP: ("strategy_subgroup", strategy_subgroup),
+            ID.STRATEGY_ID: ("strategy_id", strategy_id),
+            ID.STOCK_POSITION: ("stock_position", stock_position),
+            ID.AVG_COST: ("avg_cost", avg_cost),
+            ID.PRICING_MODE: ("pricing_mode", pricing_mode),
+            ID.ROI_POLICY: ("roi_policy", roi_policy),
+            ID.VOL_MODE: ("vol_mode", vol_mode),
+            ID.ATM_IV: ("atm_iv", atm_iv),
+            ID.SCENARIO_MODE: ("scenario_mode", scenario_mode),
+            ID.DOWNSIDE_TGT: ("downside_pct", downside_pct),
+            ID.UPSIDE_TGT: ("upside_pct", upside_pct),
+        }
+        for trig_id in triggered:
+            if trig_id not in value_map:
+                continue
+            key, value = value_map[trig_id]
+            if value is not None:
+                state[key] = value
         pnl_values = pnl_values or []
         annotate_values = annotate_values or []
-        state = dict(current) if isinstance(current, dict) else {}
-        state.update(
-            {
-                "show_options": "options" in pnl_values,
-                "show_stock": "stock" in pnl_values,
-                "show_combined": "combined" in pnl_values,
-                "show_strikes": "strikes" in annotate_values,
-                "show_breakevens": "breakevens" in annotate_values,
-            }
-        )
+        if ID.PNL_TOGGLES in triggered or ID.ANNOTATE_TOGGLES in triggered:
+            state.update(
+                {
+                    "show_options": "options" in pnl_values,
+                    "show_stock": "stock" in pnl_values,
+                    "show_combined": "combined" in pnl_values,
+                    "show_strikes": "strikes" in annotate_values,
+                    "show_breakevens": "breakevens" in annotate_values,
+                }
+            )
+        if isinstance(current, dict) and state == current:
+            return no_update
         return state
+
+    @app.callback(
+        Output(ID.TICKER_INPUT, "value"),
+        Output(ID.EXPIRY_INPUT, "value"),
+        Output(ID.STRATEGY_GROUP, "value"),
+        Output(ID.STOCK_POSITION, "value"),
+        Output(ID.AVG_COST, "value"),
+        Output(ID.PRICING_MODE, "value"),
+        Output(ID.ROI_POLICY, "value"),
+        Output(ID.VOL_MODE, "value"),
+        Output(ID.ATM_IV, "value"),
+        Output(ID.SCENARIO_MODE, "value"),
+        Output(ID.DOWNSIDE_TGT, "value"),
+        Output(ID.UPSIDE_TGT, "value"),
+        Output(ID.PNL_TOGGLES, "value"),
+        Output(ID.ANNOTATE_TOGGLES, "value"),
+        Input(ID.TABS, "value"),
+        State(ID.STORE_UI, "data"),
+    )
+    def _hydrate_ui(tab_value, ui_state):
+        hydrate_count = 14
+        if tab_value != "dashboard":
+            return (no_update,) * hydrate_count
+        state = ui_state if isinstance(ui_state, dict) else {}
+
+        def _value(key: str, default):
+            if key in state and state[key] is not None:
+                return state[key]
+            return default
+
+        ticker = _value("ticker", "")
+        expiry = _value("expiry", "")
+        strategy_group = _value("strategy_group", None)
+        stock_position = _value("stock_position", 0.0)
+        avg_cost = _value("avg_cost", 0.0)
+        pricing_mode = _value("pricing_mode", "mid")
+        roi_policy = _value("roi_policy", "premium")
+        vol_mode = _value("vol_mode", "atm")
+        atm_iv = _value("atm_iv", 0.2)
+        scenario_mode = _value("scenario_mode", "targets")
+        downside_pct = _value("downside_pct", -10.0)
+        upside_pct = _value("upside_pct", 10.0)
+
+        pnl_values = []
+        if _value("show_options", True):
+            pnl_values.append("options")
+        if _value("show_stock", False):
+            pnl_values.append("stock")
+        if _value("show_combined", True):
+            pnl_values.append("combined")
+
+        annotate_values = []
+        if _value("show_strikes", True):
+            annotate_values.append("strikes")
+        if _value("show_breakevens", True):
+            annotate_values.append("breakevens")
+
+        return (
+            ticker,
+            expiry,
+            strategy_group,
+            stock_position,
+            avg_cost,
+            pricing_mode,
+            roi_policy,
+            vol_mode,
+            atm_iv,
+            scenario_mode,
+            downside_pct,
+            upside_pct,
+            pnl_values,
+            annotate_values,
+        )
 
     @app.callback(
         Output(ID.PANEL_PAYOFF_METRICS, "children"),

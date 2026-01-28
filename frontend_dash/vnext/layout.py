@@ -16,17 +16,69 @@ except Exception:
 
 
 def layout_control_plane_stores():
+    groups = []
+    if list_groups is not None:
+        try:
+            groups = list_groups() or []
+        except Exception:
+            groups = []
+    default_group = groups[0] if groups else None
+    subgroups = []
+    if list_subgroups is not None and default_group:
+        try:
+            subgroups = list_subgroups(default_group) or []
+        except Exception:
+            subgroups = []
+    default_subgroup = subgroups[0] if subgroups else None
+    default_strategy_id = None
+    if list_strategies is not None and default_group and default_subgroup:
+        try:
+            df = list_strategies(default_group, default_subgroup)
+        except Exception:
+            df = None
+        if df is not None and not df.empty:
+            default_strategy_id = int(df.iloc[0]["strategy_id"])
+    default_legs = [
+        {
+            "kind": "",
+            "side": "",
+            "qty": "",
+            "strike": "",
+            "premium": "",
+            "multiplier": 100,
+            "override": False,
+            "option_ticker": "",
+        }
+        for _ in range(4)
+    ]
     return html.Div(
         id=ID.CONTROL_PLANE,
         style={"display": "none"},
         children=[
             dcc.Store(id=ID.STORE_REF),
             dcc.Store(id=ID.STORE_MARKET),
-            dcc.Store(id=ID.STORE_ANALYSIS_KEY),
-            dcc.Store(id=ID.STORE_INPUTS),
+            dcc.Store(id=ID.STORE_ANALYSIS_KEY, storage_type="session"),
+            dcc.Store(id=ID.STORE_INPUTS, storage_type="session"),
             dcc.Store(
                 id=ID.STORE_UI,
+                storage_type="session",
                 data={
+                    "ticker": "",
+                    "spot": 100.0,
+                    "expiry": "",
+                    "strategy_group": default_group,
+                    "strategy_subgroup": default_subgroup,
+                    "strategy_id": default_strategy_id,
+                    "stock_position": 0.0,
+                    "avg_cost": 0.0,
+                    "pricing_mode": "mid",
+                    "roi_policy": "premium",
+                    "vol_mode": "atm",
+                    "atm_iv": 0.2,
+                    "scenario_mode": "targets",
+                    "downside_pct": -10.0,
+                    "upside_pct": 10.0,
+                    "legs": default_legs,
                     "show_options": True,
                     "show_stock": False,
                     "show_combined": True,
@@ -212,7 +264,6 @@ _panel_market = html.Div(
             id=ID.TICKER_INPUT,
             type="text",
             debounce=True,
-            value="",
             persistence=True,
             persistence_type="session",
             style={"width": "100%"},
@@ -225,7 +276,6 @@ _panel_market = html.Div(
         dcc.Input(
             id=ID.SPOT_INPUT,
             type="number",
-            value=100.0,
             step=0.01,
             persistence=True,
             persistence_type="session",
@@ -235,7 +285,6 @@ _panel_market = html.Div(
         dcc.Input(
             id=ID.EXPIRY_INPUT,
             type="text",
-            value="",
             persistence=True,
             persistence_type="session",
             style={"width": "100%"},
@@ -273,7 +322,6 @@ _panel_strategy = html.Div(
         dcc.Dropdown(
             id=ID.STRATEGY_GROUP,
             options=_group_options,
-            value=_default_group,
             clearable=False,
             persistence=True,
             persistence_type="session",
@@ -282,7 +330,6 @@ _panel_strategy = html.Div(
         dcc.Dropdown(
             id=ID.STRATEGY_SUBGROUP,
             options=_subgroup_options,
-            value=_default_subgroup,
             clearable=False,
             persistence=True,
             persistence_type="session",
@@ -291,7 +338,6 @@ _panel_strategy = html.Div(
         dcc.Dropdown(
             id=ID.STRATEGY_ID,
             options=_strategy_options,
-            value=_default_strategy_id,
             clearable=True,
             persistence=True,
             persistence_type="session",
@@ -320,7 +366,6 @@ _panel_stock_overlay = html.Div(
         dcc.Input(
             id=ID.STOCK_POSITION,
             type="number",
-            value=0.0,
             step=1.0,
             persistence=True,
             persistence_type="session",
@@ -330,7 +375,6 @@ _panel_stock_overlay = html.Div(
         dcc.Input(
             id=ID.AVG_COST,
             type="number",
-            value=0.0,
             step=0.01,
             persistence=True,
             persistence_type="session",
@@ -440,7 +484,6 @@ _panel_pricing_roi = html.Div(
                 {"label": "Mid", "value": "mid"},
                 {"label": "Bid/Ask", "value": "bid_ask"},
             ],
-            value="mid",
             clearable=False,
             persistence=True,
             persistence_type="session",
@@ -466,7 +509,6 @@ _panel_pricing_roi = html.Div(
                     "value": "margin",
                 },
             ],
-            value="premium",
             clearable=False,
             persistence=True,
             persistence_type="session",
@@ -478,7 +520,6 @@ _panel_pricing_roi = html.Div(
                 {"label": "ATM", "value": "atm"},
                 {"label": "Per Leg", "value": "per_leg"},
             ],
-            value="atm",
             clearable=False,
             persistence=True,
             persistence_type="session",
@@ -487,7 +528,6 @@ _panel_pricing_roi = html.Div(
         dcc.Input(
             id=ID.ATM_IV,
             type="number",
-            value=0.2,
             step=0.01,
             persistence=True,
             persistence_type="session",
@@ -520,7 +560,6 @@ _panel_scenario_actions = html.Div(
                 {"label": "Targets", "value": "targets"},
                 {"label": "Infinity", "value": "infinity"},
             ],
-            value="targets",
             clearable=False,
             persistence=True,
             persistence_type="session",
@@ -529,7 +568,6 @@ _panel_scenario_actions = html.Div(
         dcc.Input(
             id=ID.DOWNSIDE_TGT,
             type="number",
-            value=-10.0,
             step=1.0,
             persistence=True,
             persistence_type="session",
@@ -539,7 +577,6 @@ _panel_scenario_actions = html.Div(
         dcc.Input(
             id=ID.UPSIDE_TGT,
             type="number",
-            value=10.0,
             step=1.0,
             persistence=True,
             persistence_type="session",
@@ -634,7 +671,6 @@ _dashboard_main_children = [
                                 "value": "combined",
                             },
                         ],
-                        value=["options", "combined"],
                         className="vnext-checklist",
                     ),
                     dcc.Checklist(
@@ -649,7 +685,6 @@ _dashboard_main_children = [
                                 "value": "breakevens",
                             },
                         ],
-                        value=["strikes", "breakevens"],
                         className="vnext-checklist",
                     ),
                 ],

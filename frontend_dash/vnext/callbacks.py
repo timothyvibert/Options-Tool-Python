@@ -41,6 +41,34 @@ def _coerce_float(value: object) -> float | None:
     return numeric
 
 
+def _fmt_money(value: object) -> str:
+    num = _coerce_float(value)
+    if num is None:
+        return "--"
+    return f"{num:,.2f}"
+
+
+def _fmt_money_signed(value: object) -> str:
+    num = _coerce_float(value)
+    if num is None:
+        return "--"
+    return f"{num:,.2f}"
+
+
+def _fmt_percent_ratio(value: object, decimals: int = 1) -> str:
+    num = _coerce_float(value)
+    if num is None:
+        return "--"
+    return f"{num * 100.0:.{decimals}f}%"
+
+
+def _fmt_percent_point(value: object, decimals: int = 1) -> str:
+    num = _coerce_float(value)
+    if num is None:
+        return "--"
+    return f"{num:.{decimals}f}%"
+
+
 def _normalize_spot_result(result: object) -> tuple[float | None, str | None]:
     if isinstance(result, dict):
         spot_value = result.get("spot")
@@ -1031,15 +1059,69 @@ def register_callbacks(
         summary = store_pack.get("summary", {}) if isinstance(store_pack, dict) else {}
         summary_rows = summary.get("rows") if isinstance(summary, dict) else []
         metrics_rows = []
+
+        def _pick_value(row_dict: dict, keys: list[str]):
+            for key in keys:
+                if key in row_dict:
+                    value = row_dict.get(key)
+                    if value is not None:
+                        return value
+            return None
+
+        def _format_summary_value(metric_label: str, raw_value: object) -> str:
+            if raw_value is None or raw_value == "":
+                return "--"
+            text = str(raw_value).strip()
+            metric_key = str(metric_label or "").strip().lower()
+            if metric_key in {"max profit", "max loss"}:
+                return (
+                    _fmt_money_signed(raw_value)
+                    if _coerce_float(raw_value) is not None
+                    else text
+                )
+            if metric_key in {"capital basis", "notional exposure"}:
+                return (
+                    _fmt_money(raw_value)
+                    if _coerce_float(raw_value) is not None
+                    else text
+                )
+            if metric_key in {"max roi", "min roi"}:
+                return (
+                    _fmt_percent_ratio(raw_value)
+                    if _coerce_float(raw_value) is not None
+                    else text
+                )
+            if metric_key == "net prem % spot":
+                if "%" in text:
+                    return text
+                return (
+                    _fmt_percent_point(raw_value)
+                    if _coerce_float(raw_value) is not None
+                    else text
+                )
+            if metric_key == "cost/credit":
+                return text
+            if metric_key == "pop":
+                if "%" in text:
+                    return text
+                return (
+                    _fmt_percent_point(raw_value)
+                    if _coerce_float(raw_value) is not None
+                    else text
+                )
+            return text
+
         for row in summary_rows or []:
             if not isinstance(row, dict):
                 continue
             metric = row.get("metric") or row.get("label") or row.get("Metric") or ""
+            options_raw = _pick_value(row, ["options", "Options"])
+            combined_raw = _pick_value(row, ["combined", "Combined", "net"])
             metrics_rows.append(
                 [
                     metric,
-                    row.get("options") or row.get("Options") or "--",
-                    row.get("combined") or row.get("Combined") or row.get("net") or "--",
+                    _format_summary_value(metric, options_raw),
+                    _format_summary_value(metric, combined_raw),
                 ]
             )
         metrics_table = (
@@ -1209,12 +1291,11 @@ def register_callbacks(
         if not isinstance(levels, list) or not levels:
             return html.Div("--")
 
-        def _fmt(value, suffix=""):
+        def _fmt_price(value):
             num = _coerce_float(value)
             if num is None:
                 return "--"
-            text = f"{num:.2f}"
-            return f"{text}{suffix}" if suffix else text
+            return f"{num:.2f}"
 
         sorted_levels = _sort_key_levels(levels)
         rows = []
@@ -1224,12 +1305,12 @@ def register_callbacks(
             rows.append(
                 [
                     level.get("label", "--"),
-                    _fmt(level.get("price")),
-                    _fmt(level.get("move_pct"), "%"),
-                    _fmt(level.get("stock_pnl")),
-                    _fmt(level.get("option_pnl")),
-                    _fmt(level.get("net_pnl")),
-                    _fmt(level.get("net_roi")),
+                    _fmt_price(level.get("price")),
+                    _fmt_percent_point(level.get("move_pct")),
+                    _fmt_money_signed(level.get("stock_pnl")),
+                    _fmt_money_signed(level.get("option_pnl")),
+                    _fmt_money_signed(level.get("net_pnl")),
+                    _fmt_percent_ratio(level.get("net_roi")),
                     level.get("source", "--"),
                 ]
             )
@@ -1331,7 +1412,77 @@ def register_callbacks(
         pack = cache_get(key)
         if not pack:
             return key_json, "--", "Analysis missing/expired; rerun"
-        summary = {
+        store_pack = analysis_pack_to_store(pack)
+
+        def _first_last_pairs(x_vals, y_vals, n=5):
+            pairs = []
+            if isinstance(x_vals, list) and isinstance(y_vals, list):
+                for x, y in zip(x_vals, y_vals):
+                    pairs.append(
+                        {
+                            "x": _coerce_float(x),
+                            "y": _coerce_float(y),
+                        }
+                    )
+            return {
+                "first": pairs[:n],
+                "last": pairs[-n:] if len(pairs) > n else pairs,
+            }
+
+        payoff = store_pack.get("payoff") if isinstance(store_pack, dict) else {}
+        price_grid = payoff.get("price_grid") if isinstance(payoff, dict) else []
+        options = payoff.get("options_pnl") if isinstance(payoff, dict) else []
+        stock = payoff.get("stock_pnl") if isinstance(payoff, dict) else []
+        combined = payoff.get("combined_pnl") if isinstance(payoff, dict) else []
+        strikes = payoff.get("strikes") if isinstance(payoff, dict) else []
+        breakevens = payoff.get("breakevens") if isinstance(payoff, dict) else []
+
+        scenario_df = {}
+        scenario = store_pack.get("scenario") if isinstance(store_pack, dict) else {}
+        if isinstance(scenario, dict):
+            scenario_df = scenario.get("df") or {}
+        scenario_rows = []
+        if isinstance(scenario_df, dict) and scenario_df.get("__type__") == "DataFrame":
+            scenario_rows = scenario_df.get("records") or []
+        if isinstance(scenario_df, list):
+            scenario_rows = scenario_df
+        scenario_preview = []
+        for row in scenario_rows[:8]:
+            if not isinstance(row, dict):
+                continue
+            scenario_preview.append(
+                {
+                    "price": row.get("price"),
+                    "option_pnl": row.get("option_pnl"),
+                    "stock_pnl": row.get("stock_pnl"),
+                    "combined_pnl": row.get("combined_pnl"),
+                    "net_roi": row.get("net_roi"),
+                }
+            )
+
+        summary_rows = []
+        summary = store_pack.get("summary") if isinstance(store_pack, dict) else {}
+        if isinstance(summary, dict):
+            summary_rows = summary.get("rows") or []
+
+        key_levels_rows = []
+        key_levels = store_pack.get("key_levels") if isinstance(store_pack, dict) else {}
+        levels = key_levels.get("levels") if isinstance(key_levels, dict) else []
+        if isinstance(levels, list):
+            for level in levels[:8]:
+                if not isinstance(level, dict):
+                    continue
+                key_levels_rows.append(
+                    {
+                        "label": level.get("label"),
+                        "price": level.get("price"),
+                        "net_pnl": level.get("net_pnl"),
+                        "net_roi": level.get("net_roi"),
+                        "source": level.get("source"),
+                    }
+                )
+
+        debug_payload = {
             "as_of": pack.get("as_of"),
             "underlying": (
                 {
@@ -1344,12 +1495,16 @@ def register_callbacks(
                 if isinstance(pack.get("underlying"), dict)
                 else {}
             ),
-            "payoff_keys": list((pack.get("payoff") or {}).keys())
-            if isinstance(pack.get("payoff"), dict)
-            else [],
-            "scenario_df": bool(
-                isinstance(pack.get("scenario"), dict)
-                and pack.get("scenario", {}).get("df") is not None
-            ),
+            "payoff": {
+                "len": len(price_grid) if isinstance(price_grid, list) else 0,
+                "combined": _first_last_pairs(price_grid, combined),
+                "options": _first_last_pairs(price_grid, options),
+                "stock": _first_last_pairs(price_grid, stock),
+                "strikes": strikes,
+                "breakevens": breakevens,
+            },
+            "summary_rows": summary_rows,
+            "key_levels_top": key_levels_rows,
+            "scenario_top": scenario_preview,
         }
-        return key_json, json.dumps(summary, indent=2, sort_keys=True), "Analysis loaded"
+        return key_json, json.dumps(debug_payload, indent=2, sort_keys=True), "Analysis loaded"

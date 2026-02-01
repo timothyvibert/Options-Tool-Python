@@ -1012,10 +1012,21 @@ def layout_bloomberg(bloomberg_available: bool = False):
 def layout_report():
     main_children = [
         html.Div("Client Report", className="vnext-section-title ae-section-title"),
-        html.Div("Coming next."),
         html.Div(
-            "PDF export is disabled (reportlab not installed).",
-            className="vnext-muted",
+            className="ae-card",
+            children=[
+                html.Div(
+                    className="ae-card__header",
+                    children=[html.Div("Generate Report", className="ae-card__title")],
+                ),
+                html.Button(
+                    "Generate PDF Report",
+                    id=ID.BTN_REPORT_PDF,
+                    className="ae-btn ae-btn-primary ae-btn-pill",
+                ),
+                dcc.Download(id=ID.DL_REPORT_PDF),
+                html.Div(id=ID.REPORT_STATUS, className="vnext-muted"),
+            ],
         ),
     ]
     return layout_page_frame(

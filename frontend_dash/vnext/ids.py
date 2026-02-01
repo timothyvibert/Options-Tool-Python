@@ -78,3 +78,8 @@ BBG_LEG_QUOTES = "bbg-leg-quotes"
 BBG_ERRORS = "bbg-errors"
 BTN_EXPORT_MARKET_JSON = "bbg-export-market-json"
 DL_MARKET_JSON = "bbg-download-market-json"
+
+# Client report
+BTN_REPORT_PDF = "report-pdf-button"
+DL_REPORT_PDF = "report-pdf-download"
+REPORT_STATUS = "report-status"

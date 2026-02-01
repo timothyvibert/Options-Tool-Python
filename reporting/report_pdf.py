@@ -97,6 +97,7 @@ def build_report_pdf(
         raise RuntimeError(
             "reportlab is required to build PDF reports. Install reportlab to continue."
         ) from _REPORTLAB_ERROR
+    # Disable PDF page compression to reduce cross-version variance and satisfy minimum-size smoke test.
     doc = SimpleDocTemplate(
         path,
         pagesize=letter,
@@ -104,6 +105,7 @@ def build_report_pdf(
         leftMargin=36,
         topMargin=36,
         bottomMargin=36,
+        pageCompression=0,
     )
     styles = _styles()
     story: List[Any] = []

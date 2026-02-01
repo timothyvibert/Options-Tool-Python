@@ -8,7 +8,7 @@ import math
 import re
 
 import plotly.graph_objects as go
-from dash import Input, Output, State, no_update, ctx, html
+from dash import Input, Output, State, dcc, no_update, ctx, html
 from dash.exceptions import PreventUpdate
 
 from core.analysis_pack import build_analysis_pack
@@ -55,6 +55,16 @@ def _coerce_bool(value: object) -> bool:
     if text in {"false", "no", "0", "n", "f", ""}:
         return False
     return False
+
+
+def _safe_json_dumps(payload: object) -> str:
+    try:
+        return json.dumps(to_jsonable(payload), sort_keys=True, indent=2)
+    except Exception:
+        try:
+            return json.dumps(str(payload), sort_keys=True, indent=2)
+        except Exception:
+            return str(payload)
 
 
 _DATE_RE = re.compile(r"^\\d{4}-\\d{2}-\\d{2}$")
@@ -716,6 +726,169 @@ def register_callbacks(
         else:
             refresh_msg = "No market snapshot yet"
         return ref_view, market_view, refresh_msg
+
+    @app.callback(
+        Output(ID.BBG_REQUEST_SUMMARY, "children"),
+        Output(ID.BBG_UNDERLYING_SUMMARY, "children"),
+        Output(ID.BBG_UNDERLYING_JSON, "children"),
+        Output(ID.BBG_LEG_QUOTES, "data"),
+        Output(ID.BBG_ERRORS, "children"),
+        Input(ID.STORE_MARKET, "data"),
+        Input(ID.STORE_INPUTS, "data"),
+    )
+    def _render_market_transparency(market_data, inputs_data):
+        market = market_data if isinstance(market_data, dict) else {}
+        inputs = inputs_data if isinstance(inputs_data, dict) else {}
+
+        refreshed_at = market.get("refreshed_at")
+        raw_ticker = inputs.get("raw_ticker") or inputs.get("ticker")
+        resolved = market.get("resolved_underlying") or inputs.get("resolved_ticker")
+        expiry_value = inputs.get("expiry")
+        errors = market.get("errors") if isinstance(market.get("errors"), list) else []
+        errors_count = len(errors)
+
+        leg_tickers = market.get("leg_tickers")
+        if not isinstance(leg_tickers, list):
+            leg_tickers = []
+        if not leg_tickers:
+            legs = inputs.get("legs")
+            if isinstance(legs, list):
+                leg_tickers = [
+                    row.get("option_ticker")
+                    for row in legs
+                    if isinstance(row, dict)
+                ]
+
+        tickers_text = ", ".join(
+            [t.strip() for t in leg_tickers if isinstance(t, str) and t.strip()]
+        )
+        if not tickers_text:
+            tickers_text = "--"
+
+        leg_quotes = market.get("leg_quotes")
+        if not isinstance(leg_quotes, list):
+            leg_quotes = []
+        quote_count = sum(
+            1
+            for quote in leg_quotes
+            if isinstance(quote, dict) and any(value is not None for value in quote.values())
+        )
+
+        def _display(value: object) -> str:
+            if value is None or value == "":
+                return "--"
+            return str(value)
+
+        def _kv(label: str, value: object):
+            return html.Div(
+                [
+                    html.Span(f"{label}: ", className="ae-muted"),
+                    html.Span(_display(value)),
+                ]
+            )
+
+        request_summary = [
+            _kv("Refreshed At", refreshed_at),
+            _kv("Raw Ticker", raw_ticker),
+            _kv("Resolved Underlying", resolved),
+            _kv("Expiry", expiry_value),
+            _kv("Leg Tickers", tickers_text),
+            _kv("Quote Count", quote_count),
+            _kv("Errors", errors_count),
+        ]
+
+        underlying_profile = market.get("underlying_profile")
+        if not isinstance(underlying_profile, dict):
+            underlying_profile = {}
+
+        normalized_profile = {
+            str(key).upper(): value for key, value in underlying_profile.items()
+        }
+
+        def _pick_profile(keys: list[str]) -> object | None:
+            for key in keys:
+                if key in underlying_profile and underlying_profile[key] not in (None, ""):
+                    return underlying_profile[key]
+                upper = key.upper()
+                if upper in normalized_profile and normalized_profile[upper] not in (None, ""):
+                    return normalized_profile[upper]
+            return None
+
+        underlying_rows = []
+        for label, keys in [
+            ("Name", ["name", "NAME", "SECURITY_NAME", "SECURITY_DES"]),
+            ("Sector", ["sector", "SECTOR", "GICS_SECTOR_NAME"]),
+            ("Industry", ["industry", "INDUSTRY", "GICS_INDUSTRY_NAME"]),
+            ("52W High", ["HIGH_52WEEK", "WEEK_52_HIGH", "PX_52W_HIGH"]),
+            ("52W Low", ["LOW_52WEEK", "WEEK_52_LOW", "PX_52W_LOW"]),
+            ("Dividend Yield", ["DIVIDEND_YIELD", "DVD_YLD"]),
+        ]:
+            value = _pick_profile(keys)
+            if value is not None and value != "":
+                underlying_rows.append(_kv(label, value))
+        if not underlying_rows:
+            underlying_rows = [html.Div("No underlying snapshot.", className="vnext-muted")]
+
+        underlying_json = (
+            _safe_json_dumps(underlying_profile) if underlying_profile else "--"
+        )
+
+        def _quote_field(quote: dict, keys: list[str]) -> object | None:
+            for key in keys:
+                if key in quote and quote[key] is not None:
+                    return quote[key]
+            return None
+
+        quote_rows = []
+        row_count = max(len(leg_quotes), len(leg_tickers))
+        for idx in range(row_count):
+            quote = (
+                leg_quotes[idx]
+                if idx < len(leg_quotes) and isinstance(leg_quotes[idx], dict)
+                else {}
+            )
+            ticker = leg_tickers[idx] if idx < len(leg_tickers) else None
+            row = {
+                "leg": idx + 1,
+                "option_ticker": ticker or "--",
+                "bid": _quote_field(quote, ["bid", "BID", "PX_BID"]),
+                "ask": _quote_field(quote, ["ask", "ASK", "PX_ASK"]),
+                "mid": _quote_field(quote, ["mid", "MID", "PX_MID"]),
+                "last": _quote_field(quote, ["last", "PX_LAST"]),
+                "iv": _quote_field(quote, ["iv", "IVOL_MID", "IV_MID", "iv_mid"]),
+            }
+            for key, value in list(row.items()):
+                if value is None:
+                    row[key] = "--"
+            quote_rows.append(row)
+
+        if errors:
+            error_children = html.Ul([html.Li(str(err)) for err in errors])
+        else:
+            error_children = html.Div("No errors.", className="vnext-muted")
+
+        return request_summary, underlying_rows, underlying_json, quote_rows, error_children
+
+    @app.callback(
+        Output(ID.DL_MARKET_JSON, "data"),
+        Input(ID.BTN_EXPORT_MARKET_JSON, "n_clicks"),
+        State(ID.STORE_INPUTS, "data"),
+        State(ID.STORE_MARKET, "data"),
+        prevent_initial_call=True,
+    )
+    def _download_market_snapshot(n_clicks, inputs_data, market_data):
+        if not n_clicks:
+            return no_update
+        exported_at = _utc_now_str()
+        bundle = {
+            "exported_at": exported_at,
+            "inputs": inputs_data if isinstance(inputs_data, dict) else {},
+            "market_snapshot": market_data if isinstance(market_data, dict) else {},
+        }
+        payload = _safe_json_dumps(bundle)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        filename = f"alpha_engine_market_snapshot_{stamp}.json"
+        return dcc.send_string(payload, filename=filename)
 
     @app.callback(
         Output(ID.STORE_ANALYSIS_KEY, "data"),

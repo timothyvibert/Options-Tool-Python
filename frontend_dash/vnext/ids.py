@@ -69,3 +69,12 @@ REFRESH_DEBUG = "refresh-debug"
 ANALYSIS_KEY_DEBUG = "analysis-key-debug"
 ANALYSIS_PACK_DEBUG = "analysis-pack-debug"
 ANALYSIS_RENDER_DEBUG = "analysis-render-debug"
+
+# Bloomberg transparency
+BBG_REQUEST_SUMMARY = "bbg-request-summary"
+BBG_UNDERLYING_SUMMARY = "bbg-underlying-summary"
+BBG_UNDERLYING_JSON = "bbg-underlying-json"
+BBG_LEG_QUOTES = "bbg-leg-quotes"
+BBG_ERRORS = "bbg-errors"
+BTN_EXPORT_MARKET_JSON = "bbg-export-market-json"
+DL_MARKET_JSON = "bbg-download-market-json"

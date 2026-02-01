@@ -891,6 +891,68 @@ def layout_bloomberg(bloomberg_available: bool = False):
             className="vnext-checklist",
         ),
         html.Div(
+            className="ae-card",
+            children=[
+                html.Div(
+                    className="ae-card__header",
+                    children=[
+                        html.Div("Request / As-Of", className="ae-card__title"),
+                        html.Button(
+                            "Download JSON",
+                            id=ID.BTN_EXPORT_MARKET_JSON,
+                            className="ae-btn ae-btn-primary ae-btn-pill",
+                        ),
+                    ],
+                ),
+                dcc.Download(id=ID.DL_MARKET_JSON),
+                html.Div(id=ID.BBG_REQUEST_SUMMARY, className="ae-card__body"),
+            ],
+        ),
+        html.Div(
+            className="ae-card",
+            children=[
+                html.Div(
+                    className="ae-card__header",
+                    children=[html.Div("Underlying Snapshot", className="ae-card__title")],
+                ),
+                html.Div(id=ID.BBG_UNDERLYING_SUMMARY, className="ae-card__body"),
+                html.Pre(id=ID.BBG_UNDERLYING_JSON, className="vnext-pre"),
+            ],
+        ),
+        html.Div(
+            className="ae-card",
+            children=[
+                html.Div(
+                    className="ae-card__header",
+                    children=[html.Div("Leg Quotes", className="ae-card__title")],
+                ),
+                dash_table.DataTable(
+                    id=ID.BBG_LEG_QUOTES,
+                    columns=[
+                        {"name": "#", "id": "leg"},
+                        {"name": "Option Ticker", "id": "option_ticker"},
+                        {"name": "Bid", "id": "bid"},
+                        {"name": "Ask", "id": "ask"},
+                        {"name": "Mid", "id": "mid"},
+                        {"name": "Last", "id": "last"},
+                        {"name": "IV", "id": "iv"},
+                    ],
+                    data=[],
+                    style_table={"overflowX": "auto"},
+                ),
+            ],
+        ),
+        html.Div(
+            className="ae-card",
+            children=[
+                html.Div(
+                    className="ae-card__header",
+                    children=[html.Div("Errors", className="ae-card__title")],
+                ),
+                html.Div(id=ID.BBG_ERRORS, className="ae-card__body"),
+            ],
+        ),
+        html.Div(
             id=ID.DEBUG_CONTAINER,
             style={"display": "none"},
             children=[
@@ -939,7 +1001,6 @@ def layout_bloomberg(bloomberg_available: bool = False):
                 ),
             ],
         ),
-        html.Div("Snapshot transparency coming next.", className="vnext-muted"),
     ]
     return layout_page_frame(
         main_children,

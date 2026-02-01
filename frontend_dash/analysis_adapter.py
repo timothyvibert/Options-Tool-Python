@@ -298,25 +298,33 @@ def refresh_leg_premiums(
             row_tickers.append(None)
             updated_rows.append(row)
             continue
-        kind = str(row.get("kind", "")).strip().lower()
-        strike = row.get("strike")
-        if kind not in {"call", "put"} or strike is None:
-            row_tickers.append(None)
-            updated_row = dict(row)
-            updated_row["option_ticker"] = None
-            updated_rows.append(updated_row)
-            continue
-        put_call = "CALL" if kind == "call" else "PUT"
-        try:
-            ticker = resolve_option_ticker_from_strike(
-                base, expiry, put_call, float(strike)
-            )
-        except Exception as exc:
-            ticker = None
-            errors.append(f"Leg {idx + 1}: ticker resolve failed ({exc})")
-        row_tickers.append(ticker)
+        user_ticker = row.get("option_ticker") or ""
+        if not isinstance(user_ticker, str):
+            user_ticker = str(user_ticker) if user_ticker is not None else ""
+        user_ticker = user_ticker.strip()
         updated_row = dict(row)
-        updated_row["option_ticker"] = ticker
+        ticker = None
+        if user_ticker:
+            ticker = user_ticker
+            updated_row["option_ticker"] = ticker
+        else:
+            kind = str(row.get("kind", "")).strip().lower()
+            strike = row.get("strike")
+            if kind not in {"call", "put"} or strike is None:
+                row_tickers.append(None)
+                updated_rows.append(updated_row)
+                continue
+            put_call = "CALL" if kind == "call" else "PUT"
+            try:
+                ticker = resolve_option_ticker_from_strike(
+                    base, expiry, put_call, float(strike)
+                )
+            except Exception as exc:
+                ticker = None
+                errors.append(f"Leg {idx + 1}: ticker resolve failed ({exc})")
+            if ticker is not None:
+                updated_row["option_ticker"] = ticker
+        row_tickers.append(ticker or None)
         updated_rows.append(updated_row)
         if ticker:
             option_tickers.append(ticker)

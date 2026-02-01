@@ -527,7 +527,9 @@ def register_callbacks(
                     )
                     updated["premium"] = abs(float(premium))
                 if idx < len(leg_tickers):
-                    updated["option_ticker"] = leg_tickers[idx]
+                    ticker_value = leg_tickers[idx]
+                    if isinstance(ticker_value, str) and ticker_value.strip():
+                        updated["option_ticker"] = ticker_value
                 updated_rows.append(updated)
             return updated_rows
         if trigger_id == ID.STRATEGY_ID or trigger_id is None:

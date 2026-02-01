@@ -75,3 +75,69 @@ def test_refresh_populates_tickers_and_profile(monkeypatch):
         None,
     ]
     assert market_snapshot.get("errors") == []
+
+
+def test_refresh_respects_row_option_ticker(monkeypatch):
+    try:
+        import adapters.bloomberg as bbg
+    except Exception as exc:  # pragma: no cover - repo should have adapters
+        pytest.skip(f"Bloomberg adapter unavailable: {exc}")
+
+    recorded_tickers = []
+
+    def _resolve_option_ticker(*_args, **_kwargs):
+        raise AssertionError("should not be called")
+
+    def _fetch_option_snapshot(tickers):
+        recorded_tickers[:] = list(tickers)
+        return {
+            ticker: {
+                "BID": 1.0,
+                "ASK": 3.0,
+                "PX_MID": 2.0,
+                "PX_LAST": 2.5,
+                "IVOL_MID": 0.2,
+            }
+            for ticker in tickers
+        }
+
+    def _fetch_spot(_resolved):
+        return {"spot": 123.45}
+
+    def _fetch_underlying_snapshot(_resolved):
+        return {"name": "Test Co"}
+
+    monkeypatch.setattr(
+        bbg, "resolve_option_ticker_from_strike", _resolve_option_ticker, raising=False
+    )
+    monkeypatch.setattr(
+        bbg, "fetch_option_snapshot", _fetch_option_snapshot, raising=False
+    )
+    monkeypatch.setattr(bbg, "fetch_spot", _fetch_spot, raising=False)
+    monkeypatch.setattr(
+        bbg, "fetch_underlying_snapshot", _fetch_underlying_snapshot, raising=False
+    )
+
+    legs = [
+        {
+            "kind": "call",
+            "strike": 100.0,
+            "side": "Long",
+            "qty": 1,
+            "premium": 0.0,
+            "option_ticker": "MANUAL_OPT 1",
+        }
+    ]
+
+    updated_rows, market_snapshot, _ = adapter.refresh_leg_premiums(
+        raw_underlying="TEST",
+        resolved_underlying="TEST US Equity",
+        expiry="2026-01-01",
+        legs_rows=legs,
+        pricing_mode="mid",
+    )
+
+    assert updated_rows[0].get("option_ticker") == "MANUAL_OPT 1"
+    assert market_snapshot.get("leg_tickers")[0] == "MANUAL_OPT 1"
+    assert recorded_tickers == ["MANUAL_OPT 1"]
+    assert market_snapshot.get("errors") == []

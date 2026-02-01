@@ -263,13 +263,9 @@ def test_golden_bull_put_credit_spread():
     )
     assert min(points) == pytest.approx(80.0, abs=1e-6)
     assert max(points) == pytest.approx(120.0, abs=1e-6)
-    scenario_df_for_check = scenario_df.copy()
-    if "Current Market Price" not in scenario_df_for_check["scenario"].tolist():
-        spot_mask = (
-            scenario_df_for_check["price"] - float(strategy_input.spot)
-        ).abs() <= 1e-6
-        scenario_df_for_check.loc[spot_mask, "scenario"] = "Current Market Price"
-    _assert_required_scenarios(scenario_df_for_check)
+    _assert_required_scenarios(scenario_df)
+    spot_mask = (scenario_df["price"] - float(strategy_input.spot)).abs() <= 1e-6
+    assert scenario_df.loc[spot_mask, "scenario"].iloc[0] == "Current Market Price"
     assert "Breakeven 1" in scenario_df["scenario"].tolist()
 
     pack = _build_pack(strategy_input, RISK_MAX_LOSS, "Bull Put Spread (Credit)")

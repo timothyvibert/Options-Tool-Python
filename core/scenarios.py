@@ -137,7 +137,6 @@ def compute_scenario_table(
         ]
     )
     label_map: dict[float, str] = {}
-    label_map[_price_key(spot)] = "Current Market Price"
     for strike, label in strike_labels.items():
         label_map[_price_key(strike)] = label
     for breakeven, label in breakeven_labels.items():
@@ -151,6 +150,7 @@ def compute_scenario_table(
         label_map[_price_key(max_price)] = _move_label(
             "Upside", spot, float(max_price)
         )
+    label_map[_price_key(spot)] = "Current Market Price"
 
     rows = []
     for price in points:

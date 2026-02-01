@@ -5,4 +5,4 @@ plotly
 scipy
 pytest
 polars-bloomberg
-reportlab
+reportlab>=4,<5

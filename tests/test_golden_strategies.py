@@ -276,3 +276,75 @@ def test_golden_bull_put_credit_spread():
     _assert_pack_keys(pack)
     assert pack["margin"]["classification"] == SPR
     assert float(pack["margin"]["margin_proxy"]) == pytest.approx(700.0, abs=1e-6)
+
+
+def test_golden_long_straddle():
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=0.0,
+        avg_cost=0.0,
+        legs=[
+            OptionLeg(kind="call", position=1.0, strike=102.0, premium=4.0),
+            OptionLeg(kind="put", position=1.0, strike=102.0, premium=4.0),
+        ],
+    )
+    payoff_result = compute_payoff(strategy_input)
+    assert payoff_result["breakevens"] == pytest.approx([94.0, 110.0], abs=1e-6)
+    assert min(payoff_result["pnl"]) == pytest.approx(-800.0, abs=1e-6)
+    assert payoff_result["unlimited_upside"] is True
+
+    option_basis = capital_basis(strategy_input, payoff_result, NET_PREMIUM)
+    total_basis = combined_capital_basis(strategy_input, option_basis)
+    assert option_basis == pytest.approx(800.0, abs=1e-6)
+    assert total_basis == pytest.approx(800.0, abs=1e-6)
+
+    points, scenario_df = _build_scenario_df(
+        strategy_input, payoff_result, NET_PREMIUM
+    )
+    assert min(points) == pytest.approx(80.0, abs=1e-6)
+    assert max(points) == pytest.approx(120.0, abs=1e-6)
+    _assert_required_scenarios(scenario_df)
+    assert "Breakeven 1" in scenario_df["scenario"].tolist()
+    assert "Breakeven 2" in scenario_df["scenario"].tolist()
+
+    pack = _build_pack(strategy_input, NET_PREMIUM, "Long Straddle")
+    _assert_pack_keys(pack)
+
+
+def test_golden_iron_condor():
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=0.0,
+        avg_cost=0.0,
+        legs=[
+            OptionLeg(kind="put", position=-1.0, strike=95.0, premium=2.0),
+            OptionLeg(kind="put", position=1.0, strike=90.0, premium=0.75),
+            OptionLeg(kind="call", position=-1.0, strike=105.0, premium=2.0),
+            OptionLeg(kind="call", position=1.0, strike=110.0, premium=0.75),
+        ],
+    )
+    payoff_result = compute_payoff(strategy_input)
+    assert payoff_result["breakevens"] == pytest.approx([92.5, 107.5], abs=1e-6)
+    assert max(payoff_result["pnl"]) == pytest.approx(250.0, abs=1e-6)
+    assert min(payoff_result["pnl"]) == pytest.approx(-250.0, abs=1e-6)
+    assert payoff_result["unlimited_upside"] is False
+    assert payoff_result["unlimited_downside"] is False
+
+    option_basis = capital_basis(strategy_input, payoff_result, RISK_MAX_LOSS)
+    total_basis = combined_capital_basis(strategy_input, option_basis)
+    assert option_basis == pytest.approx(250.0, abs=1e-6)
+    assert total_basis == pytest.approx(250.0, abs=1e-6)
+
+    points, scenario_df = _build_scenario_df(
+        strategy_input, payoff_result, RISK_MAX_LOSS
+    )
+    assert min(points) == pytest.approx(80.0, abs=1e-6)
+    assert max(points) == pytest.approx(120.0, abs=1e-6)
+    _assert_required_scenarios(scenario_df)
+    assert "Breakeven 1" in scenario_df["scenario"].tolist()
+    assert "Breakeven 2" in scenario_df["scenario"].tolist()
+
+    pack = _build_pack(strategy_input, RISK_MAX_LOSS, "Iron Condor")
+    _assert_pack_keys(pack)
+    assert pack["margin"]["classification"] == SPR
+    assert float(pack["margin"]["margin_proxy"]) == pytest.approx(250.0, abs=1e-6)

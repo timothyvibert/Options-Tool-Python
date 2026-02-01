@@ -11,7 +11,13 @@ import pytest
 from core.analysis_pack import build_analysis_pack
 from core.models import OptionLeg, StrategyInput
 from core.payoff import compute_payoff
-from core.roi import NET_PREMIUM, RISK_MAX_LOSS, capital_basis, combined_capital_basis
+from core.roi import (
+    CASH_SECURED,
+    NET_PREMIUM,
+    RISK_MAX_LOSS,
+    capital_basis,
+    combined_capital_basis,
+)
 from core.scenarios import build_scenario_points, compute_scenario_table
 
 
@@ -159,6 +165,38 @@ def test_golden_protective_put():
     _assert_required_scenarios(scenario_df)
 
     pack = _build_pack(strategy_input, NET_PREMIUM, "Protective Put")
+    _assert_pack_keys(pack)
+
+
+def test_golden_cash_secured_put():
+    # Strategy map: Cash-Secured Put (short put)
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=0.0,
+        avg_cost=0.0,
+        legs=[OptionLeg(kind="put", position=-1.0, strike=95.0, premium=2.5)],
+    )
+    payoff_result = compute_payoff(strategy_input)
+    assert payoff_result["breakevens"] == pytest.approx([92.5], abs=1e-6)
+    assert max(payoff_result["pnl"]) == pytest.approx(250.0, abs=1e-6)
+    assert min(payoff_result["pnl"]) == pytest.approx(-9250.0, abs=1e-6)
+    assert payoff_result["unlimited_upside"] is False
+    assert payoff_result["unlimited_downside"] is False
+
+    option_basis = capital_basis(strategy_input, payoff_result, CASH_SECURED)
+    total_basis = combined_capital_basis(strategy_input, option_basis)
+    assert option_basis == pytest.approx(9500.0, abs=1e-6)
+    assert total_basis == pytest.approx(9500.0, abs=1e-6)
+
+    points, scenario_df = _build_scenario_df(
+        strategy_input, payoff_result, CASH_SECURED
+    )
+    assert min(points) == pytest.approx(80.0, abs=1e-6)
+    assert max(points) == pytest.approx(120.0, abs=1e-6)
+    _assert_required_scenarios(scenario_df)
+    assert "Breakeven 1" in scenario_df["scenario"].tolist()
+
+    pack = _build_pack(strategy_input, CASH_SECURED, "Cash-Secured Put")
     _assert_pack_keys(pack)
 
 

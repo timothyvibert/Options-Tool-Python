@@ -42,6 +42,21 @@ def _coerce_float(value: object) -> float | None:
     return numeric
 
 
+def _coerce_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return value != 0
+    text = str(value).strip().lower()
+    if text in {"true", "yes", "1", "y", "t"}:
+        return True
+    if text in {"false", "no", "0", "n", "f", ""}:
+        return False
+    return False
+
+
 _DATE_RE = re.compile(r"^\\d{4}-\\d{2}-\\d{2}$")
 
 
@@ -235,6 +250,30 @@ def _quote_value(quote: dict, keys: list[str]) -> float | None:
             if value is not None:
                 return value
     return None
+
+
+def _quote_has_values(quote: dict) -> bool:
+    if not isinstance(quote, dict):
+        return False
+    return (
+        _quote_value(
+            quote,
+            [
+                "bid",
+                "BID",
+                "PX_BID",
+                "ask",
+                "ASK",
+                "PX_ASK",
+                "mid",
+                "MID",
+                "PX_MID",
+                "last",
+                "PX_LAST",
+            ],
+        )
+        is not None
+    )
 
 
 def _select_premium_from_quote(quote: dict, position: float, pricing_mode: str) -> float:
@@ -479,11 +518,14 @@ def register_callbacks(
                 if idx < len(quotes) and isinstance(quotes[idx], dict):
                     quote = quotes[idx]
                 position = _row_position(row)
-                premium = _select_premium_from_quote(
-                    quote, position, pricing_mode or "mid"
-                )
+                has_quote = _quote_has_values(quote)
+                override = _coerce_bool(row.get("override"))
                 updated = dict(row)
-                updated["premium"] = abs(float(premium))
+                if not override and has_quote:
+                    premium = _select_premium_from_quote(
+                        quote, position, pricing_mode or "mid"
+                    )
+                    updated["premium"] = abs(float(premium))
                 if idx < len(leg_tickers):
                     updated["option_ticker"] = leg_tickers[idx]
                 updated_rows.append(updated)

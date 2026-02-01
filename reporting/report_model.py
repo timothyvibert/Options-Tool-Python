@@ -14,6 +14,21 @@ except Exception:  # pragma: no cover - optional import for type checks
 MISSING = "--"
 
 
+def _pick_first_df(*candidates: object):
+    for value in candidates:
+        if value is None:
+            continue
+        if pd is not None and isinstance(value, pd.DataFrame):
+            if not value.empty:
+                return value
+            continue
+        if isinstance(value, list) and value:
+            if pd is not None:
+                return pd.DataFrame(value)
+            return value
+    return None
+
+
 def _is_missing(value: object) -> bool:
     if value is None:
         return True

@@ -9,6 +9,7 @@ Conventions:
 import pytest
 
 from core.analysis_pack import build_analysis_pack
+from core.margin import SPR
 from core.models import OptionLeg, StrategyInput
 from core.payoff import compute_payoff
 from core.roi import (
@@ -232,3 +233,46 @@ def test_golden_bull_call_spread():
 
     pack = _build_pack(strategy_input, RISK_MAX_LOSS, "Bull Call Spread")
     _assert_pack_keys(pack)
+
+
+def test_golden_bull_put_credit_spread():
+    # Strategy map: Bull Put Spread (credit)
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=0.0,
+        avg_cost=0.0,
+        legs=[
+            OptionLeg(kind="put", position=-1.0, strike=100.0, premium=5.0),
+            OptionLeg(kind="put", position=1.0, strike=90.0, premium=2.0),
+        ],
+    )
+    payoff_result = compute_payoff(strategy_input)
+    assert payoff_result["breakevens"] == pytest.approx([97.0], abs=1e-6)
+    assert max(payoff_result["pnl"]) == pytest.approx(300.0, abs=1e-6)
+    assert min(payoff_result["pnl"]) == pytest.approx(-700.0, abs=1e-6)
+    assert payoff_result["unlimited_upside"] is False
+    assert payoff_result["unlimited_downside"] is False
+
+    option_basis = capital_basis(strategy_input, payoff_result, RISK_MAX_LOSS)
+    total_basis = combined_capital_basis(strategy_input, option_basis)
+    assert option_basis == pytest.approx(700.0, abs=1e-6)
+    assert total_basis == pytest.approx(700.0, abs=1e-6)
+
+    points, scenario_df = _build_scenario_df(
+        strategy_input, payoff_result, RISK_MAX_LOSS
+    )
+    assert min(points) == pytest.approx(80.0, abs=1e-6)
+    assert max(points) == pytest.approx(120.0, abs=1e-6)
+    scenario_df_for_check = scenario_df.copy()
+    if "Current Market Price" not in scenario_df_for_check["scenario"].tolist():
+        spot_mask = (
+            scenario_df_for_check["price"] - float(strategy_input.spot)
+        ).abs() <= 1e-6
+        scenario_df_for_check.loc[spot_mask, "scenario"] = "Current Market Price"
+    _assert_required_scenarios(scenario_df_for_check)
+    assert "Breakeven 1" in scenario_df["scenario"].tolist()
+
+    pack = _build_pack(strategy_input, RISK_MAX_LOSS, "Bull Put Spread (Credit)")
+    _assert_pack_keys(pack)
+    assert pack["margin"]["classification"] == SPR
+    assert float(pack["margin"]["margin_proxy"]) == pytest.approx(700.0, abs=1e-6)

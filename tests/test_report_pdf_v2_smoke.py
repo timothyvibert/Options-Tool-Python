@@ -59,13 +59,19 @@ def test_report_pdf_v2_smoke():
         build_report_pdf_v2(tmp_path, report_model=report_model)
         assert os.path.exists(tmp_path)
         size = os.path.getsize(tmp_path)
-        assert size > 10_000
         with open(tmp_path, "rb") as handle:
             payload = handle.read()
         page_count = payload.count(b"/Type /Page") - payload.count(b"/Type /Pages")
         assert page_count == 2
         assert b"Page 3 of 2" not in payload
         assert b"Commentary" not in payload
+        try:
+            import kaleido  # type: ignore
+        except Exception:
+            assert size > 10_000
+        else:
+            assert size > 20_000
+            assert b"Payoff chart (placeholder)" not in payload
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)

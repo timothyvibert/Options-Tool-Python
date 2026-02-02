@@ -6,3 +6,4 @@ scipy
 pytest
 polars-bloomberg
 reportlab>=4,<5
+kaleido>=0.2,<1

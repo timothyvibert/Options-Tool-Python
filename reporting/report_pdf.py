@@ -6,11 +6,15 @@ from typing import Any, Dict, List, Optional
 import os
 
 import pandas as pd
+import plotly.graph_objects as go
+
+from io import BytesIO
 
 try:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.utils import ImageReader
     from reportlab.lib.units import inch
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
@@ -36,6 +40,7 @@ except ImportError as exc:
     pdf_canvas = None
     Image = None
     PageBreak = None
+    ImageReader = None
     Paragraph = None
     SimpleDocTemplate = None
     Spacer = None
@@ -104,6 +109,44 @@ def _styles(base_font: str = "Helvetica") -> Dict[str, ParagraphStyle]:
             leading=11,
         ),
     }
+
+
+def _build_payoff_figure(payoff_payload: Dict[str, Any]) -> go.Figure:
+    x = payoff_payload.get("price_grid") or []
+    y = payoff_payload.get("combined_pnl") or payoff_payload.get("pnl") or []
+    strikes = payoff_payload.get("strikes") or []
+    breakevens = payoff_payload.get("breakevens") or []
+    fig = go.Figure()
+    if x and y and len(x) == len(y):
+        fig.add_trace(go.Scatter(x=x, y=y, name="Combined PnL"))
+    fig.add_hline(y=0, line_color="#9CA3AF", line_width=1)
+    for strike in strikes:
+        try:
+            strike_val = float(strike)
+        except (TypeError, ValueError):
+            continue
+        fig.add_vline(x=strike_val, line_color="#E5E7EB", line_width=1)
+    for breakeven in breakevens:
+        try:
+            be_val = float(breakeven)
+        except (TypeError, ValueError):
+            continue
+        fig.add_vline(x=be_val, line_color="#9CA3AF", line_width=1, line_dash="dot")
+    fig.update_layout(
+        template="plotly_white",
+        margin=dict(l=20, r=10, t=10, b=20),
+        font=dict(size=10),
+        showlegend=False,
+    )
+    return fig
+
+
+def _try_payoff_png_bytes(payoff_payload: Dict[str, Any]) -> Optional[bytes]:
+    try:
+        fig = _build_payoff_figure(payoff_payload)
+        return fig.to_image(format="png", scale=2)
+    except Exception:
+        return None
 
 
 def build_report_pdf(
@@ -537,8 +580,34 @@ def build_report_pdf_v2(
         _draw_box(c, payoff_x, payoff_y, payoff_w, payoff_h)
         c.setFont(base_font, 10)
         c.drawString(payoff_x + 6, payoff_y + payoff_h - 14, "Payoff")
-        c.setFont(base_font, 9)
-        c.drawCentredString(payoff_x + payoff_w / 2, payoff_y + payoff_h / 2, "Payoff chart (placeholder)")
+        payoff_payload = report_model.get("payoff_payload") if isinstance(report_model, dict) else None
+        if not isinstance(payoff_payload, dict):
+            payoff_payload = report_model.get("payoff") if isinstance(report_model, dict) else {}
+        png_bytes = _try_payoff_png_bytes(payoff_payload if isinstance(payoff_payload, dict) else {})
+        if png_bytes and ImageReader is not None:
+            try:
+                img = ImageReader(BytesIO(png_bytes))
+                iw, ih = img.getSize()
+                scale = min(payoff_w / iw, (payoff_h - 18) / ih)
+                draw_w = iw * scale
+                draw_h = ih * scale
+                draw_x = payoff_x + (payoff_w - draw_w) / 2
+                draw_y = payoff_y + (payoff_h - 18 - draw_h) / 2
+                c.drawImage(img, draw_x, draw_y, width=draw_w, height=draw_h)
+            except Exception:
+                c.setFont(base_font, 9)
+                c.drawCentredString(
+                    payoff_x + payoff_w / 2,
+                    payoff_y + payoff_h / 2,
+                    "Payoff chart unavailable (install kaleido)",
+                )
+        else:
+            c.setFont(base_font, 9)
+            c.drawCentredString(
+                payoff_x + payoff_w / 2,
+                payoff_y + payoff_h / 2,
+                "Payoff chart unavailable (install kaleido)",
+            )
 
         y_next = y_top - payoff_h - gap
 

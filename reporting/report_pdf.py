@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-import os
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -16,8 +15,6 @@ try:
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.utils import ImageReader
     from reportlab.lib.units import inch
-    from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.pdfgen import canvas as pdf_canvas
     from reportlab.platypus import (
         Image,
@@ -35,8 +32,6 @@ except ImportError as exc:
     ParagraphStyle = None
     getSampleStyleSheet = None
     inch = 72
-    pdfmetrics = None
-    TTFont = None
     pdf_canvas = None
     Image = None
     PageBreak = None
@@ -47,6 +42,46 @@ except ImportError as exc:
     Table = None
     TableStyle = None
     _REPORTLAB_ERROR = exc
+
+
+# Design tokens (Report v2)
+if colors is None:
+    COLOR_PAGE_BG = None
+    COLOR_CARD_BG = None
+    COLOR_HEADER_BG = None
+    COLOR_BORDER = None
+    COLOR_TEXT = None
+    COLOR_MUTED = None
+    COLOR_ACCENT = None
+    COLOR_TABLE_HEADER_BG = None
+    COLOR_HIGHLIGHT = None
+else:
+    COLOR_PAGE_BG = colors.white
+    COLOR_CARD_BG = colors.HexColor("#FFFFFF")
+    COLOR_HEADER_BG = colors.HexColor("#F8FAFC")
+    COLOR_BORDER = colors.HexColor("#E5E7EB")
+    COLOR_TEXT = colors.HexColor("#111827")
+    COLOR_MUTED = colors.HexColor("#6B7280")
+    COLOR_ACCENT = colors.HexColor("#E60000")
+    COLOR_TABLE_HEADER_BG = colors.HexColor("#F3F4F6")
+    COLOR_HIGHLIGHT = colors.HexColor("#FEF3C7")
+
+FONT_TITLE = 16
+FONT_SECTION = 9.5
+FONT_BODY = 8.5
+FONT_SMALL = 7.5
+FONT_TABLE_HEADER = 7.5
+FONT_FOOTER = 8.5
+
+CARD_PAD = 10
+CARD_RADIUS = 5
+SECTION_GAP = 10
+
+DEFAULT_DISCLAIMERS = [
+    "For informational purposes only and not an offer to sell or solicitation to buy.",
+    "Options involve risk and are not suitable for all investors.",
+    "Past performance is not indicative of future results.",
+]
 
 
 def _fmt_value(value: Any) -> str:
@@ -81,32 +116,44 @@ def _styles(base_font: str = "Helvetica") -> Dict[str, ParagraphStyle]:
             "title",
             parent=styles["Heading1"],
             fontName=base_font,
+            fontSize=FONT_TITLE,
+            leading=FONT_TITLE + 2,
+            textColor=COLOR_TEXT,
             spaceAfter=6,
         ),
         "section": ParagraphStyle(
             "section",
             parent=styles["Heading2"],
             fontName=base_font,
-            spaceBefore=12,
-            spaceAfter=6,
+            fontSize=FONT_SECTION,
+            leading=FONT_SECTION + 2,
+            textColor=COLOR_TEXT,
+            spaceBefore=10,
+            spaceAfter=5,
         ),
         "label": ParagraphStyle(
             "label",
             parent=styles["BodyText"],
             fontName=base_font,
+            fontSize=FONT_BODY,
+            leading=FONT_BODY + 2,
+            textColor=COLOR_TEXT,
         ),
         "body": ParagraphStyle(
             "body",
             parent=styles["BodyText"],
             fontName=base_font,
-            leading=12,
+            fontSize=FONT_BODY,
+            leading=FONT_BODY + 3,
+            textColor=COLOR_TEXT,
         ),
         "small": ParagraphStyle(
             "small",
             parent=styles["BodyText"],
             fontName=base_font,
-            fontSize=9,
-            leading=11,
+            fontSize=FONT_SMALL,
+            leading=FONT_SMALL + 3,
+            textColor=COLOR_MUTED,
         ),
     }
 
@@ -243,7 +290,59 @@ def _draw_payoff_chart_vector(
         path.moveTo(x_to_px(first_x), y_to_px(first_y))
         for px, py in points[1:]:
             path.lineTo(x_to_px(px), y_to_px(py))
-        canvas_obj.drawPath(path, stroke=1, fill=0)
+    canvas_obj.drawPath(path, stroke=1, fill=0)
+
+
+def _draw_card(canvas_obj, x: float, y: float, w: float, h: float, title: str | None, base_font: str) -> None:
+    canvas_obj.setFillColor(COLOR_CARD_BG)
+    canvas_obj.setStrokeColor(COLOR_BORDER)
+    canvas_obj.setLineWidth(0.6)
+    canvas_obj.roundRect(x, y, w, h, CARD_RADIUS, stroke=1, fill=1)
+    if title:
+        canvas_obj.setFillColor(COLOR_TEXT)
+        canvas_obj.setFont("Helvetica-Bold", FONT_SECTION)
+        canvas_obj.drawString(x + CARD_PAD, y + h - (CARD_PAD + 4), title)
+
+
+def _draw_table(
+    canvas_obj,
+    table: Table,
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+) -> None:
+    tw, th = table.wrap(w, h)
+    if th > h:
+        table.setStyle(
+            TableStyle(
+                [
+                    ("FONTSIZE", (0, 0), (-1, -1), 7),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                    ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ]
+            )
+        )
+        tw, th = table.wrap(w, h)
+    table.drawOn(canvas_obj, x, y + h - th)
+
+
+def _draw_paragraphs(
+    canvas_obj,
+    paragraphs: list[Paragraph],
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+    leading: float,
+) -> None:
+    cursor = y + h - leading
+    for para in paragraphs:
+        tw, th = para.wrap(w, h)
+        if cursor - th < y:
+            break
+        para.drawOn(canvas_obj, x, cursor - th)
+        cursor -= th + 2
 
 
 def build_report_pdf(
@@ -511,14 +610,7 @@ def build_report_pdf_v2(
             "reportlab is required to build PDF reports. Install reportlab to continue."
         ) from _REPORTLAB_ERROR
 
-    font_path = os.environ.get("ALPHA_ENGINE_FONT_PATH")
     base_font = "Helvetica"
-    if font_path and os.path.exists(font_path) and TTFont is not None and pdfmetrics:
-        try:
-            pdfmetrics.registerFont(TTFont("Aptos", font_path))
-            base_font = "Aptos"
-        except Exception:
-            base_font = "Helvetica"
 
     styles = _styles(base_font=base_font)
 
@@ -546,63 +638,37 @@ def build_report_pdf_v2(
     PAGE_W, PAGE_H = letter
     margin_left = 30
     margin_right = 30
-    margin_top = 24
+    margin_top = 26
     margin_bottom = 18
     content_w = PAGE_W - margin_left - margin_right
 
-    header_h = 72
-    gap = 9
+    header_h = 84
+    gap = SECTION_GAP
 
     structure_w = 220
-    structure_h = 180
-    payoff_h = 300
-    metrics_h = 140
-    disclaim_h = 60
+    structure_h = 170
+    payoff_h = 290
+    metrics_h = 150
+    disclaim_h = 70
 
-    scenario_cards_h = 130
-    key_levels_h = 220
-
-    def _draw_box(c, x, y, w, h):
-        c.setStrokeColor(colors.lightgrey)
-        c.setLineWidth(0.5)
-        c.rect(x, y, w, h, stroke=1, fill=0)
-
-    def _draw_table(c, table, x, y, w, h):
-        tw, th = table.wrap(w, h)
-        if th > h:
-            table.setStyle(
-                TableStyle(
-                    [
-                        ("FONTSIZE", (0, 0), (-1, -1), 7),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-                        ("TOPPADDING", (0, 0), (-1, -1), 2),
-                    ]
-                )
-            )
-            tw, th = table.wrap(w, h)
-        table.drawOn(c, x, y + h - th)
-
-    def _draw_paragraphs(c, paragraphs, x, y, w, h, leading):
-        cursor = y + h - leading
-        for para in paragraphs:
-            tw, th = para.wrap(w, h)
-            if cursor - th < y:
-                break
-            para.drawOn(c, x, cursor - th)
-            cursor -= th + 2
+    scenario_cards_h = 150
+    key_levels_h = 260
 
     def _draw_header(c):
         x = margin_left
         y = PAGE_H - margin_top - header_h
-        _draw_box(c, x, y, content_w, header_h)
-        logo_w = 90
-        logo_h = 28
+        c.setFillColor(COLOR_HEADER_BG)
+        c.setStrokeColor(COLOR_BORDER)
+        c.setLineWidth(0.6)
+        c.rect(x, y, content_w, header_h, stroke=1, fill=1)
+        logo_w = 78
+        logo_h = 24
         if resolved_logo_path and Image is not None:
             try:
                 c.drawImage(
                     str(resolved_logo_path),
-                    x + 6,
-                    y + header_h - logo_h - 8,
+                    x + 10,
+                    y + header_h - logo_h - 10,
                     width=logo_w,
                     height=logo_h,
                     preserveAspectRatio=True,
@@ -610,18 +676,50 @@ def build_report_pdf_v2(
                 )
             except Exception:
                 pass
-        header_lines = [
-            f"{ticker}  |  {resolved}",
-            f"Strategy: {strategy_name}",
-            f"Expiry: {expiry}   Spot: {spot}",
-            f"As Of: {as_of}",
-            f"Policies: {policies}",
+        def _display(value: object) -> str:
+            if value is None or value == "":
+                return "--"
+            return str(value)
+
+        left_x = x + logo_w + 18
+        right_x = x + content_w * 0.64
+        right_w = x + content_w - right_x - 10
+
+        primary_y = y + header_h - 18
+        strategy_y = primary_y - 18
+        meta_y = strategy_y - 14
+
+        c.setFillColor(COLOR_TEXT)
+        c.setFont("Helvetica-Bold", FONT_SECTION + 1)
+        c.drawString(left_x, primary_y, _display(resolved))
+
+        c.setFillColor(COLOR_ACCENT)
+        c.setFont("Helvetica-Bold", FONT_TITLE)
+        c.drawString(left_x, strategy_y, _display(strategy_name))
+
+        c.setFillColor(COLOR_MUTED)
+        c.setFont(base_font, FONT_BODY)
+        c.drawString(
+            left_x,
+            meta_y,
+            f"Expiry: {_display(expiry)} | Spot: {_display(spot)} | As-of: {_display(as_of)}",
+        )
+        c.setFont(base_font, FONT_SMALL)
+        c.drawString(left_x, y + 8, f"Policies: {_display(policies)}")
+
+        profile_lines = [
+            f"Name: {_display(header.get('name'))}",
+            f"Sector: {_display(header.get('sector'))}",
+            f"52W H/L: {_display(header.get('high_52w'))} / {_display(header.get('low_52w'))}",
+            f"Div Yld: {_display(header.get('dividend_yield'))}",
+            f"Earnings: {_display(header.get('earnings_date'))}",
         ]
-        header_paras = [Paragraph(line, styles["small"]) for line in header_lines]
-        _draw_paragraphs(c, header_paras, x + logo_w + 16, y + 6, content_w - logo_w - 22, header_h - 12, 10)
+        profile_paras = [Paragraph(line, styles["small"]) for line in profile_lines]
+        _draw_paragraphs(c, profile_paras, right_x, y + 8, right_w, header_h - 16, 10)
 
     def _draw_footer(c, page_num):
-        c.setFont(base_font, 9)
+        c.setFont(base_font, FONT_FOOTER)
+        c.setFillColor(COLOR_MUTED)
         c.drawString(margin_left, margin_bottom, "UBS Financial Services Inc.")
         c.drawRightString(PAGE_W - margin_right, margin_bottom, f"Page {page_num} of 2")
 
@@ -632,9 +730,7 @@ def build_report_pdf_v2(
         # Structure card (left)
         struct_x = margin_left
         struct_y = y_top - structure_h
-        _draw_box(c, struct_x, struct_y, structure_w, structure_h)
-        c.setFont(base_font, 10)
-        c.drawString(struct_x + 6, struct_y + structure_h - 14, "Structure")
+        _draw_card(c, struct_x, struct_y, structure_w, structure_h, "Structure", base_font)
         structure = report_model.get("structure", {}) if isinstance(report_model, dict) else {}
         legs_rows = structure.get("legs") if isinstance(structure, dict) else []
         legs_rows = legs_rows if isinstance(legs_rows, list) else []
@@ -657,26 +753,35 @@ def build_report_pdf_v2(
             legs_data,
             colWidths=[0.45 * inch, 0.8 * inch, 1.1 * inch, 1.0 * inch, 1.0 * inch],
         )
+        zebra = colors.HexColor("#F9FAFB")
+        table_style = [
+            ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
+            ("TEXTCOLOR", (0, 0), (-1, 0), COLOR_MUTED),
+            ("GRID", (0, 0), (-1, -1), 0.25, COLOR_BORDER),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME", (0, 1), (-1, -1), base_font),
+            ("FONTSIZE", (0, 0), (-1, 0), FONT_TABLE_HEADER),
+            ("FONTSIZE", (0, 1), (-1, -1), FONT_SMALL),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("ALIGN", (0, 1), (0, -1), "RIGHT"),
+            ("ALIGN", (3, 1), (4, -1), "RIGHT"),
+        ]
+        for row in range(1, len(legs_data), 2):
+            table_style.append(("BACKGROUND", (0, row), (-1, row), zebra))
         legs_table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                    ("FONTNAME", (0, 0), (-1, 0), base_font),
-                    ("FONTSIZE", (0, 0), (-1, -1), 7),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ]
-            )
+            TableStyle(table_style)
         )
-        _draw_table(c, legs_table, struct_x + 4, struct_y + 8, structure_w - 8, structure_h - 24)
+        _draw_table(c, legs_table, struct_x + CARD_PAD, struct_y + CARD_PAD, structure_w - 2 * CARD_PAD, structure_h - 24)
 
         # Payoff card (right)
         payoff_x = margin_left + structure_w + gap
         payoff_w = content_w - structure_w - gap
         payoff_y = y_top - payoff_h
-        _draw_box(c, payoff_x, payoff_y, payoff_w, payoff_h)
-        c.setFont(base_font, 10)
-        c.drawString(payoff_x + 6, payoff_y + payoff_h - 14, "Payoff")
+        _draw_card(c, payoff_x, payoff_y, payoff_w, payoff_h, "Payoff", base_font)
         payoff_payload = report_model.get("payoff_payload") if isinstance(report_model, dict) else None
         if not isinstance(payoff_payload, dict):
             payoff_payload = report_model.get("payoff") if isinstance(report_model, dict) else {}
@@ -694,14 +799,14 @@ def build_report_pdf_v2(
             except Exception:
                 _draw_payoff_chart_vector(
                     c,
-                    (payoff_x + 6, payoff_y + 6, payoff_w - 12, payoff_h - 24),
+                    (payoff_x + CARD_PAD, payoff_y + CARD_PAD, payoff_w - 2 * CARD_PAD, payoff_h - 24),
                     payoff_payload if isinstance(payoff_payload, dict) else {},
                     base_font,
                 )
         else:
             _draw_payoff_chart_vector(
                 c,
-                (payoff_x + 6, payoff_y + 6, payoff_w - 12, payoff_h - 24),
+                (payoff_x + CARD_PAD, payoff_y + CARD_PAD, payoff_w - 2 * CARD_PAD, payoff_h - 24),
                 payoff_payload if isinstance(payoff_payload, dict) else {},
                 base_font,
             )
@@ -710,9 +815,7 @@ def build_report_pdf_v2(
 
         # Metrics card
         metrics_y = y_next - metrics_h
-        _draw_box(c, margin_left, metrics_y, content_w, metrics_h)
-        c.setFont(base_font, 10)
-        c.drawString(margin_left + 6, metrics_y + metrics_h - 14, "Payoff & Metrics")
+        _draw_card(c, margin_left, metrics_y, content_w, metrics_h, "Payoff & Metrics", base_font)
         metrics = report_model.get("metrics", {}) if isinstance(report_model, dict) else {}
         metrics_rows = metrics.get("rows") if isinstance(metrics, dict) else []
         metrics_data = [["Metric", "Options", "Combined"]]
@@ -733,41 +836,49 @@ def build_report_pdf_v2(
             metrics_data,
             colWidths=[2.6 * inch, 2.0 * inch, 2.0 * inch],
         )
-        metrics_table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                    ("FONTNAME", (0, 0), (-1, 0), base_font),
-                    ("FONTSIZE", (0, 0), (-1, -1), 7),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ]
-            )
-        )
-        _draw_table(c, metrics_table, margin_left + 4, metrics_y + 6, content_w - 8, metrics_h - 22)
+        table_style = [
+            ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
+            ("TEXTCOLOR", (0, 0), (-1, 0), COLOR_MUTED),
+            ("GRID", (0, 0), (-1, -1), 0.25, COLOR_BORDER),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME", (0, 1), (-1, -1), base_font),
+            ("FONTSIZE", (0, 0), (-1, 0), FONT_TABLE_HEADER),
+            ("FONTSIZE", (0, 1), (-1, -1), FONT_SMALL),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
+        ]
+        for row in range(1, len(metrics_data), 2):
+            table_style.append(("BACKGROUND", (0, row), (-1, row), zebra))
+        metrics_table.setStyle(TableStyle(table_style))
+        _draw_table(c, metrics_table, margin_left + CARD_PAD, metrics_y + CARD_PAD, content_w - 2 * CARD_PAD, metrics_h - 22)
 
         # Disclaimers
         disclaim_y = metrics_y - gap - disclaim_h
-        _draw_box(c, margin_left, disclaim_y, content_w, disclaim_h)
-        c.setFont(base_font, 10)
-        c.drawString(margin_left + 6, disclaim_y + disclaim_h - 14, "Disclaimers")
+        _draw_card(c, margin_left, disclaim_y, content_w, disclaim_h, "Disclaimers", base_font)
         disclaimers = report_model.get("disclaimers") if isinstance(report_model, dict) else []
-        if not isinstance(disclaimers, list) or not disclaimers:
-            disclaimers = ["For informational purposes only. Not a solicitation or recommendation."]
-        paras = [Paragraph(f"- {note}", styles["small"]) for note in disclaimers[:3]]
-        _draw_paragraphs(c, paras, margin_left + 8, disclaim_y + 6, content_w - 16, disclaim_h - 20, 10)
+        if (
+            not isinstance(disclaimers, list)
+            or not disclaimers
+            or disclaimers == ["--"]
+        ):
+            disclaimers = DEFAULT_DISCLAIMERS
+        paras = [Paragraph(f"- {note}", styles["small"]) for note in disclaimers[:4]]
+        _draw_paragraphs(c, paras, margin_left + CARD_PAD, disclaim_y + CARD_PAD, content_w - 2 * CARD_PAD, disclaim_h - 20, 10)
 
         _draw_footer(c, 1)
 
     def _page2(c):
         _draw_header(c)
         y_top = PAGE_H - margin_top - header_h - gap
+        zebra = colors.HexColor("#F9FAFB")
 
         # Scenario cards row
         cards_y = y_top - scenario_cards_h
-        _draw_box(c, margin_left, cards_y, content_w, scenario_cards_h)
-        c.setFont(base_font, 10)
-        c.drawString(margin_left + 6, cards_y + scenario_cards_h - 14, "Scenario Analysis")
+        _draw_card(c, margin_left, cards_y, content_w, scenario_cards_h, "Scenario Analysis", base_font)
         cards = report_model.get("scenario_analysis_cards") if isinstance(report_model, dict) else []
         card_cells = []
         if isinstance(cards, list) and cards:
@@ -788,16 +899,16 @@ def build_report_pdf_v2(
                 card_cells.append(Paragraph("<br/>".join(parts), styles["small"]))
         else:
             card_cells = [
-                Paragraph("Bearish (placeholder)", styles["small"]),
-                Paragraph("Stagnant (placeholder)", styles["small"]),
-                Paragraph("Bullish (placeholder)", styles["small"]),
+                Paragraph("--", styles["small"]),
+                Paragraph("--", styles["small"]),
+                Paragraph("--", styles["small"]),
             ]
         card_table = Table([card_cells], colWidths=[2.4 * inch, 2.4 * inch, 2.4 * inch])
         card_table.setStyle(
             TableStyle(
                 [
                     ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                    ("GRID", (0, 0), (-1, -1), 0.25, COLOR_BORDER),
                     ("LEFTPADDING", (0, 0), (-1, -1), 6),
                     ("RIGHTPADDING", (0, 0), (-1, -1), 6),
                     ("TOPPADDING", (0, 0), (-1, -1), 4),
@@ -805,15 +916,13 @@ def build_report_pdf_v2(
                 ]
             )
         )
-        _draw_table(c, card_table, margin_left + 4, cards_y + 8, content_w - 8, scenario_cards_h - 24)
+        _draw_table(c, card_table, margin_left + CARD_PAD, cards_y + CARD_PAD, content_w - 2 * CARD_PAD, scenario_cards_h - 24)
 
         y_next = cards_y - gap
 
         # Key levels table
         key_y = y_next - key_levels_h
-        _draw_box(c, margin_left, key_y, content_w, key_levels_h)
-        c.setFont(base_font, 10)
-        c.drawString(margin_left + 6, key_y + key_levels_h - 14, "Key Levels")
+        _draw_card(c, margin_left, key_y, content_w, key_levels_h, "Key Levels", base_font)
         key_levels_rows = report_model.get("key_levels_display_rows_by_price") or report_model.get(
             "key_levels_display_rows"
         )
@@ -869,18 +978,28 @@ def build_report_pdf_v2(
             table_data.append(["--"] * len(columns))
         key_table = Table(table_data, repeatRows=1)
         table_style = [
-            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-            ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-            ("FONTNAME", (0, 0), (-1, 0), base_font),
-            ("FONTSIZE", (0, 0), (-1, -1), 7),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
+            ("TEXTCOLOR", (0, 0), (-1, 0), COLOR_MUTED),
+            ("GRID", (0, 0), (-1, -1), 0.25, COLOR_BORDER),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME", (0, 1), (-1, -1), base_font),
+            ("FONTSIZE", (0, 0), (-1, 0), FONT_TABLE_HEADER),
+            ("FONTSIZE", (0, 1), (-1, -1), FONT_SMALL),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
         ]
+        for row in range(1, len(table_data), 2):
+            table_style.append(("BACKGROUND", (0, row), (-1, row), zebra))
         if highlight_row is not None:
             table_style.append(
-                ("BACKGROUND", (0, highlight_row), (-1, highlight_row), colors.lightyellow)
+                ("BACKGROUND", (0, highlight_row), (-1, highlight_row), COLOR_HIGHLIGHT)
             )
         key_table.setStyle(TableStyle(table_style))
-        _draw_table(c, key_table, margin_left + 4, key_y + 6, content_w - 8, key_levels_h - 22)
+        _draw_table(c, key_table, margin_left + CARD_PAD, key_y + CARD_PAD, content_w - 2 * CARD_PAD, key_levels_h - 22)
 
         _draw_footer(c, 2)
 

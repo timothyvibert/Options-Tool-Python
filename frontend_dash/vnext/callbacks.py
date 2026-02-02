@@ -30,7 +30,7 @@ from frontend_dash.vnext.layout import (
     layout_report,
 )
 from reporting.report_model import _pick_first_df, build_report_model
-from reporting.report_pdf import build_report_pdf
+from reporting.report_pdf import build_report_pdf, build_report_pdf_v2
 
 
 def _utc_now_str() -> str:
@@ -943,132 +943,10 @@ def register_callbacks(
 
             report_model = build_report_model(state)
 
-            payoff = pack.get("payoff", {}) if isinstance(pack, dict) else {}
-            pnl = payoff.get("pnl", []) if isinstance(payoff, dict) else []
-            summary_block = pack.get("summary", {}) if isinstance(pack, dict) else {}
-            summary_rows = (
-                summary_block.get("rows", []) if isinstance(summary_block, dict) else []
-            )
-
-            def _summary_value(metric_label: str):
-                for row in summary_rows:
-                    if not isinstance(row, dict):
-                        continue
-                    metric = row.get("metric") or row.get("label")
-                    if metric == metric_label:
-                        return row.get("combined") or row.get("options")
-                return None
-
-            summary = {
-                "min_pnl": min(pnl) if isinstance(pnl, list) and pnl else None,
-                "max_pnl": max(pnl) if isinstance(pnl, list) and pnl else None,
-                "breakevens": payoff.get("breakevens", [])
-                if isinstance(payoff, dict)
-                else [],
-                "pop": _summary_value("PoP"),
-                "margin_proxy": (pack.get("margin") or {}).get("margin_proxy")
-                if isinstance(pack, dict)
-                else None,
-                "capital_basis": _summary_value("Capital Basis"),
-                "warning": (report_model.get("warnings") or {}).get("dividend")
-                if isinstance(report_model, dict)
-                else None,
-            }
-
-            scenario_df = None
-            scenario_block = pack.get("scenario", {}) if isinstance(pack, dict) else {}
-            if isinstance(scenario_block, dict):
-                scenario_df = _pick_first_df(
-                    scenario_block.get("top10"),
-                    scenario_block.get("df"),
-                )
-            if scenario_df is None and isinstance(report_model, dict):
-                scenario_table = report_model.get("scenario_table") or {}
-                scenario_df = _pick_first_df(
-                    scenario_table.get("full")
-                    if isinstance(scenario_table, dict)
-                    else None
-                )
-
-            if scenario_df is None:
-                try:
-                    import pandas as pd  # type: ignore
-                except Exception:
-                    scenario_df = None
-                else:
-                    scenario_df = pd.DataFrame([])
-            elif not hasattr(scenario_df, "empty"):
-                try:
-                    import pandas as pd  # type: ignore
-                except Exception:
-                    scenario_df = None
-                else:
-                    scenario_df = pd.DataFrame(scenario_df)
-
-            legs_rows = (
-                inputs_store.get("legs") if isinstance(inputs_store.get("legs"), list) else []
-            )
-            legs = []
-            for row in legs_rows:
-                if not isinstance(row, dict):
-                    continue
-                kind = row.get("kind") or row.get("type")
-                side = row.get("side")
-                qty = row.get("qty") or row.get("position")
-                strike = row.get("strike")
-                premium = row.get("premium")
-                legs.append(
-                    {
-                        "type": kind,
-                        "side": side,
-                        "qty": qty,
-                        "strike": strike,
-                        "premium": premium,
-                    }
-                )
-
-            inputs = {
-                "ticker": inputs_store.get("ticker") or ui_store.get("ticker") or "--",
-                "resolved_ticker": inputs_store.get("resolved_ticker")
-                or market.get("resolved_underlying")
-                or "--",
-                "strategy_name": report_model.get("header", {}).get("strategy_name")
-                if isinstance(report_model, dict)
-                else inputs_store.get("strategy_name"),
-                "expiry": inputs_store.get("expiry") or ui_store.get("expiry") or "--",
-                "pricing_mode": inputs_store.get("pricing_mode")
-                or ui_store.get("pricing_mode")
-                or "--",
-                "spot": inputs_store.get("spot") or ui_store.get("spot") or "--",
-                "stock_position": inputs_store.get("stock_position")
-                or ui_store.get("stock_position")
-                or "--",
-                "avg_cost": inputs_store.get("avg_cost") or ui_store.get("avg_cost") or "--",
-                "roi_policy": inputs_store.get("roi_policy") or ui_store.get("roi_policy") or "--",
-                "legs": legs,
-            }
-
-            notes = []
-            if isinstance(report_model, dict):
-                notes = report_model.get("disclaimers") or []
-            if not notes:
-                notes = [
-                    "For informational purposes only. Not a solicitation or recommendation."
-                ]
-
             try:
                 with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
                     tmp_path = tmp.name
-                build_report_pdf(
-                    tmp_path,
-                    title="Options Strategy Report",
-                    as_of=str(pack.get("as_of") or "--"),
-                    inputs=inputs,
-                    summary=summary,
-                    scenario_df=scenario_df,
-                    notes=notes,
-                    report_model=report_model,
-                )
+                build_report_pdf_v2(tmp_path, report_model=report_model)
                 with open(tmp_path, "rb") as handle:
                     payload = handle.read()
             except RuntimeError:

@@ -141,12 +141,109 @@ def _build_payoff_figure(payoff_payload: Dict[str, Any]) -> go.Figure:
     return fig
 
 
-def _try_payoff_png_bytes(payoff_payload: Dict[str, Any]) -> Optional[bytes]:
+def _try_export_payoff_png(
+    payoff_payload: Dict[str, Any],
+) -> tuple[Optional[bytes], Optional[str]]:
     try:
         fig = _build_payoff_figure(payoff_payload)
-        return fig.to_image(format="png", scale=2)
+        return fig.to_image(format="png", scale=2), None
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {exc}"
+
+
+def _draw_payoff_chart_vector(
+    canvas_obj,
+    box: tuple[float, float, float, float],
+    payoff_payload: Dict[str, Any],
+    base_font: str,
+) -> None:
+    x0, y0, w, h = box
+    x = payoff_payload.get("price_grid") or []
+    y = payoff_payload.get("combined_pnl") or payoff_payload.get("pnl") or []
+    if not x or not y or len(x) != len(y):
+        canvas_obj.setFont(base_font, 9)
+        canvas_obj.drawCentredString(x0 + w / 2, y0 + h / 2, "Payoff chart unavailable")
+        return
+    try:
+        x_vals = [float(v) for v in x]
+        y_vals = [float(v) for v in y]
     except Exception:
-        return None
+        canvas_obj.setFont(base_font, 9)
+        canvas_obj.drawCentredString(x0 + w / 2, y0 + h / 2, "Payoff chart unavailable")
+        return
+
+    x_min = min(x_vals)
+    x_max = max(x_vals)
+    if x_min == x_max:
+        x_min -= 1.0
+        x_max += 1.0
+    y_min = min(y_vals)
+    y_max = max(y_vals)
+    if y_min == y_max:
+        y_min -= 1.0
+        y_max += 1.0
+    y_pad = (y_max - y_min) * 0.1
+    y_min -= y_pad
+    y_max += y_pad
+
+    def x_to_px(val: float) -> float:
+        return x0 + (val - x_min) / (x_max - x_min) * w
+
+    def y_to_px(val: float) -> float:
+        return y0 + (val - y_min) / (y_max - y_min) * h
+
+    canvas_obj.setStrokeColor(colors.lightgrey)
+    canvas_obj.setLineWidth(0.5)
+    canvas_obj.rect(x0, y0, w, h, stroke=1, fill=0)
+
+    if y_min <= 0 <= y_max:
+        y_zero = y_to_px(0.0)
+        canvas_obj.setStrokeColor(colors.grey)
+        canvas_obj.setLineWidth(0.5)
+        canvas_obj.line(x0, y_zero, x0 + w, y_zero)
+
+    strikes = payoff_payload.get("strikes") or []
+    breakevens = payoff_payload.get("breakevens") or []
+    spot = payoff_payload.get("spot")
+    for value in strikes:
+        try:
+            val = float(value)
+        except Exception:
+            continue
+        if x_min <= val <= x_max:
+            canvas_obj.setStrokeColor(colors.lightgrey)
+            canvas_obj.setLineWidth(0.5)
+            canvas_obj.line(x_to_px(val), y0, x_to_px(val), y0 + h)
+    for value in breakevens:
+        try:
+            val = float(value)
+        except Exception:
+            continue
+        if x_min <= val <= x_max:
+            canvas_obj.setStrokeColor(colors.grey)
+            canvas_obj.setLineWidth(0.5)
+            canvas_obj.line(x_to_px(val), y0, x_to_px(val), y0 + h)
+    try:
+        spot_val = float(spot)
+    except Exception:
+        spot_val = None
+    if spot_val is not None and x_min <= spot_val <= x_max:
+        canvas_obj.setStrokeColor(colors.darkgrey)
+        canvas_obj.setLineWidth(0.75)
+        canvas_obj.line(x_to_px(spot_val), y0, x_to_px(spot_val), y0 + h)
+        canvas_obj.setFont(base_font, 7)
+        canvas_obj.drawString(x_to_px(spot_val) + 2, y0 + h - 10, "Spot")
+
+    canvas_obj.setStrokeColor(colors.black)
+    canvas_obj.setLineWidth(0.75)
+    points = list(zip(x_vals, y_vals))
+    if points:
+        path = canvas_obj.beginPath()
+        first_x, first_y = points[0]
+        path.moveTo(x_to_px(first_x), y_to_px(first_y))
+        for px, py in points[1:]:
+            path.lineTo(x_to_px(px), y_to_px(py))
+        canvas_obj.drawPath(path, stroke=1, fill=0)
 
 
 def build_report_pdf(
@@ -583,7 +680,7 @@ def build_report_pdf_v2(
         payoff_payload = report_model.get("payoff_payload") if isinstance(report_model, dict) else None
         if not isinstance(payoff_payload, dict):
             payoff_payload = report_model.get("payoff") if isinstance(report_model, dict) else {}
-        png_bytes = _try_payoff_png_bytes(payoff_payload if isinstance(payoff_payload, dict) else {})
+        png_bytes, _ = _try_export_payoff_png(payoff_payload if isinstance(payoff_payload, dict) else {})
         if png_bytes and ImageReader is not None:
             try:
                 img = ImageReader(BytesIO(png_bytes))
@@ -595,18 +692,18 @@ def build_report_pdf_v2(
                 draw_y = payoff_y + (payoff_h - 18 - draw_h) / 2
                 c.drawImage(img, draw_x, draw_y, width=draw_w, height=draw_h)
             except Exception:
-                c.setFont(base_font, 9)
-                c.drawCentredString(
-                    payoff_x + payoff_w / 2,
-                    payoff_y + payoff_h / 2,
-                    "Payoff chart unavailable (install kaleido)",
+                _draw_payoff_chart_vector(
+                    c,
+                    (payoff_x + 6, payoff_y + 6, payoff_w - 12, payoff_h - 24),
+                    payoff_payload if isinstance(payoff_payload, dict) else {},
+                    base_font,
                 )
         else:
-            c.setFont(base_font, 9)
-            c.drawCentredString(
-                payoff_x + payoff_w / 2,
-                payoff_y + payoff_h / 2,
-                "Payoff chart unavailable (install kaleido)",
+            _draw_payoff_chart_vector(
+                c,
+                (payoff_x + 6, payoff_y + 6, payoff_w - 12, payoff_h - 24),
+                payoff_payload if isinstance(payoff_payload, dict) else {},
+                base_font,
             )
 
         y_next = y_top - payoff_h - gap

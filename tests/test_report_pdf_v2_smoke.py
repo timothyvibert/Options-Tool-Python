@@ -65,13 +65,9 @@ def test_report_pdf_v2_smoke():
         assert page_count == 2
         assert b"Page 3 of 2" not in payload
         assert b"Commentary" not in payload
-        try:
-            import kaleido  # type: ignore
-        except Exception:
-            assert size > 10_000
-        else:
-            assert size > 20_000
-            assert b"Payoff chart (placeholder)" not in payload
+        assert b"Payoff chart (placeholder)" not in payload
+        assert b"install kaleido" not in payload
+        assert b"Payoff chart unavailable (install kaleido)" not in payload
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)

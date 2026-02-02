@@ -9,6 +9,7 @@ import traceback
 import json
 import math
 import re
+import subprocess
 
 import plotly.graph_objects as go
 from dash import Input, Output, State, dcc, no_update, ctx, html
@@ -68,8 +69,59 @@ def _safe_json_dumps(payload: object) -> str:
     except Exception:
         try:
             return json.dumps(str(payload), sort_keys=True, indent=2)
-        except Exception:
-            return str(payload)
+    except Exception:
+        return str(payload)
+
+
+def _report_filename(key_payload: object, pack: object) -> str:
+    stamp = None
+    if isinstance(pack, dict):
+        stamp = pack.get("as_of") or pack.get("asof")
+    if not stamp and isinstance(key_payload, dict):
+        stamp = key_payload.get("key")
+    if stamp:
+        safe_stamp = re.sub(r"[^0-9A-Za-z_-]+", "_", str(stamp)).strip("_")
+        if safe_stamp:
+            return f"alpha_engine_report_{safe_stamp}.pdf"
+    return "alpha_engine_report.pdf"
+
+
+def _render_report_pdf_template(report_model: object) -> tuple[bytes | None, str | None]:
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    cli_path = os.path.join(
+        repo_root, "Design", "figma_report_v2", "src", "cli", "render_report.mjs"
+    )
+    if not os.path.exists(cli_path):
+        return None, "template renderer not found"
+    try:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            contract_path = os.path.join(tmp_dir, "report_contract.json")
+            output_path = os.path.join(tmp_dir, "report.pdf")
+            with open(contract_path, "w", encoding="utf-8") as handle:
+                handle.write(_safe_json_dumps(report_model))
+            result = subprocess.run(
+                ["node", cli_path, contract_path, output_path],
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                timeout=45,
+            )
+            if result.returncode != 0:
+                if result.stdout:
+                    print("Template renderer stdout:", result.stdout)
+                if result.stderr:
+                    print("Template renderer stderr:", result.stderr)
+                return None, "template renderer failed"
+            if not os.path.exists(output_path) or os.path.getsize(output_path) <= 0:
+                return None, "template renderer produced no output"
+            with open(output_path, "rb") as handle:
+                return handle.read(), None
+    except FileNotFoundError as exc:
+        print("Template renderer error:", exc)
+        return None, "node not available"
+    except Exception as exc:
+        print("Template renderer error:", exc)
+        return None, f"{type(exc).__name__}: {exc}"
 
 
 _DATE_RE = re.compile(r"^\\d{4}-\\d{2}-\\d{2}$")
@@ -943,6 +995,14 @@ def register_callbacks(
 
             report_model = build_report_model(state)
 
+            template_payload, _ = _render_report_pdf_template(report_model)
+            filename = _report_filename(key_payload, pack)
+            if template_payload:
+                return (
+                    dcc.send_bytes(template_payload, filename=filename),
+                    "Generated via template renderer.",
+                )
+
             try:
                 with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
                     tmp_path = tmp.name
@@ -964,10 +1024,10 @@ def register_callbacks(
                 except Exception:
                     pass
 
-            filename = (
-                f"alpha_engine_report_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.pdf"
+            return (
+                dcc.send_bytes(payload, filename=filename),
+                "Template renderer unavailable; using fallback PDF.",
             )
-            return dcc.send_bytes(payload, filename=filename), ""
         except Exception as exc:
             traceback.print_exc()
             return no_update, f"PDF export error: {type(exc).__name__}: {exc}"

@@ -195,6 +195,26 @@ def _normalize_rows(value: object) -> List[Dict[str, object]]:
     return []
 
 
+def _add_move_pct(df: "pd.DataFrame | None", spot: Optional[float]) -> "pd.DataFrame | None":
+    if df is None or pd is None:
+        return df
+    if not isinstance(df, pd.DataFrame):
+        return df
+    if spot is None or not math.isfinite(spot) or spot <= 0:
+        df = df.copy()
+        if "move_pct" not in df.columns:
+            df["move_pct"] = None
+        return df
+    if "price" not in df.columns:
+        df = df.copy()
+        df["move_pct"] = None
+        return df
+    prices = pd.to_numeric(df["price"], errors="coerce")
+    df = df.copy()
+    df["move_pct"] = (prices / float(spot) - 1.0) * 100.0
+    return df
+
+
 def _scenario_row_from_source(row: Mapping[str, object]) -> Dict[str, str]:
     def pick(keys: Iterable[str]) -> object:
         for key in keys:
@@ -575,6 +595,7 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
                     "leg": _fmt_text(leg.get("index", idx + 1)),
                     "side": _fmt_text(leg.get("side")),
                     "expiry": _fmt_text(leg.get("expiry") or expiry_text),
+                    "Expiry": _fmt_text(leg.get("expiry") or expiry_text),
                     "strike": _fmt_currency(leg.get("strike")),
                     "premium": _fmt_currency(leg.get("premium")),
                 }
@@ -587,6 +608,7 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
                     "leg": str(idx + 1),
                     "side": _fmt_text(state.get(f"pos_{idx}") if include else None),
                     "expiry": _fmt_text(expiry_text if include else None),
+                    "Expiry": _fmt_text(expiry_text if include else None),
                     "strike": _fmt_currency(
                         state.get(f"strike_{idx}") if include else None
                     ),
@@ -719,15 +741,26 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
     key_levels = _normalize_rows(key_levels_source)
 
     scenario_source = None
+    scenario_top10 = None
     if pack_scenario:
-        if "df" in pack_scenario:
-            scenario_source = pack_scenario.get("df")
-        elif "full" in pack_scenario:
-            scenario_source = pack_scenario.get("full")
-        elif "top10" in pack_scenario:
-            scenario_source = pack_scenario.get("top10")
+        scenario_source = _pick_first_df(
+            pack_scenario.get("df"),
+            pack_scenario.get("full"),
+        )
+        scenario_top10 = _pick_first_df(pack_scenario.get("top10"))
     if scenario_source is None:
-        scenario_source = state.get("analysis_scenario_df")
+        scenario_source = _pick_first_df(state.get("analysis_scenario_df"))
+
+    spot_for_move = _coerce_float(
+        pack_underlying.get("spot")
+        or (state.get("spot_value") if "spot_value" in state else state.get("spot"))
+    )
+    scenario_source = _add_move_pct(scenario_source, spot_for_move)
+    scenario_top10 = _add_move_pct(scenario_top10, spot_for_move)
+
+    if scenario_top10 is None and pd is not None and isinstance(scenario_source, pd.DataFrame):
+        scenario_top10 = scenario_source.head(10).copy()
+
     if scenario_source is None:
         scenario_rows = []
     else:
@@ -736,6 +769,8 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
     scenario_table = {
         "top10": normalized_rows[:10],
         "full": normalized_rows,
+        "top10_df": scenario_top10,
+        "full_df": scenario_source,
     }
 
     commentary_source = (
@@ -743,9 +778,12 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
     )
     if commentary_source is None:
         commentary_source = state.get("commentary_blocks")
-    commentary_blocks = _normalize_rows(commentary_source)
-    if not commentary_blocks:
-        commentary_blocks = [{"level": MISSING, "text": MISSING}]
+    if isinstance(commentary_source, list):
+        commentary_blocks = {"blocks": commentary_source}
+    elif isinstance(commentary_source, dict):
+        commentary_blocks = commentary_source
+    else:
+        commentary_blocks = {}
 
     scenario_analysis_cards: List[Dict[str, str]] = []
     narrative_scenarios = analysis_pack.get("narrative_scenarios") if analysis_pack else None

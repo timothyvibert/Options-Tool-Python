@@ -14,6 +14,7 @@ try:
     from reportlab.lib.units import inch
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.pdfgen import canvas as pdf_canvas
     from reportlab.platypus import (
         Image,
         PageBreak,
@@ -32,6 +33,7 @@ except ImportError as exc:
     inch = 72
     pdfmetrics = None
     TTFont = None
+    pdf_canvas = None
     Image = None
     PageBreak = None
     Paragraph = None
@@ -379,15 +381,9 @@ def build_report_pdf_v2(
             base_font = "Helvetica"
 
     styles = _styles(base_font=base_font)
-    doc = SimpleDocTemplate(
-        path,
-        pagesize=letter,
-        rightMargin=36,
-        leftMargin=36,
-        topMargin=36,
-        bottomMargin=36,
-        pageCompression=0,
-    )
+
+    if pdf_canvas is None:
+        raise RuntimeError("reportlab canvas unavailable")
 
     resolved_logo_path = None
     if logo_path:
@@ -407,47 +403,104 @@ def build_report_pdf_v2(
     as_of = header.get("report_time", "--")
     policies = header.get("policies", "--")
 
-    def _header_block():
-        logo_cell = ""
+    PAGE_W, PAGE_H = letter
+    margin_left = 30
+    margin_right = 30
+    margin_top = 24
+    margin_bottom = 18
+    content_w = PAGE_W - margin_left - margin_right
+
+    header_h = 72
+    gap = 9
+
+    structure_w = 220
+    structure_h = 180
+    payoff_h = 300
+    metrics_h = 140
+    disclaim_h = 60
+
+    scenario_cards_h = 130
+    key_levels_h = 220
+    commentary_h = 200
+
+    def _draw_box(c, x, y, w, h):
+        c.setStrokeColor(colors.lightgrey)
+        c.setLineWidth(0.5)
+        c.rect(x, y, w, h, stroke=1, fill=0)
+
+    def _draw_table(c, table, x, y, w, h):
+        tw, th = table.wrap(w, h)
+        if th > h:
+            table.setStyle(
+                TableStyle(
+                    [
+                        ("FONTSIZE", (0, 0), (-1, -1), 7),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                        ("TOPPADDING", (0, 0), (-1, -1), 2),
+                    ]
+                )
+            )
+            tw, th = table.wrap(w, h)
+        table.drawOn(c, x, y + h - th)
+
+    def _draw_paragraphs(c, paragraphs, x, y, w, h, leading):
+        cursor = y + h - leading
+        for para in paragraphs:
+            tw, th = para.wrap(w, h)
+            if cursor - th < y:
+                break
+            para.drawOn(c, x, cursor - th)
+            cursor -= th + 2
+
+    def _draw_header(c):
+        x = margin_left
+        y = PAGE_H - margin_top - header_h
+        _draw_box(c, x, y, content_w, header_h)
+        logo_w = 90
+        logo_h = 28
         if resolved_logo_path and Image is not None:
             try:
-                logo_cell = Image(str(resolved_logo_path), width=1.1 * inch, height=0.45 * inch)
+                c.drawImage(
+                    str(resolved_logo_path),
+                    x + 6,
+                    y + header_h - logo_h - 8,
+                    width=logo_w,
+                    height=logo_h,
+                    preserveAspectRatio=True,
+                    mask="auto",
+                )
             except Exception:
-                logo_cell = ""
+                pass
         header_lines = [
-            f"<b>{ticker}</b>",
-            f"Resolved: {resolved}",
+            f"{ticker}  |  {resolved}",
             f"Strategy: {strategy_name}",
-            f"Expiry: {expiry}",
-            f"Spot: {spot}",
+            f"Expiry: {expiry}   Spot: {spot}",
             f"As Of: {as_of}",
             f"Policies: {policies}",
         ]
-        header_text = Paragraph("<br/>".join(header_lines), styles["small"])
-        table = Table([[logo_cell, header_text]], colWidths=[1.5 * inch, 6.0 * inch])
-        table.setStyle(
-            TableStyle(
-                [
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ]
-            )
-        )
-        return [table, Spacer(1, 0.1 * inch)]
+        header_paras = [Paragraph(line, styles["small"]) for line in header_lines]
+        _draw_paragraphs(c, header_paras, x + logo_w + 16, y + 6, content_w - logo_w - 22, header_h - 12, 10)
 
-    story: List[Any] = []
-    story.extend(_header_block())
+    def _draw_footer(c, page_num):
+        c.setFont(base_font, 9)
+        c.drawString(margin_left, margin_bottom, "UBS Financial Services Inc.")
+        c.drawRightString(PAGE_W - margin_right, margin_bottom, f"Page {page_num} of 2")
 
-    # Page 1: Structure Card
-    story.append(Paragraph("Structure", styles["section"]))
-    structure = report_model.get("structure", {}) if isinstance(report_model, dict) else {}
-    legs_rows = structure.get("legs") if isinstance(structure, dict) else None
-    legs_rows = legs_rows if isinstance(legs_rows, list) else []
-    legs_data = [["Leg", "Side", "Expiry", "Strike", "Premium"]]
-    if legs_rows:
-        for leg in legs_rows:
+    def _page1(c):
+        _draw_header(c)
+        y_top = PAGE_H - margin_top - header_h - gap
+
+        # Structure card (left)
+        struct_x = margin_left
+        struct_y = y_top - structure_h
+        _draw_box(c, struct_x, struct_y, structure_w, structure_h)
+        c.setFont(base_font, 10)
+        c.drawString(struct_x + 6, struct_y + structure_h - 14, "Structure")
+        structure = report_model.get("structure", {}) if isinstance(report_model, dict) else {}
+        legs_rows = structure.get("legs") if isinstance(structure, dict) else []
+        legs_rows = legs_rows if isinstance(legs_rows, list) else []
+        legs_data = [["Leg", "Side", "Expiry", "Strike", "Premium"]]
+        for leg in legs_rows[:4]:
             if not isinstance(leg, dict):
                 continue
             legs_data.append(
@@ -459,225 +512,238 @@ def build_report_pdf_v2(
                     _fmt_value(leg.get("premium")),
                 ]
             )
-    else:
-        legs_data.append(["--", "--", "--", "--", "--"])
-    legs_table = Table(legs_data, colWidths=[0.8 * inch, 1.0 * inch, 1.2 * inch, 1.2 * inch, 1.2 * inch])
-    legs_table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                ("FONTNAME", (0, 0), (-1, 0), base_font),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ]
+        if len(legs_data) == 1:
+            legs_data.append(["--", "--", "--", "--", "--"])
+        legs_table = Table(
+            legs_data,
+            colWidths=[0.45 * inch, 0.8 * inch, 1.1 * inch, 1.0 * inch, 1.0 * inch],
         )
-    )
-    story.append(legs_table)
-    story.append(Spacer(1, 0.2 * inch))
-
-    # Payoff Card (placeholder)
-    story.append(Paragraph("Payoff", styles["section"]))
-    placeholder = Table(
-        [[Paragraph("Payoff chart (placeholder)", styles["body"])]],
-        colWidths=[7.2 * inch],
-        rowHeights=[4.0 * inch],
-    )
-    placeholder.setStyle(
-        TableStyle(
-            [
-                ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-            ]
-        )
-    )
-    story.append(placeholder)
-    story.append(Spacer(1, 0.2 * inch))
-
-    # Payoff & Metrics
-    story.append(Paragraph("Payoff & Metrics", styles["section"]))
-    metrics = report_model.get("metrics", {}) if isinstance(report_model, dict) else {}
-    metrics_rows = metrics.get("rows") if isinstance(metrics, dict) else []
-    metrics_data = [["Metric", "Options", "Combined"]]
-    if isinstance(metrics_rows, list) and metrics_rows:
-        for row in metrics_rows:
-            if not isinstance(row, dict):
-                continue
-            metrics_data.append(
+        legs_table.setStyle(
+            TableStyle(
                 [
-                    _fmt_value(row.get("metric")),
-                    _fmt_value(row.get("options")),
-                    _fmt_value(row.get("combined")),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                    ("FONTNAME", (0, 0), (-1, 0), base_font),
+                    ("FONTSIZE", (0, 0), (-1, -1), 7),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ]
             )
-    else:
-        metrics_data.append(["--", "--", "--"])
-    metrics_table = Table(metrics_data, colWidths=[2.5 * inch, 2.0 * inch, 2.0 * inch])
-    metrics_table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                ("FONTNAME", (0, 0), (-1, 0), base_font),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ]
         )
-    )
-    story.append(metrics_table)
-    story.append(Spacer(1, 0.2 * inch))
+        _draw_table(c, legs_table, struct_x + 4, struct_y + 8, structure_w - 8, structure_h - 24)
 
-    # Disclaimers
-    story.append(Paragraph("Disclaimers", styles["section"]))
-    disclaimers = report_model.get("disclaimers") if isinstance(report_model, dict) else []
-    if not isinstance(disclaimers, list) or not disclaimers:
-        disclaimers = ["For informational purposes only. Not a solicitation or recommendation."]
-    for note in disclaimers:
-        story.append(Paragraph(f"- {note}", styles["small"]))
+        # Payoff card (right)
+        payoff_x = margin_left + structure_w + gap
+        payoff_w = content_w - structure_w - gap
+        payoff_y = y_top - payoff_h
+        _draw_box(c, payoff_x, payoff_y, payoff_w, payoff_h)
+        c.setFont(base_font, 10)
+        c.drawString(payoff_x + 6, payoff_y + payoff_h - 14, "Payoff")
+        c.setFont(base_font, 9)
+        c.drawCentredString(payoff_x + payoff_w / 2, payoff_y + payoff_h / 2, "Payoff chart (placeholder)")
 
-    story.append(PageBreak())
+        y_next = y_top - payoff_h - gap
 
-    # Page 2 header
-    story.extend(_header_block())
-
-    # Scenario Analysis Cards
-    story.append(Paragraph("Scenario Analysis", styles["section"]))
-    cards = report_model.get("scenario_analysis_cards") if isinstance(report_model, dict) else []
-    card_cells = []
-    if isinstance(cards, list) and cards:
-        for card in cards[:3]:
-            if not isinstance(card, dict):
-                card_cells.append(Paragraph("", styles["body"]))
-                continue
-            title_text = str(card.get("title") or "")
-            condition_text = str(card.get("condition") or "")
-            body_text = str(card.get("body") or "")
-            parts = []
-            if title_text:
-                parts.append(f"<b>{title_text}</b>")
-            if condition_text:
-                parts.append(condition_text)
-            if body_text:
-                parts.append(body_text)
-            card_cells.append(Paragraph("<br/>".join(parts), styles["small"]))
-    else:
-        card_cells = [
-            Paragraph("Bearish (placeholder)", styles["small"]),
-            Paragraph("Stagnant (placeholder)", styles["small"]),
-            Paragraph("Bullish (placeholder)", styles["small"]),
-        ]
-    card_table = Table([card_cells], colWidths=[2.4 * inch, 2.4 * inch, 2.4 * inch])
-    card_table.setStyle(
-        TableStyle(
-            [
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ]
+        # Metrics card
+        metrics_y = y_next - metrics_h
+        _draw_box(c, margin_left, metrics_y, content_w, metrics_h)
+        c.setFont(base_font, 10)
+        c.drawString(margin_left + 6, metrics_y + metrics_h - 14, "Payoff & Metrics")
+        metrics = report_model.get("metrics", {}) if isinstance(report_model, dict) else {}
+        metrics_rows = metrics.get("rows") if isinstance(metrics, dict) else []
+        metrics_data = [["Metric", "Options", "Combined"]]
+        if isinstance(metrics_rows, list) and metrics_rows:
+            for row in metrics_rows[:9]:
+                if not isinstance(row, dict):
+                    continue
+                metrics_data.append(
+                    [
+                        _fmt_value(row.get("metric")),
+                        _fmt_value(row.get("options")),
+                        _fmt_value(row.get("combined")),
+                    ]
+                )
+        else:
+            metrics_data.append(["--", "--", "--"])
+        metrics_table = Table(
+            metrics_data,
+            colWidths=[2.6 * inch, 2.0 * inch, 2.0 * inch],
         )
-    )
-    story.append(card_table)
-    story.append(Spacer(1, 0.2 * inch))
+        metrics_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                    ("FONTNAME", (0, 0), (-1, 0), base_font),
+                    ("FONTSIZE", (0, 0), (-1, -1), 7),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]
+            )
+        )
+        _draw_table(c, metrics_table, margin_left + 4, metrics_y + 6, content_w - 8, metrics_h - 22)
 
-    # Key Levels Table
-    story.append(Paragraph("Key Levels", styles["section"]))
-    key_levels_rows = report_model.get("key_levels_display_rows_by_price") or report_model.get(
-        "key_levels_display_rows"
-    )
-    if not isinstance(key_levels_rows, list):
-        key_levels_rows = []
-    has_stock_position = bool(report_model.get("has_stock_position", True))
-    if has_stock_position:
-        columns = [
-            "Scenario",
-            "Price",
-            "Move %",
-            "Stock PnL",
-            "Option PnL",
-            "Option ROI",
-            "Net PnL",
-            "Net ROI",
-        ]
-    else:
-        columns = [
-            "Scenario",
-            "Price",
-            "Move %",
-            "Option PnL",
-            "Option ROI",
-            "Net PnL",
-            "Net ROI",
-        ]
-    table_data = [columns]
-    highlight_row = None
-    for idx, row in enumerate(key_levels_rows, start=1):
-        if not isinstance(row, dict):
-            continue
-        scenario_label = row.get("Scenario") or row.get("scenario")
-        if isinstance(scenario_label, str) and scenario_label.strip() == "Current Market Price":
-            highlight_row = idx
-        row_values = [
-            _fmt_value(scenario_label),
-            _fmt_value(row.get("Price", row.get("price", ""))),
-            _fmt_value(row.get("Move %", row.get("move_pct", ""))),
-        ]
+        # Disclaimers
+        disclaim_y = metrics_y - gap - disclaim_h
+        _draw_box(c, margin_left, disclaim_y, content_w, disclaim_h)
+        c.setFont(base_font, 10)
+        c.drawString(margin_left + 6, disclaim_y + disclaim_h - 14, "Disclaimers")
+        disclaimers = report_model.get("disclaimers") if isinstance(report_model, dict) else []
+        if not isinstance(disclaimers, list) or not disclaimers:
+            disclaimers = ["For informational purposes only. Not a solicitation or recommendation."]
+        paras = [Paragraph(f"- {note}", styles["small"]) for note in disclaimers[:3]]
+        _draw_paragraphs(c, paras, margin_left + 8, disclaim_y + 6, content_w - 16, disclaim_h - 20, 10)
+
+        _draw_footer(c, 1)
+
+    def _page2(c):
+        _draw_header(c)
+        y_top = PAGE_H - margin_top - header_h - gap
+
+        # Scenario cards row
+        cards_y = y_top - scenario_cards_h
+        _draw_box(c, margin_left, cards_y, content_w, scenario_cards_h)
+        c.setFont(base_font, 10)
+        c.drawString(margin_left + 6, cards_y + scenario_cards_h - 14, "Scenario Analysis")
+        cards = report_model.get("scenario_analysis_cards") if isinstance(report_model, dict) else []
+        card_cells = []
+        if isinstance(cards, list) and cards:
+            for card in cards[:3]:
+                if not isinstance(card, dict):
+                    card_cells.append(Paragraph("", styles["small"]))
+                    continue
+                title_text = str(card.get("title") or "")
+                condition_text = str(card.get("condition") or "")
+                body_text = str(card.get("body") or "")
+                parts = []
+                if title_text:
+                    parts.append(f"<b>{title_text}</b>")
+                if condition_text:
+                    parts.append(condition_text)
+                if body_text:
+                    parts.append(body_text)
+                card_cells.append(Paragraph("<br/>".join(parts), styles["small"]))
+        else:
+            card_cells = [
+                Paragraph("Bearish (placeholder)", styles["small"]),
+                Paragraph("Stagnant (placeholder)", styles["small"]),
+                Paragraph("Bullish (placeholder)", styles["small"]),
+            ]
+        card_table = Table([card_cells], colWidths=[2.4 * inch, 2.4 * inch, 2.4 * inch])
+        card_table.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+        )
+        _draw_table(c, card_table, margin_left + 4, cards_y + 8, content_w - 8, scenario_cards_h - 24)
+
+        y_next = cards_y - gap
+
+        # Key levels table
+        key_y = y_next - key_levels_h
+        _draw_box(c, margin_left, key_y, content_w, key_levels_h)
+        c.setFont(base_font, 10)
+        c.drawString(margin_left + 6, key_y + key_levels_h - 14, "Key Levels")
+        key_levels_rows = report_model.get("key_levels_display_rows_by_price") or report_model.get(
+            "key_levels_display_rows"
+        )
+        if not isinstance(key_levels_rows, list):
+            key_levels_rows = []
+        has_stock_position = bool(report_model.get("has_stock_position", True))
         if has_stock_position:
-            row_values.append(_fmt_value(row.get("Stock PnL", row.get("stock_pnl", ""))))
-        row_values.extend(
-            [
-                _fmt_value(row.get("Option PnL", row.get("option_pnl", ""))),
-                _fmt_value(row.get("Option ROI", row.get("option_roi", ""))),
-                _fmt_value(row.get("Net PnL", row.get("net_pnl", ""))),
-                _fmt_value(row.get("Net ROI", row.get("net_roi", ""))),
+            columns = [
+                "Scenario",
+                "Price",
+                "Move %",
+                "Stock PnL",
+                "Option PnL",
+                "Option ROI",
+                "Net PnL",
+                "Net ROI",
             ]
-        )
-        table_data.append(row_values)
-    if len(table_data) == 1:
-        table_data.append(["--"] * len(columns))
-    key_table = Table(table_data, repeatRows=1)
-    table_style = [
-        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-        ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-        ("FONTNAME", (0, 0), (-1, 0), base_font),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-    ]
-    if highlight_row is not None:
-        table_style.append(
-            ("BACKGROUND", (0, highlight_row), (-1, highlight_row), colors.lightyellow)
-        )
-    key_table.setStyle(TableStyle(table_style))
-    story.append(key_table)
-    story.append(Spacer(1, 0.2 * inch))
-
-    # Commentary Blocks
-    story.append(Paragraph("Commentary", styles["section"]))
-    commentary = report_model.get("commentary_blocks") if isinstance(report_model, dict) else {}
-    blocks = []
-    if isinstance(commentary, dict):
-        blocks = commentary.get("blocks") or []
-    if not isinstance(blocks, list):
-        blocks = []
-    if not blocks:
-        story.append(Paragraph("--", styles["small"]))
-    else:
-        for block in blocks:
-            if not isinstance(block, dict):
+        else:
+            columns = [
+                "Scenario",
+                "Price",
+                "Move %",
+                "Option PnL",
+                "Option ROI",
+                "Net PnL",
+                "Net ROI",
+            ]
+        table_data = [columns]
+        highlight_row = None
+        for idx, row in enumerate(key_levels_rows[:10], start=1):
+            if not isinstance(row, dict):
                 continue
-            level = block.get("level") or "--"
-            text = block.get("text") or "--"
-            story.append(Paragraph(f"<b>{level}</b>: {text}", styles["small"]))
+            scenario_label = row.get("Scenario") or row.get("scenario")
+            if isinstance(scenario_label, str) and scenario_label.strip() == "Current Market Price":
+                highlight_row = idx
+            row_values = [
+                _fmt_value(scenario_label),
+                _fmt_value(row.get("Price", row.get("price", ""))),
+                _fmt_value(row.get("Move %", row.get("move_pct", ""))),
+            ]
+            if has_stock_position:
+                row_values.append(_fmt_value(row.get("Stock PnL", row.get("stock_pnl", ""))))
+            row_values.extend(
+                [
+                    _fmt_value(row.get("Option PnL", row.get("option_pnl", ""))),
+                    _fmt_value(row.get("Option ROI", row.get("option_roi", ""))),
+                    _fmt_value(row.get("Net PnL", row.get("net_pnl", ""))),
+                    _fmt_value(row.get("Net ROI", row.get("net_roi", ""))),
+                ]
+            )
+            table_data.append(row_values)
+        if len(table_data) == 1:
+            table_data.append(["--"] * len(columns))
+        key_table = Table(table_data, repeatRows=1)
+        table_style = [
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+            ("FONTNAME", (0, 0), (-1, 0), base_font),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]
+        if highlight_row is not None:
+            table_style.append(
+                ("BACKGROUND", (0, highlight_row), (-1, highlight_row), colors.lightyellow)
+            )
+        key_table.setStyle(TableStyle(table_style))
+        _draw_table(c, key_table, margin_left + 4, key_y + 6, content_w - 8, key_levels_h - 22)
 
-    def _footer(canvas, doc_obj):
-        canvas.saveState()
-        canvas.setFont(base_font, 9)
-        canvas.drawString(doc_obj.leftMargin, 18, "UBS Financial Services Inc.")
-        canvas.drawRightString(
-            doc_obj.pagesize[0] - doc_obj.rightMargin,
-            18,
-            f"Page {doc_obj.page} of 2",
-        )
-        canvas.restoreState()
+        # Commentary block
+        comm_y = key_y - gap - commentary_h
+        _draw_box(c, margin_left, comm_y, content_w, commentary_h)
+        c.setFont(base_font, 10)
+        c.drawString(margin_left + 6, comm_y + commentary_h - 14, "Commentary")
+        commentary = report_model.get("commentary_blocks") if isinstance(report_model, dict) else {}
+        blocks = []
+        if isinstance(commentary, dict):
+            blocks = commentary.get("blocks") or []
+        if not isinstance(blocks, list):
+            blocks = []
+        if not blocks:
+            paras = [Paragraph("--", styles["small"])]
+        else:
+            paras = []
+            for block in blocks[:5]:
+                if not isinstance(block, dict):
+                    continue
+                level = block.get("level") or "--"
+                text = block.get("text") or "--"
+                paras.append(Paragraph(f"<b>{level}</b>: {text}", styles["small"]))
+        _draw_paragraphs(c, paras, margin_left + 8, comm_y + 6, content_w - 16, commentary_h - 22, 10)
 
-    doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
+        _draw_footer(c, 2)
+
+    c = pdf_canvas.Canvas(path, pagesize=letter, pageCompression=0)
+    _page1(c)
+    c.showPage()
+    _page2(c)
+    c.save()

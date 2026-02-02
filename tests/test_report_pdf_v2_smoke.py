@@ -62,7 +62,9 @@ def test_report_pdf_v2_smoke():
         assert size > 10_000
         with open(tmp_path, "rb") as handle:
             payload = handle.read()
-        assert payload.count(b"/Type /Page") >= 2
+        page_count = payload.count(b"/Type /Page") - payload.count(b"/Type /Pages")
+        assert page_count == 2
+        assert b"Page 3 of 2" not in payload
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)

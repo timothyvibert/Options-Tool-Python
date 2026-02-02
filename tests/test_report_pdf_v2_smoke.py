@@ -65,6 +65,7 @@ def test_report_pdf_v2_smoke():
         page_count = payload.count(b"/Type /Page") - payload.count(b"/Type /Pages")
         assert page_count == 2
         assert b"Page 3 of 2" not in payload
+        assert b"Commentary" not in payload
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)

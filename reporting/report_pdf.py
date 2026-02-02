@@ -421,7 +421,6 @@ def build_report_pdf_v2(
 
     scenario_cards_h = 130
     key_levels_h = 220
-    commentary_h = 200
 
     def _draw_box(c, x, y, w, h):
         c.setStrokeColor(colors.lightgrey)
@@ -716,29 +715,6 @@ def build_report_pdf_v2(
             )
         key_table.setStyle(TableStyle(table_style))
         _draw_table(c, key_table, margin_left + 4, key_y + 6, content_w - 8, key_levels_h - 22)
-
-        # Commentary block
-        comm_y = key_y - gap - commentary_h
-        _draw_box(c, margin_left, comm_y, content_w, commentary_h)
-        c.setFont(base_font, 10)
-        c.drawString(margin_left + 6, comm_y + commentary_h - 14, "Commentary")
-        commentary = report_model.get("commentary_blocks") if isinstance(report_model, dict) else {}
-        blocks = []
-        if isinstance(commentary, dict):
-            blocks = commentary.get("blocks") or []
-        if not isinstance(blocks, list):
-            blocks = []
-        if not blocks:
-            paras = [Paragraph("--", styles["small"])]
-        else:
-            paras = []
-            for block in blocks[:5]:
-                if not isinstance(block, dict):
-                    continue
-                level = block.get("level") or "--"
-                text = block.get("text") or "--"
-                paras.append(Paragraph(f"<b>{level}</b>: {text}", styles["small"]))
-        _draw_paragraphs(c, paras, margin_left + 8, comm_y + 6, content_w - 16, commentary_h - 22, 10)
 
         _draw_footer(c, 2)
 

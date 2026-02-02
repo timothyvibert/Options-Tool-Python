@@ -4,3 +4,5 @@ __pycache__/
 .streamlit/
 *.xlsm
 tests/artifacts/
+Design/out/
+Design/figma_report_v2/public/report_contract.json

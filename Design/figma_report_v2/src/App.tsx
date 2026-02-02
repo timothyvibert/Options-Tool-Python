@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { StrategyReport } from "./components/StrategyReport";
+import { mapReportContractToTemplateData } from "./reportContractAdapter";
 
 export default function App() {
   // Sample data - in production, this would come from your Python/Streamlit backend
@@ -199,9 +201,28 @@ export default function App() {
     ]
   };
 
+  const [contractData, setContractData] = useState<any | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("contract") !== "1") {
+      return;
+    }
+    fetch("/report_contract.json")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (data) {
+          setContractData(mapReportContractToTemplateData(data));
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const data = contractData ?? reportData;
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <StrategyReport data={reportData} />
+      <StrategyReport data={data} />
     </div>
   );
 }

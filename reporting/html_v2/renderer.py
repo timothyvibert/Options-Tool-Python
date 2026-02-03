@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
 
@@ -21,25 +22,36 @@ def _ensure_dict(report_model: object) -> Dict[str, Any]:
     return {}
 
 
-def _load_css(repo_root: Path) -> str:
-    design_root = repo_root / "Design" / "figma_report_v2" / "src"
-    index_css = design_root / "index.css"
-    globals_css = design_root / "styles" / "globals.css"
-    if not index_css.exists() or not globals_css.exists():
-        raise RuntimeError(
-            "Missing Design CSS files. Expected: "
-            f"{globals_css} and {index_css}."
+def _configure_fontconfig() -> None:
+    prefix = os.environ.get("CONDA_PREFIX")
+    if not prefix:
+        return
+    fonts_dir = Path(prefix) / "etc" / "fonts"
+    fonts_conf = fonts_dir / "fonts.conf"
+    if "FONTCONFIG_PATH" not in os.environ and fonts_dir.exists():
+        os.environ["FONTCONFIG_PATH"] = str(fonts_dir)
+    if "FONTCONFIG_FILE" not in os.environ and fonts_conf.exists():
+        os.environ["FONTCONFIG_FILE"] = str(fonts_conf)
+    if os.environ.get("REPORT_HTML_DEBUG") == "1":
+        print(
+            "report_html_debug: FONTCONFIG_PATH="
+            f"{os.environ.get('FONTCONFIG_PATH')} exists={fonts_dir.exists()}"
         )
-    css_text = globals_css.read_text(encoding="utf-8")
-    css_text += "\n" + index_css.read_text(encoding="utf-8")
-    css_text += (
-        "\n@page { size: 8.5in 11in; margin: 0; }\n"
-        "@media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }\n"
-    )
-    return css_text
+        print(
+            "report_html_debug: FONTCONFIG_FILE="
+            f"{os.environ.get('FONTCONFIG_FILE')} exists={fonts_conf.exists()}"
+        )
+
+
+def _load_css(repo_root: Path) -> str:
+    css_path = repo_root / "reporting" / "html_v2" / "assets" / "print.css"
+    if not css_path.exists():
+        raise RuntimeError(f"Missing print stylesheet: {css_path}")
+    return css_path.read_text(encoding="utf-8")
 
 
 def build_report_pdf_html(report_model: Mapping[str, object], *, out_path: Optional[str] = None) -> bytes:
+    _configure_fontconfig()
     try:
         from jinja2 import Environment, FileSystemLoader, select_autoescape
     except ImportError as exc:  # pragma: no cover - optional dependency

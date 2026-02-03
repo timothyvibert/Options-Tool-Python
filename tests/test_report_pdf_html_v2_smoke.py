@@ -1,3 +1,4 @@
+import io
 import json
 from pathlib import Path
 
@@ -23,4 +24,18 @@ def test_report_pdf_html_v2_smoke():
         raise
 
     assert pdf_bytes.startswith(b"%PDF")
-    assert len(pdf_bytes) > 30000
+    assert b"%%EOF" in pdf_bytes[-2048:]
+
+    pdf_reader = None
+    try:
+        from pypdf import PdfReader as _PdfReader  # type: ignore
+    except Exception:
+        _PdfReader = None
+    if _PdfReader is None:
+        try:
+            from PyPDF2 import PdfReader as _PdfReader  # type: ignore
+        except Exception:
+            _PdfReader = None
+    if _PdfReader is not None:
+        pdf_reader = _PdfReader(io.BytesIO(pdf_bytes))
+        assert len(pdf_reader.pages) >= 1

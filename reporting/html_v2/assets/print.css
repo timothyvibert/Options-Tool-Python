@@ -40,6 +40,19 @@
   }
 }
 
+.page {
+  page-break-after: always;
+}
+
+.page:last-child {
+  page-break-after: auto;
+}
+
+.avoid-break {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
 *,
 *::before,
 *::after {

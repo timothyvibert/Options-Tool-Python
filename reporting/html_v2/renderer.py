@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
 
-from reporting.html_v2.view_model import build_view_model_from_contract
+from reporting.html_v2.view_model import build_view_model
 
 
 def _ensure_dict(report_model: object) -> Dict[str, Any]:
@@ -68,7 +68,7 @@ def build_report_pdf_html(report_model: Mapping[str, object], *, out_path: Optio
 
     repo_root = Path(__file__).resolve().parents[2]
     model = _ensure_dict(report_model)
-    context = build_view_model_from_contract(model)
+    context = build_view_model(model)
     template_dir = Path(__file__).resolve().parent / "templates"
     css_text = _load_css(repo_root)
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Mapping, Optional
 
-MISSING = "--"
+MISSING = "—"
 DEFAULT_DISCLOSURE = (
     "Options involve risk and are not suitable for all investors. Please ensure that you have read and "
     "understood the current Options Disclosure Document titled \"Characteristics and Risks of Standardized Options\". "
@@ -19,7 +19,9 @@ def _to_text(value: object, fallback: str = MISSING) -> str:
         return fallback
     if isinstance(value, str):
         text = value.strip()
-        return text if text else fallback
+        if text in ("", "--", MISSING):
+            return fallback
+        return text
     return str(value)
 
 
@@ -32,7 +34,7 @@ def _to_number(value: object) -> Optional[float]:
         return float(value)
     if isinstance(value, str):
         text = value.strip()
-        if not text or text == MISSING:
+        if not text or text in (MISSING, "--"):
             return None
         negative = text.startswith("(") and text.endswith(")")
         cleaned = text.replace("(", "").replace(")", "")
@@ -85,7 +87,7 @@ def _format_currency(value: object, decimals: int = 2) -> str:
         return MISSING
     if isinstance(value, str):
         text = value.strip()
-        if not text or text == MISSING:
+        if not text or text in (MISSING, "--"):
             return MISSING
         number = _to_number(text)
         if number is None:
@@ -116,7 +118,7 @@ def _value_class(value: object) -> str:
     if isinstance(value, (int, float)):
         return "text-red-600" if value < 0 else "text-gray-900"
     if isinstance(value, str):
-        if "-" in value and value not in ("---", MISSING):
+        if "-" in value and value not in ("---", MISSING, "--"):
             return "text-red-600"
     return "text-gray-900"
 
@@ -329,6 +331,65 @@ def _join_disclosures(value: object) -> str:
     return text if text != MISSING else DEFAULT_DISCLOSURE
 
 
+def _strategy_description(contract: Mapping[str, object]) -> str:
+    direct = _to_text(contract.get("strategy_description") or "")
+    if direct != MISSING:
+        return direct
+    commentary = contract.get("commentary_blocks")
+    if isinstance(commentary, Mapping):
+        blocks = commentary.get("blocks")
+        if isinstance(blocks, list) and blocks:
+            first = blocks[0]
+            if isinstance(first, Mapping):
+                return _to_text(first.get("text") or "")
+    if isinstance(commentary, list) and commentary:
+        first = commentary[0]
+        if isinstance(first, Mapping):
+            return _to_text(first.get("text") or "")
+    return MISSING
+
+
+def _looks_like_template_data(data: Mapping[str, object]) -> bool:
+    return "strategyName" in data or "stockDetails" in data
+
+
+def _from_template_data(data: Mapping[str, object]) -> Dict[str, object]:
+    return {
+        "header": {
+            "title": _to_text(data.get("strategyName")),
+            "subtitle": _to_text(data.get("subtitle") or "Wealth Management Option Strategy"),
+            "date": _to_text(data.get("date")),
+            "disclaimer": DEFAULT_DISCLOSURE,
+        },
+        "stock_details": {
+            "ticker": _to_text(data.get("stockDetails", {}).get("ticker") if isinstance(data.get("stockDetails"), Mapping) else None),
+            "name": _to_text(data.get("stockDetails", {}).get("name") if isinstance(data.get("stockDetails"), Mapping) else None),
+            "sector": _to_text(data.get("stockDetails", {}).get("sector") if isinstance(data.get("stockDetails"), Mapping) else None),
+            "ubs_rating": _to_text(data.get("stockDetails", {}).get("ubsGrpRating") if isinstance(data.get("stockDetails"), Mapping) else None),
+            "ubs_target": _to_text(data.get("stockDetails", {}).get("ubsGrpTarget") if isinstance(data.get("stockDetails"), Mapping) else None),
+            "cio_rating": _to_text(data.get("stockDetails", {}).get("ubsCioRating") if isinstance(data.get("stockDetails"), Mapping) else None),
+            "last_price": _to_text(data.get("stockDetails", {}).get("lastPrice") if isinstance(data.get("stockDetails"), Mapping) else None),
+            "ten_day_change": _to_text(data.get("stockDetails", {}).get("tenDayChange") if isinstance(data.get("stockDetails"), Mapping) else None),
+            "change_class": "text-gray-900",
+            "change_symbol": "",
+            "fifty_two_week_high": _to_text(data.get("stockDetails", {}).get("fiftyTwoWeekHigh") if isinstance(data.get("stockDetails"), Mapping) else None),
+            "fifty_two_week_low": _to_text(data.get("stockDetails", {}).get("fiftyTwoWeekLow") if isinstance(data.get("stockDetails"), Mapping) else None),
+            "dividend_yield": _to_text(data.get("stockDetails", {}).get("dividendYield") if isinstance(data.get("stockDetails"), Mapping) else None),
+            "earnings_date": _to_text(data.get("stockDetails", {}).get("earningsDate") if isinstance(data.get("stockDetails"), Mapping) else None),
+        },
+        "client_position": data.get("clientPosition") if isinstance(data.get("clientPosition"), Mapping) else None,
+        "strategy_description": _to_text(data.get("strategyDescription") or ""),
+        "option_legs_title": _to_text(data.get("optionLegsTitle") or ""),
+        "option_legs": data.get("optionLegs") if isinstance(data.get("optionLegs"), list) else [],
+        "net_premium": {"display": _to_text(data.get("netPremium")), "class": "text-gray-900"},
+        "metrics": {},
+        "key_levels": data.get("keyLevels") if isinstance(data.get("keyLevels"), list) else [],
+        "scenario_analysis": data.get("scenarioAnalysis") if isinstance(data.get("scenarioAnalysis"), list) else [],
+        "disclosures": DEFAULT_DISCLOSURE,
+        "page": {"total": 2},
+    }
+
+
 def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, object]:
     header = contract.get("header") if isinstance(contract.get("header"), Mapping) else {}
     structure = contract.get("structure") if isinstance(contract.get("structure"), Mapping) else {}
@@ -339,17 +400,26 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
         if isinstance(contract.get("key_levels_display_rows_by_price"), list)
         else contract.get("key_levels_display_rows")
     )
-    key_levels_rows = key_levels_rows if isinstance(key_levels_rows, list) else []
+    if not isinstance(key_levels_rows, list):
+        key_levels_rows = contract.get("key_levels") if isinstance(contract.get("key_levels"), list) else []
     scenario_cards = contract.get("scenario_analysis_cards")
     scenario_cards = scenario_cards if isinstance(scenario_cards, list) else []
+    stock_banner = contract.get("stock_banner") if isinstance(contract.get("stock_banner"), Mapping) else {}
 
     last_price = _to_number(header.get("last_price")) or 0.0
-    shares = _to_number(header.get("shares")) or 0.0
-    avg_cost = _to_number(header.get("avg_cost")) or 0.0
+    shares = _to_number(header.get("shares")) or _to_number(stock_banner.get("shares")) or 0.0
+    avg_cost = _to_number(header.get("avg_cost")) or _to_number(stock_banner.get("avg_cost")) or 0.0
     mkt_value = last_price * shares
     cost_value = avg_cost * shares
     pnl_dollar = mkt_value - cost_value
     pnl_percent = (pnl_dollar / cost_value * 100.0) if cost_value else 0.0
+
+    move_text = _to_text(
+        header.get("ten_day_change")
+        or header.get("chg_pct_ytd")
+        or stock_banner.get("chg_pct_ytd")
+        or "0.00%"
+    )
 
     option_legs: List[Dict[str, object]] = []
     legs = structure.get("legs") if isinstance(structure.get("legs"), list) else []
@@ -372,7 +442,7 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
                     "strike": _format_currency(strike_num, decimals=2),
                     "type": side_info["type"] or _to_text(leg.get("type") or leg.get("kind")),
                     "price": f"at {_format_currency(price_num, decimals=2)}",
-                    "delta": _format_number(0, decimals=2),
+                    "delta": _format_number(leg.get("delta") or 0, decimals=2),
                     "otm_percent": MISSING,
                     "premium": premium_num,
                     "premium_display": _format_currency(premium_num, decimals=2),
@@ -409,7 +479,7 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
         "header": {
             "title": _to_text(header.get("strategy_name")),
             "subtitle": "Wealth Management Option Strategy",
-            "date": _format_date(header.get("report_time")),
+            "date": _format_date(header.get("report_time") or header.get("as_of")),
             "disclaimer": (
                 "The illustration is intended for informational and internal use. "
                 "Although it can be shared with clients approved for trading Options or "
@@ -422,17 +492,28 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
             "ticker": _to_text(header.get("ticker")),
             "name": _to_text(header.get("name")),
             "sector": _to_text(header.get("sector")),
-            "ubs_rating": _to_text(header.get("ubs_rating") or "N/A"),
-            "ubs_target": _format_currency(_to_number(header.get("target")) or 0.0),
-            "cio_rating": _to_text(header.get("cio_rating") or "N/A"),
+            "ubs_rating": _to_text(header.get("ubs_rating") or header.get("ubs_grp_rating") or "N/A"),
+            "ubs_target": _format_currency(
+                _to_number(header.get("target") or header.get("ubs_grp_target")) or 0.0
+            ),
+            "cio_rating": _to_text(header.get("cio_rating") or header.get("ubs_cio_rating") or "N/A"),
             "last_price": _format_currency(last_price, decimals=2),
-            "ten_day_change": _to_text(header.get("ten_day_change") or "0.00%"),
-            "change_class": "text-red-600" if "-" in _to_text(header.get("ten_day_change") or "") else "text-green-600",
-            "change_symbol": "▼" if "-" in _to_text(header.get("ten_day_change") or "") else "▲",
-            "fifty_two_week_high": _format_currency(_to_number(header.get("high_52w")) or 0.0, decimals=0),
-            "fifty_two_week_low": _format_currency(_to_number(header.get("low_52w")) or 0.0, decimals=0),
-            "dividend_yield": _format_percent(_to_number(header.get("dividend_yield")) or 0.0, decimals=2),
-            "earnings_date": _to_text(header.get("earnings_date")),
+            "ten_day_change": move_text,
+            "change_class": "text-red-600" if "-" in move_text else "text-green-600",
+            "change_symbol": "-" if "-" in move_text else "+",
+            "fifty_two_week_high": _format_currency(
+                _to_number(header.get("high_52w") or stock_banner.get("high_52w")) or 0.0,
+                decimals=0,
+            ),
+            "fifty_two_week_low": _format_currency(
+                _to_number(header.get("low_52w") or stock_banner.get("low_52w")) or 0.0,
+                decimals=0,
+            ),
+            "dividend_yield": _format_percent(
+                _to_number(header.get("dividend_yield") or stock_banner.get("dividend_yield")) or 0.0,
+                decimals=2,
+            ),
+            "earnings_date": _to_text(header.get("earnings_date") or stock_banner.get("earnings_date")),
         },
         "client_position": (
             {
@@ -449,7 +530,7 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
             if shares
             else None
         ),
-        "strategy_description": _to_text(contract.get("strategy_description") or ""),
+        "strategy_description": _strategy_description(contract),
         "option_legs_title": option_legs_title,
         "option_legs": option_legs,
         "net_premium": {
@@ -467,3 +548,11 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
         ),
         "page": {"total": 2},
     }
+
+
+def build_view_model(data: Mapping[str, object]) -> Dict[str, object]:
+    if not isinstance(data, Mapping):
+        return build_view_model_from_contract({})
+    if _looks_like_template_data(data):
+        return _from_template_data(data)
+    return build_view_model_from_contract(data)

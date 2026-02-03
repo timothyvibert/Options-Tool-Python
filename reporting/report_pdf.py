@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
+import logging
+import os
 from pathlib import Path
+import tempfile
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
@@ -1982,3 +1985,31 @@ def build_report_pdf_v2(
     canvas_obj.showPage()
     _draw_page2(canvas_obj, report_model, resolved_logo_path, base_font)
     canvas_obj.save()
+
+
+def build_client_report_pdf(
+    report_model: Dict[str, Any], *, prefer_html: bool = True
+) -> bytes:
+    if prefer_html:
+        try:
+            from reporting.html_v2.renderer import build_report_pdf_html
+
+            return build_report_pdf_html(report_model)
+        except Exception as exc:
+            if os.environ.get("REPORT_PDF_DEBUG") == "1":
+                logging.getLogger(__name__).debug(
+                    "HTML PDF generation failed; falling back to ReportLab.",
+                    exc_info=exc,
+                )
+
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp_path = tmp.name
+    try:
+        build_report_pdf_v2(tmp_path, report_model=report_model)
+        return Path(tmp_path).read_bytes()
+    finally:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass

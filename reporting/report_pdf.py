@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
+from reporting import report_template_v2 as T
+
 try:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import letter
@@ -41,6 +43,12 @@ except ImportError as exc:
     _REPORTLAB_ERROR = exc
 
 
+def _rgb(value: tuple[int, int, int] | tuple[float, float, float]) -> colors.Color | None:
+    if colors is None:
+        return None
+    return colors.Color(value[0] / 255.0, value[1] / 255.0, value[2] / 255.0)
+
+
 # Design tokens (Report v2)
 if colors is None:
     COLOR_PAGE_BG = None
@@ -53,34 +61,38 @@ if colors is None:
     COLOR_ACCENT = None
     COLOR_TABLE_HEADER_BG = None
     COLOR_HIGHLIGHT = None
+    COLOR_ZEBRA = None
     COLOR_CHART_STOCK = None
     COLOR_CHART_OPTIONS = None
     COLOR_CHART_COMBINED = None
 else:
-    COLOR_PAGE_BG = colors.white
-    COLOR_CARD_BG = colors.HexColor("#FFFFFF")
-    COLOR_HEADER_BG = colors.HexColor("#F8FAFC")
-    COLOR_TILE_BG = colors.HexColor("#F9FAFB")
-    COLOR_BORDER = colors.HexColor("#E5E7EB")
-    COLOR_TEXT = colors.HexColor("#111827")
-    COLOR_MUTED = colors.HexColor("#6B7280")
-    COLOR_ACCENT = colors.HexColor("#E60000")
-    COLOR_TABLE_HEADER_BG = colors.HexColor("#F3F4F6")
-    COLOR_HIGHLIGHT = colors.HexColor("#FEF3C7")
-    COLOR_CHART_STOCK = colors.HexColor("#9CA3AF")
-    COLOR_CHART_OPTIONS = colors.HexColor("#2563EB")
-    COLOR_CHART_COMBINED = colors.HexColor("#111827")
+    COLOR_PAGE_BG = _rgb(T.PAGE_BG)
+    COLOR_CARD_BG = _rgb(T.CARD_FILL)
+    COLOR_HEADER_BG = _rgb(T.HEADER_BG)
+    COLOR_TILE_BG = _rgb(T.TILE_FILL)
+    COLOR_BORDER = _rgb(T.BORDER)
+    COLOR_TEXT = _rgb(T.TEXT_PRIMARY)
+    COLOR_MUTED = _rgb(T.TEXT_MUTED)
+    COLOR_ACCENT = _rgb(T.UBS_RED)
+    COLOR_TABLE_HEADER_BG = _rgb(T.TABLE_HEADER_FILL)
+    COLOR_HIGHLIGHT = _rgb(T.HIGHLIGHT_FILL)
+    COLOR_ZEBRA = _rgb(T.ZEBRA_FILL)
+    COLOR_CHART_STOCK = _rgb(T.CHART_STOCK)
+    COLOR_CHART_OPTIONS = _rgb(T.CHART_OPTIONS)
+    COLOR_CHART_COMBINED = _rgb(T.CHART_COMBINED)
 
-FONT_TITLE = 16
-FONT_SECTION = 9.5
-FONT_BODY = 8.5
-FONT_SMALL = 7.5
-FONT_TABLE_HEADER = 7.5
-FONT_FOOTER = 8.5
+FONT_TITLE = T.TITLE_SIZE
+FONT_SECTION = T.SECTION_TITLE_SIZE
+FONT_BODY = T.BODY_SIZE
+FONT_SMALL = T.LABEL_SIZE
+FONT_TABLE_HEADER = T.TABLE_SIZE
+FONT_TABLE_BODY_TIGHT = T.TABLE_SIZE_TIGHT
+FONT_FOOTER = T.FOOTER_SIZE
 
-CARD_PAD = 10
-CARD_RADIUS = 5
-SECTION_GAP = 10
+CARD_PAD_X = T.CARD_PAD_X
+CARD_PAD_Y = T.CARD_PAD_Y
+CARD_RADIUS = T.CARD_RADIUS
+SECTION_GAP = T.GUTTER
 
 DEFAULT_DISCLAIMERS = [
     "For informational purposes only and not an offer to sell or solicitation to buy.",
@@ -178,22 +190,25 @@ def _format_percent(value: object, decimals: int = 2) -> str:
 
 def _build_key_value_table(rows: List[List[Any]]) -> Table:
     data = [[Paragraph(f"<b>{label}</b>", _styles()["label"]), _fmt_value(value)] for label, value in rows]
-    table = Table(data, colWidths=[2.0 * inch, 4.5 * inch])
+    table = Table(
+        data,
+        colWidths=[width * inch for width in T.LEGACY_KEY_VALUE_COLS],
+    )
     table.setStyle(
         TableStyle(
             [
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-                ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ("LEFTPADDING", (0, 0), (-1, -1), T.TABLE_PAD_X),
+                ("RIGHTPADDING", (0, 0), (-1, -1), T.TABLE_PAD_X),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), T.TABLE_PAD_Y),
+                ("TOPPADDING", (0, 0), (-1, -1), T.TABLE_PAD_Y),
             ]
         )
     )
     return table
 
 
-def _styles(base_font: str = "Helvetica") -> Dict[str, ParagraphStyle]:
+def _styles(base_font: str = T.FONT_FAMILY) -> Dict[str, ParagraphStyle]:
     styles = getSampleStyleSheet()
     return {
         "title": ParagraphStyle(
@@ -201,26 +216,26 @@ def _styles(base_font: str = "Helvetica") -> Dict[str, ParagraphStyle]:
             parent=styles["Heading1"],
             fontName=base_font,
             fontSize=FONT_TITLE,
-            leading=FONT_TITLE + 2,
+            leading=FONT_TITLE + T.STYLE_TITLE_LEADING_EXTRA,
             textColor=COLOR_TEXT,
-            spaceAfter=6,
+            spaceAfter=T.STYLE_SPACE_AFTER_TITLE,
         ),
         "section": ParagraphStyle(
             "section",
             parent=styles["Heading2"],
             fontName=base_font,
             fontSize=FONT_SECTION,
-            leading=FONT_SECTION + 2,
+            leading=FONT_SECTION + T.STYLE_SECTION_LEADING_EXTRA,
             textColor=COLOR_TEXT,
-            spaceBefore=10,
-            spaceAfter=5,
+            spaceBefore=T.STYLE_SPACE_BEFORE_SECTION,
+            spaceAfter=T.STYLE_SPACE_AFTER_SECTION,
         ),
         "label": ParagraphStyle(
             "label",
             parent=styles["BodyText"],
             fontName=base_font,
             fontSize=FONT_BODY,
-            leading=FONT_BODY + 2,
+            leading=FONT_BODY + T.STYLE_SECTION_LEADING_EXTRA,
             textColor=COLOR_TEXT,
         ),
         "body": ParagraphStyle(
@@ -228,7 +243,7 @@ def _styles(base_font: str = "Helvetica") -> Dict[str, ParagraphStyle]:
             parent=styles["BodyText"],
             fontName=base_font,
             fontSize=FONT_BODY,
-            leading=FONT_BODY + 3,
+            leading=FONT_BODY + T.STYLE_BODY_LEADING_EXTRA,
             textColor=COLOR_TEXT,
         ),
         "small": ParagraphStyle(
@@ -236,7 +251,7 @@ def _styles(base_font: str = "Helvetica") -> Dict[str, ParagraphStyle]:
             parent=styles["BodyText"],
             fontName=base_font,
             fontSize=FONT_SMALL,
-            leading=FONT_SMALL + 3,
+            leading=FONT_SMALL + T.STYLE_BODY_LEADING_EXTRA,
             textColor=COLOR_MUTED,
         ),
     }
@@ -305,14 +320,14 @@ def _draw_payoff_chart_vector(
     def y_to_px(val: float) -> float:
         return y0 + (val - y_min) / (y_max - y_min) * h
 
-    canvas_obj.setStrokeColor(colors.lightgrey)
-    canvas_obj.setLineWidth(0.5)
+    canvas_obj.setStrokeColor(COLOR_BORDER)
+    canvas_obj.setLineWidth(T.CHART_BORDER_WIDTH)
     canvas_obj.rect(x0, y0, w, h, stroke=1, fill=0)
 
     if y_min <= 0 <= y_max:
         y_zero = y_to_px(0.0)
-        canvas_obj.setStrokeColor(colors.grey)
-        canvas_obj.setLineWidth(0.5)
+        canvas_obj.setStrokeColor(COLOR_MUTED)
+        canvas_obj.setLineWidth(T.CHART_ZERO_WIDTH)
         canvas_obj.line(x0, y_zero, x0 + w, y_zero)
 
     strikes = payoff_payload.get("strikes") or []
@@ -324,8 +339,8 @@ def _draw_payoff_chart_vector(
         except Exception:
             continue
         if x_min <= val <= x_max:
-            canvas_obj.setStrokeColor(colors.lightgrey)
-            canvas_obj.setLineWidth(0.5)
+            canvas_obj.setStrokeColor(COLOR_BORDER)
+            canvas_obj.setLineWidth(T.CHART_STRIKE_WIDTH)
             canvas_obj.line(x_to_px(val), y0, x_to_px(val), y0 + h)
     for value in breakevens:
         try:
@@ -333,21 +348,25 @@ def _draw_payoff_chart_vector(
         except Exception:
             continue
         if x_min <= val <= x_max:
-            canvas_obj.setStrokeColor(colors.grey)
-            canvas_obj.setLineWidth(0.5)
+            canvas_obj.setStrokeColor(COLOR_MUTED)
+            canvas_obj.setLineWidth(T.CHART_BREAKEVEN_WIDTH)
             canvas_obj.line(x_to_px(val), y0, x_to_px(val), y0 + h)
     try:
         spot_val = float(spot)
     except Exception:
         spot_val = None
     if spot_val is not None and x_min <= spot_val <= x_max:
-        canvas_obj.setStrokeColor(colors.darkgrey)
-        canvas_obj.setLineWidth(0.75)
+        canvas_obj.setStrokeColor(COLOR_MUTED)
+        canvas_obj.setLineWidth(T.CHART_SPOT_WIDTH)
         canvas_obj.line(x_to_px(spot_val), y0, x_to_px(spot_val), y0 + h)
-        canvas_obj.setFont(base_font, 7)
-        canvas_obj.drawString(x_to_px(spot_val) + 2, y0 + h - 10, "Spot")
+        canvas_obj.setFont(base_font, T.CHART_FONT_SIZE)
+        canvas_obj.drawString(
+            x_to_px(spot_val) + T.CHART_SPOT_LABEL_OFFSET_X,
+            y0 + h - T.CHART_SPOT_LABEL_TOP_INSET,
+            "Spot",
+        )
 
-    canvas_obj.setLineWidth(0.8)
+    canvas_obj.setLineWidth(T.CHART_SERIES_WIDTH)
     for label, vals, color in series:
         canvas_obj.setStrokeColor(color)
         path = canvas_obj.beginPath()
@@ -357,15 +376,24 @@ def _draw_payoff_chart_vector(
             path.lineTo(x_to_px(px), y_to_px(py))
         canvas_obj.drawPath(path, stroke=1, fill=0)
 
-    legend_x = x0 + w - 70
-    legend_y = y0 + h - 10
-    canvas_obj.setFont(base_font, 7)
+    legend_x = x0 + w - T.CHART_LEGEND_RIGHT_INSET
+    legend_y = y0 + h - T.CHART_LEGEND_TOP_INSET
+    canvas_obj.setFont(base_font, T.CHART_FONT_SIZE)
     for label, _, color in series:
         canvas_obj.setStrokeColor(color)
-        canvas_obj.line(legend_x, legend_y, legend_x + 12, legend_y)
+        canvas_obj.line(
+            legend_x,
+            legend_y,
+            legend_x + T.CHART_LEGEND_LINE_LEN,
+            legend_y,
+        )
         canvas_obj.setFillColor(COLOR_TEXT)
-        canvas_obj.drawString(legend_x + 15, legend_y - 3, label)
-        legend_y -= 10
+        canvas_obj.drawString(
+            legend_x + T.CHART_LEGEND_LINE_LEN + T.CHART_LEGEND_LABEL_GAP,
+            legend_y - T.CHART_LEGEND_LABEL_GAP,
+            label,
+        )
+        legend_y -= T.CHART_LEGEND_LINE_GAP
 
 
 def _draw_card(
@@ -384,12 +412,12 @@ def _draw_card(
 ) -> None:
     canvas_obj.setFillColor(fill_color)
     canvas_obj.setStrokeColor(border_color)
-    canvas_obj.setLineWidth(0.6)
+    canvas_obj.setLineWidth(T.LINE_THIN)
     canvas_obj.roundRect(x, y, w, h, CARD_RADIUS, stroke=1, fill=1)
     if title:
         canvas_obj.setFillColor(title_color)
-        canvas_obj.setFont("Helvetica-Bold", title_size)
-        canvas_obj.drawString(x + CARD_PAD, y + h - (CARD_PAD + 4), title)
+        canvas_obj.setFont(T.FONT_BOLD, title_size)
+        canvas_obj.drawString(x + CARD_PAD_X, y + h - T.TITLE_BASELINE_OFFSET, title)
 
 
 def _draw_table(
@@ -405,9 +433,9 @@ def _draw_table(
         table.setStyle(
             TableStyle(
                 [
-                    ("FONTSIZE", (0, 0), (-1, -1), 7),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-                    ("TOPPADDING", (0, 0), (-1, -1), 2),
+                    ("FONTSIZE", (0, 0), (-1, -1), FONT_TABLE_BODY_TIGHT),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), T.TABLE_PAD_Y_TIGHT),
+                    ("TOPPADDING", (0, 0), (-1, -1), T.TABLE_PAD_Y_TIGHT),
                 ]
             )
         )
@@ -430,7 +458,7 @@ def _draw_paragraphs(
         if cursor - th < y:
             break
         para.drawOn(canvas_obj, x, cursor - th)
-        cursor -= th + 2
+        cursor -= th + T.PARAGRAPH_GAP
 
 
 def _wrap_lines(
@@ -503,11 +531,11 @@ def build_report_pdf(
     # Disable PDF page compression to reduce cross-version variance and satisfy minimum-size smoke test.
     doc = SimpleDocTemplate(
         path,
-        pagesize=letter,
-        rightMargin=36,
-        leftMargin=36,
-        topMargin=36,
-        bottomMargin=36,
+        pagesize=(T.PAGE_W, T.PAGE_H),
+        rightMargin=T.LEGACY_MARGIN,
+        leftMargin=T.LEGACY_MARGIN,
+        topMargin=T.LEGACY_MARGIN,
+        bottomMargin=T.LEGACY_MARGIN,
         pageCompression=0,
     )
     styles = _styles()
@@ -551,7 +579,7 @@ def build_report_pdf(
                 if avg_cost and avg_cost != "--":
                     header_rows.append(["Avg Cost", avg_cost])
     story.append(_build_key_value_table(header_rows))
-    story.append(Spacer(1, 0.2 * inch))
+    story.append(Spacer(1, T.LEGACY_SPACER_LARGE * inch))
 
     story.append(Paragraph("Trade Inputs", styles["section"]))
     input_rows = [
@@ -561,7 +589,7 @@ def build_report_pdf(
         ["ROI Policy", inputs.get("roi_policy")],
     ]
     story.append(_build_key_value_table(input_rows))
-    story.append(Spacer(1, 0.1 * inch))
+    story.append(Spacer(1, T.LEGACY_SPACER_SMALL * inch))
 
     legs = inputs.get("legs", [])
     legs_data = [["Type", "Side", "Qty", "Strike", "Premium"]]
@@ -575,14 +603,21 @@ def build_report_pdf(
                 _fmt_value(leg.get("premium")),
             ]
         )
-    legs_table = Table(legs_data, colWidths=[1.0 * inch] * 5)
+    legs_table = Table(
+        legs_data,
+        colWidths=[width * inch for width in T.LEGACY_LEGS_COLS],
+    )
     legs_table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
+                ("GRID", (0, 0), (-1, -1), T.LINE_GRID, COLOR_BORDER),
+                ("FONTNAME", (0, 0), (-1, 0), T.FONT_BOLD),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), T.TABLE_PAD_X),
+                ("RIGHTPADDING", (0, 0), (-1, -1), T.TABLE_PAD_X),
+                ("TOPPADDING", (0, 0), (-1, -1), T.TABLE_PAD_Y),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), T.TABLE_PAD_Y),
             ]
         )
     )
@@ -621,10 +656,14 @@ def build_report_pdf(
         table.setStyle(
             TableStyle(
                 [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
+                    ("GRID", (0, 0), (-1, -1), T.LINE_GRID, COLOR_BORDER),
+                    ("FONTNAME", (0, 0), (-1, 0), T.FONT_BOLD),
                     ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), T.TABLE_PAD_X),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), T.TABLE_PAD_X),
+                    ("TOPPADDING", (0, 0), (-1, -1), T.TABLE_PAD_Y),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), T.TABLE_PAD_Y),
                 ]
             )
         )
@@ -664,11 +703,11 @@ def build_report_pdf(
             TableStyle(
                 [
                     ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                    ("TOPPADDING", (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("GRID", (0, 0), (-1, -1), T.LINE_GRID, COLOR_BORDER),
+                    ("LEFTPADDING", (0, 0), (-1, -1), T.TILE_PAD_X),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), T.TILE_PAD_X),
+                    ("TOPPADDING", (0, 0), (-1, -1), T.TILE_PAD_Y),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), T.TILE_PAD_Y),
                 ]
             )
         )
@@ -721,10 +760,14 @@ def build_report_pdf(
         key_table.setStyle(
             TableStyle(
                 [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
+                    ("GRID", (0, 0), (-1, -1), T.LINE_GRID, COLOR_BORDER),
+                    ("FONTNAME", (0, 0), (-1, 0), T.FONT_BOLD),
                     ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), T.TABLE_PAD_X),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), T.TABLE_PAD_X),
+                    ("TOPPADDING", (0, 0), (-1, -1), T.TABLE_PAD_Y),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), T.TABLE_PAD_Y),
                 ]
             )
         )
@@ -746,12 +789,15 @@ def _build_report_pdf_v2_legacy(
     report_model: Dict[str, Any],
     logo_path: Optional[str] = None,
 ) -> None:
+    build_report_pdf_v2(path, report_model=report_model, logo_path=logo_path)
+    return
+    """
     if _REPORTLAB_ERROR is not None:
         raise RuntimeError(
             "reportlab is required to build PDF reports. Install reportlab to continue."
         ) from _REPORTLAB_ERROR
 
-    base_font = "Helvetica"
+    base_font = T.FONT_FAMILY
 
     styles = _styles(base_font=base_font)
 
@@ -1044,7 +1090,10 @@ def _build_report_pdf_v2_legacy(
                 Paragraph("--", styles["small"]),
                 Paragraph("--", styles["small"]),
             ]
-        card_table = Table([card_cells], colWidths=[2.4 * inch, 2.4 * inch, 2.4 * inch])
+        card_table = Table(
+            [card_cells],
+            colWidths=[width * inch for width in T.LEGACY_SCENARIO_CARD_COLS],
+        )
         card_table.setStyle(
             TableStyle(
                 [
@@ -1149,6 +1198,7 @@ def _build_report_pdf_v2_legacy(
     c.showPage()
     _page2(c)
     c.save()
+    """
 
 
 def _metric_lookup(metrics_rows: list[dict], label: str) -> str:
@@ -1177,87 +1227,88 @@ def _draw_header(
     canvas_obj,
     report_model: Dict[str, Any],
     logo_path: Optional[Path],
-    layout: Dict[str, float],
+    boxes: Dict[str, tuple[float, float, float, float]],
     base_font: str,
     *,
     show_disclaimer: bool,
 ) -> None:
     header = report_model.get("header", {}) if isinstance(report_model, dict) else {}
-    page_h = layout["page_h"]
-    margin_x = layout["margin_x"]
-    margin_top = layout["margin_top"]
-    content_w = layout["content_w"]
-    header_h = layout["header_h"]
+    header_box = boxes["header"]
+    x, y, w, h = header_box
 
-    x = margin_x
-    y = page_h - margin_top - header_h
-
-    logo_w = 74
-    logo_h = 20
+    logo_box = boxes["logo"]
     if logo_path and Image is not None:
         try:
             canvas_obj.drawImage(
                 str(logo_path),
-                x,
-                y + header_h - logo_h,
-                width=logo_w,
-                height=logo_h,
+                logo_box[0],
+                logo_box[1],
+                width=logo_box[2],
+                height=logo_box[3],
                 preserveAspectRatio=True,
                 mask="auto",
             )
         except Exception:
             pass
 
-    right_x = x + content_w
+    right_title = boxes["header_right_title"]
+    right_date = boxes["header_right_date"]
     canvas_obj.setFillColor(COLOR_MUTED)
-    canvas_obj.setFont(base_font, 8)
+    canvas_obj.setFont(base_font, T.SUBTITLE_SIZE)
     canvas_obj.drawRightString(
-        right_x,
-        y + header_h - 12,
+        right_title[0],
+        right_title[1],
         "Wealth Management Option Strategy",
     )
     canvas_obj.drawRightString(
-        right_x,
-        y + header_h - 24,
+        right_date[0],
+        right_date[1],
         _format_mmddyyyy(header.get("report_time")),
     )
 
-    title_x = x + logo_w + 12
-    title_y = y + header_h - 34
+    title_pos = boxes["title_pos"]
     canvas_obj.setFillColor(COLOR_ACCENT)
-    canvas_obj.setFont("Helvetica-Bold", 14)
-    canvas_obj.drawString(title_x, title_y, _safe_text(header.get("strategy_name")))
+    canvas_obj.setFont(T.FONT_BOLD, T.TITLE_SIZE)
+    canvas_obj.drawString(title_pos[0], title_pos[1], _safe_text(header.get("strategy_name")))
+
+    title_rule = boxes["title_rule"]
+    canvas_obj.setStrokeColor(COLOR_ACCENT)
+    canvas_obj.setLineWidth(T.TITLE_RULE_HEIGHT)
+    canvas_obj.line(
+        title_rule[0],
+        title_rule[1],
+        title_rule[0] + title_rule[2],
+        title_rule[1],
+    )
 
     if show_disclaimer:
+        disclaimer_box = boxes["disclaimer"]
         _draw_wrapped_text(
             canvas_obj,
             HEADER_DISCLAIMER,
-            title_x,
-            y + 4,
-            content_w - (title_x - x),
-            header_h - 40,
+            disclaimer_box[0],
+            disclaimer_box[1],
+            disclaimer_box[2],
+            disclaimer_box[3],
             base_font,
-            7.5,
-            9,
+            T.DISCLAIMER_SIZE,
+            T.DISCLAIMER_LEADING,
             color=COLOR_MUTED,
         )
 
     canvas_obj.setStrokeColor(COLOR_BORDER)
-    canvas_obj.setLineWidth(0.6)
-    canvas_obj.line(x, y, x + content_w, y)
+    canvas_obj.setLineWidth(T.LINE_THIN)
+    canvas_obj.line(x, y, x + w, y)
 
 
-def _draw_footer(canvas_obj, layout: Dict[str, float], page_num: int, base_font: str) -> None:
-    margin_x = layout["margin_x"]
-    margin_bottom = layout["margin_bottom"]
-    page_w = layout["page_w"]
+def _draw_footer(canvas_obj, page_num: int, base_font: str) -> None:
     canvas_obj.setFont(base_font, FONT_FOOTER)
     canvas_obj.setFillColor(COLOR_MUTED)
-    canvas_obj.drawString(margin_x, margin_bottom, "UBS Financial Services Inc.")
+    canvas_obj.drawString(T.MARGIN_LEFT, T.MARGIN_BOTTOM, "UBS Financial Services Inc.")
     canvas_obj.drawRightString(
-        page_w - margin_x,
-        margin_bottom,
-        f"PAGE {page_num} OF 2",
+        T.PAGE_W - T.MARGIN_RIGHT,
+        T.MARGIN_BOTTOM,
+        f"PAGE {page_num} OF {T.TOTAL_PAGES}",
     )
 
 
@@ -1265,30 +1316,18 @@ def _draw_page1(
     canvas_obj,
     report_model: Dict[str, Any],
     logo_path: Optional[Path],
-    layout: Dict[str, float],
     base_font: str,
 ) -> None:
-    page_w = layout["page_w"]
-    page_h = layout["page_h"]
-    margin_x = layout["margin_x"]
-    margin_top = layout["margin_top"]
-    content_w = layout["content_w"]
-    gap = layout["gap"]
-    header_h = layout["header_h"]
-    tile_h = layout["tile_h"]
-    details_h = layout["details_h"]
-    legs_h = layout["legs_h"]
-    payoff_h = layout["payoff_h"]
-    right_rail_w = layout["right_rail_w"]
+    boxes = T.PAGE1
 
     canvas_obj.setFillColor(COLOR_PAGE_BG)
-    canvas_obj.rect(0, 0, page_w, page_h, stroke=0, fill=1)
+    canvas_obj.rect(0, 0, T.PAGE_W, T.PAGE_H, stroke=0, fill=1)
 
     _draw_header(
         canvas_obj,
         report_model,
         logo_path,
-        layout,
+        boxes,
         base_font,
         show_disclaimer=True,
     )
@@ -1318,42 +1357,43 @@ def _draw_page1(
             border_color=COLOR_BORDER,
         )
         canvas_obj.setFillColor(COLOR_MUTED)
-        canvas_obj.setFont("Helvetica-Bold", 7)
-        canvas_obj.drawString(x + 6, y + h - 12, title)
-        line_y = y + h - 24
+        canvas_obj.setFont(T.FONT_BOLD, T.LABEL_SIZE)
+        canvas_obj.drawString(x + T.TILE_PAD_X, y + h - T.TITLE_BASELINE_OFFSET, title)
+        line_y = y + h - T.CARD_TITLE_SPACE
         for entry in lines:
             if isinstance(entry, tuple):
                 text, font_name, font_size, color = entry
             else:
                 text = str(entry)
                 font_name = base_font
-                font_size = 7.5
+                font_size = T.BODY_SIZE
                 color = COLOR_TEXT
             if not text:
                 continue
             canvas_obj.setFillColor(color)
             canvas_obj.setFont(font_name, font_size)
-            canvas_obj.drawString(x + 6, line_y, text)
-            line_y -= font_size + 2
+            canvas_obj.drawString(x + T.TILE_PAD_X, line_y, text)
+            line_y -= font_size + T.TILE_LINE_GAP
 
-    cursor = page_h - margin_top - header_h - gap
-    tile_y = cursor - tile_h
-    tile_w = (content_w - 3 * gap) / 4
+    tile_underlying = boxes["tile_underlying"]
+    tile_analyst = boxes["tile_analyst"]
+    tile_key_data = boxes["tile_key_data"]
+    tile_client = boxes["tile_client"]
 
     ticker = _safe_text(header.get("ticker"))
     last_price = _safe_text(header.get("last_price"))
     underlying_lines = [
-        (f"{ticker} {last_price}", "Helvetica-Bold", 9.5, COLOR_TEXT),
-        ("Change: 0.00%", base_font, 7.5, COLOR_MUTED),
+        (f"{ticker} {last_price}", T.FONT_BOLD, T.TILE_VALUE_SIZE, COLOR_TEXT),
+        ("Change: 0.00%", base_font, T.TILE_MUTED_SIZE, COLOR_MUTED),
         _safe_text(header.get("name")),
         _safe_text(header.get("sector")),
         f"Earnings: {_safe_text(header.get('earnings_date'))}",
     ]
     _draw_tile(
-        margin_x,
-        tile_y,
-        tile_w,
-        tile_h,
+        tile_underlying[0],
+        tile_underlying[1],
+        tile_underlying[2],
+        tile_underlying[3],
         "Underlying",
         underlying_lines,
     )
@@ -1364,10 +1404,10 @@ def _draw_page1(
         f"CIO Rating: {_safe_text(header.get('cio_rating'))}",
     ]
     _draw_tile(
-        margin_x + (tile_w + gap),
-        tile_y,
-        tile_w,
-        tile_h,
+        tile_analyst[0],
+        tile_analyst[1],
+        tile_analyst[2],
+        tile_analyst[3],
         "Analyst View",
         analyst_lines,
     )
@@ -1385,10 +1425,10 @@ def _draw_page1(
         f"Dividend Yield: {_safe_text(header.get('dividend_yield'))}",
     ]
     _draw_tile(
-        margin_x + 2 * (tile_w + gap),
-        tile_y,
-        tile_w,
-        tile_h,
+        tile_key_data[0],
+        tile_key_data[1],
+        tile_key_data[2],
+        tile_key_data[3],
         "Key Data",
         key_data_lines,
     )
@@ -1411,21 +1451,21 @@ def _draw_page1(
         f"Avg Cost: {avg_cost_text}",
     ]
     _draw_tile(
-        margin_x + 3 * (tile_w + gap),
-        tile_y,
-        tile_w,
-        tile_h,
+        tile_client[0],
+        tile_client[1],
+        tile_client[2],
+        tile_client[3],
         "Client Position",
         client_lines,
     )
 
-    details_y = tile_y - gap - details_h
+    details_box = boxes["details"]
     _draw_card(
         canvas_obj,
-        margin_x,
-        details_y,
-        content_w,
-        details_h,
+        details_box[0],
+        details_box[1],
+        details_box[2],
+        details_box[3],
         "Option Strategy Details",
         base_font,
     )
@@ -1439,23 +1479,23 @@ def _draw_page1(
     _draw_wrapped_text(
         canvas_obj,
         detail_text,
-        margin_x + CARD_PAD,
-        details_y + CARD_PAD,
-        content_w - 2 * CARD_PAD,
-        details_h - 20,
+        details_box[0] + CARD_PAD_X,
+        details_box[1] + CARD_PAD_Y,
+        details_box[2] - 2 * CARD_PAD_X,
+        details_box[3] - T.CARD_TITLE_SPACE,
         base_font,
-        8,
-        10,
+        T.BODY_SIZE,
+        T.DETAILS_LEADING,
         color=COLOR_TEXT,
     )
 
-    legs_y = details_y - gap - legs_h
+    legs_box = boxes["legs"]
     _draw_card(
         canvas_obj,
-        margin_x,
-        legs_y,
-        content_w,
-        legs_h,
+        legs_box[0],
+        legs_box[1],
+        legs_box[2],
+        legs_box[3],
         "Option Legs",
         base_font,
     )
@@ -1470,7 +1510,8 @@ def _draw_page1(
             return text.title()
         return "--"
 
-    legs_data = [["Action", "Expiration", "Strike", "Type", "Price", "Delta", "OTM %", "Premium"]]
+    legs_header = ["Action", "Expiration", "Strike", "Type", "Price", "Delta", "OTM %", "Premium"]
+    legs_data = [[label.upper() for label in legs_header]]
     for leg in legs_rows[:4]:
         if not isinstance(leg, dict):
             continue
@@ -1501,99 +1542,100 @@ def _draw_page1(
     if len(legs_data) == 1:
         legs_data.append(["--"] * 8)
 
-    col_base = [0.9, 1.05, 0.9, 0.7, 0.7, 0.6, 0.6, 0.95]
-    col_widths = [w * inch for w in col_base]
+    col_widths = [w * inch for w in T.LEGS_COL_UNITS]
     col_total = sum(col_widths)
-    table_w = content_w - 2 * CARD_PAD
+    table_w = legs_box[2] - 2 * CARD_PAD_X
     if col_total > 0:
         col_widths = [w * table_w / col_total for w in col_widths]
     legs_table = Table(legs_data, colWidths=col_widths)
     legs_style = [
         ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
         ("TEXTCOLOR", (0, 0), (-1, 0), COLOR_MUTED),
-        ("GRID", (0, 0), (-1, -1), 0.25, COLOR_BORDER),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), T.LINE_GRID, COLOR_BORDER),
+        ("FONTNAME", (0, 0), (-1, 0), T.FONT_BOLD),
         ("FONTNAME", (0, 1), (-1, -1), base_font),
         ("FONTSIZE", (0, 0), (-1, 0), FONT_TABLE_HEADER),
         ("FONTSIZE", (0, 1), (-1, -1), FONT_SMALL),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 4),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LEFTPADDING", (0, 0), (-1, -1), T.TABLE_PAD_X_TIGHT),
+        ("RIGHTPADDING", (0, 0), (-1, -1), T.TABLE_PAD_X_TIGHT),
+        ("TOPPADDING", (0, 0), (-1, -1), T.TABLE_PAD_Y_TIGHT),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), T.TABLE_PAD_Y_TIGHT),
         ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
     ]
     for row in range(1, len(legs_data), 2):
-        legs_style.append(("BACKGROUND", (0, row), (-1, row), colors.HexColor("#F9FAFB")))
+        legs_style.append(("BACKGROUND", (0, row), (-1, row), COLOR_ZEBRA))
     legs_table.setStyle(TableStyle(legs_style))
     _draw_table(
         canvas_obj,
         legs_table,
-        margin_x + CARD_PAD,
-        legs_y + CARD_PAD + 10,
-        content_w - 2 * CARD_PAD,
-        legs_h - 30,
+        legs_box[0] + CARD_PAD_X,
+        legs_box[1] + CARD_PAD_Y + T.LEGS_FOOTER_SPACE,
+        legs_box[2] - 2 * CARD_PAD_X,
+        legs_box[3] - T.CARD_TITLE_SPACE - T.LEGS_FOOTER_SPACE,
     )
 
     net_premium = _safe_text(structure.get("net_premium_total") if isinstance(structure, dict) else None)
     canvas_obj.setFillColor(COLOR_TEXT)
-    canvas_obj.setFont("Helvetica-Bold", 8)
+    canvas_obj.setFont(T.FONT_BOLD, T.LABEL_SIZE)
     canvas_obj.drawRightString(
-        margin_x + content_w - CARD_PAD,
-        legs_y + 6,
+        legs_box[0] + legs_box[2] - CARD_PAD_X,
+        legs_box[1] + T.LEGS_FOOTER_BASELINE,
         f"Net Premium: {net_premium}",
     )
 
-    payoff_y = legs_y - gap - payoff_h
-    payoff_w = content_w - right_rail_w - gap
-    payoff_x = margin_x
-    right_x = payoff_x + payoff_w + gap
-
+    payoff_box = boxes["payoff"]
     _draw_card(
         canvas_obj,
-        payoff_x,
-        payoff_y,
-        payoff_w,
-        payoff_h,
+        payoff_box[0],
+        payoff_box[1],
+        payoff_box[2],
+        payoff_box[3],
         "Payoff Diagram",
         base_font,
     )
     _draw_payoff_chart_vector(
         canvas_obj,
         (
-            payoff_x + CARD_PAD,
-            payoff_y + CARD_PAD,
-            payoff_w - 2 * CARD_PAD,
-            payoff_h - 24,
+            payoff_box[0] + CARD_PAD_X,
+            payoff_box[1] + CARD_PAD_Y,
+            payoff_box[2] - 2 * CARD_PAD_X,
+            payoff_box[3] - T.CARD_TITLE_SPACE,
         ),
         payoff_payload if isinstance(payoff_payload, dict) else {},
         base_font,
     )
 
-    rail_tile_h = (payoff_h - 3 * gap) / 4
-
     def _draw_rail_tile(index: int, title: str, rows: list[tuple[str, str]]) -> None:
-        tile_y = payoff_y + payoff_h - (index + 1) * rail_tile_h - index * gap
+        tile_box = boxes[f"rail_{index}"]
         _draw_card(
             canvas_obj,
-            right_x,
-            tile_y,
-            right_rail_w,
-            rail_tile_h,
+            tile_box[0],
+            tile_box[1],
+            tile_box[2],
+            tile_box[3],
             None,
             base_font,
             fill_color=COLOR_TILE_BG,
             border_color=COLOR_BORDER,
         )
         canvas_obj.setFillColor(COLOR_MUTED)
-        canvas_obj.setFont("Helvetica-Bold", 7.5)
-        canvas_obj.drawString(right_x + 6, tile_y + rail_tile_h - 12, title)
-        line_y = tile_y + rail_tile_h - 24
+        canvas_obj.setFont(T.FONT_BOLD, T.LABEL_SIZE)
+        canvas_obj.drawString(
+            tile_box[0] + T.TILE_PAD_X,
+            tile_box[1] + tile_box[3] - T.TITLE_BASELINE_OFFSET,
+            title,
+        )
+        line_y = tile_box[1] + tile_box[3] - T.CARD_TITLE_SPACE
         for label, value in rows:
             canvas_obj.setFillColor(COLOR_TEXT)
-            canvas_obj.setFont(base_font, 7)
-            canvas_obj.drawString(right_x + 6, line_y, f"{label}: {value}")
-            line_y -= 10
+            canvas_obj.setFont(base_font, T.LABEL_SIZE)
+            canvas_obj.drawString(
+                tile_box[0] + T.TILE_PAD_X,
+                line_y,
+                f"{label}: {value}",
+            )
+            line_y -= T.RAIL_LINE_GAP
 
     max_profit = _metric_lookup(metrics_rows, "Max Profit")
     max_loss = _metric_lookup(metrics_rows, "Max Loss")
@@ -1638,47 +1680,36 @@ def _draw_page1(
         ],
     )
 
-    _draw_footer(canvas_obj, layout, 1, base_font)
+    _draw_footer(canvas_obj, 1, base_font)
 
 
 def _draw_page2(
     canvas_obj,
     report_model: Dict[str, Any],
     logo_path: Optional[Path],
-    layout: Dict[str, float],
     base_font: str,
 ) -> None:
-    page_w = layout["page_w"]
-    page_h = layout["page_h"]
-    margin_x = layout["margin_x"]
-    margin_top = layout["margin_top"]
-    content_w = layout["content_w"]
-    gap = layout["gap"]
-    header_h = layout["header_h"]
-    scenario_h = layout["scenario_h"]
-    key_levels_h = layout["key_levels_h"]
-    disclosures_h = layout["disclosures_h"]
+    boxes = T.PAGE2
 
     canvas_obj.setFillColor(COLOR_PAGE_BG)
-    canvas_obj.rect(0, 0, page_w, page_h, stroke=0, fill=1)
+    canvas_obj.rect(0, 0, T.PAGE_W, T.PAGE_H, stroke=0, fill=1)
 
     _draw_header(
         canvas_obj,
         report_model,
         logo_path,
-        layout,
+        boxes,
         base_font,
         show_disclaimer=False,
     )
 
-    cursor = page_h - margin_top - header_h - gap
-    cards_y = cursor - scenario_h
+    scenario_box = boxes["scenario"]
     _draw_card(
         canvas_obj,
-        margin_x,
-        cards_y,
-        content_w,
-        scenario_h,
+        scenario_box[0],
+        scenario_box[1],
+        scenario_box[2],
+        scenario_box[3],
         "Scenario Analysis",
         base_font,
     )
@@ -1689,22 +1720,20 @@ def _draw_page2(
     while len(cards) < 3:
         cards.append({"title": "--", "condition": "--", "body": "--"})
 
-    inner_x = margin_x + CARD_PAD
-    title_offset = 14
-    inner_y = cards_y + CARD_PAD
-    inner_w = content_w - 2 * CARD_PAD
-    inner_h = scenario_h - 2 * CARD_PAD - title_offset
-    card_w = (inner_w - 2 * gap) / 3
+    card_boxes = [
+        boxes["scenario_card_1"],
+        boxes["scenario_card_2"],
+        boxes["scenario_card_3"],
+    ]
 
     for idx, card in enumerate(cards[:3]):
-        card_x = inner_x + idx * (card_w + gap)
-        card_y = inner_y
+        card_box = card_boxes[idx]
         _draw_card(
             canvas_obj,
-            card_x,
-            card_y,
-            card_w,
-            inner_h,
+            card_box[0],
+            card_box[1],
+            card_box[2],
+            card_box[3],
             None,
             base_font,
             fill_color=COLOR_TILE_BG,
@@ -1713,32 +1742,34 @@ def _draw_page2(
         title = _safe_text(card.get("title")) if isinstance(card, dict) else "--"
         condition = _safe_text(card.get("condition")) if isinstance(card, dict) else "--"
         body = _safe_text(card.get("body")) if isinstance(card, dict) else "--"
+        title_y = card_box[1] + card_box[3] - T.TITLE_BASELINE_OFFSET
+        condition_y = title_y - T.SCENARIO_CONDITION_GAP
         canvas_obj.setFillColor(COLOR_TEXT)
-        canvas_obj.setFont("Helvetica-Bold", 8)
-        canvas_obj.drawString(card_x + 6, card_y + inner_h - 14, title)
+        canvas_obj.setFont(T.FONT_BOLD, T.LABEL_SIZE)
+        canvas_obj.drawString(card_box[0] + T.TILE_PAD_X, title_y, title)
         canvas_obj.setFillColor(COLOR_MUTED)
-        canvas_obj.setFont(base_font, 7)
-        canvas_obj.drawString(card_x + 6, card_y + inner_h - 26, condition)
+        canvas_obj.setFont(base_font, T.LABEL_SIZE)
+        canvas_obj.drawString(card_box[0] + T.TILE_PAD_X, condition_y, condition)
         _draw_wrapped_text(
             canvas_obj,
             body,
-            card_x + 6,
-            card_y + 6,
-            card_w - 12,
-            inner_h - 36,
+            card_box[0] + T.TILE_PAD_X,
+            card_box[1] + T.TILE_PAD_Y,
+            card_box[2] - 2 * T.TILE_PAD_X,
+            condition_y - card_box[1] - T.TILE_PAD_Y,
             base_font,
-            7,
-            9,
+            T.LABEL_SIZE,
+            T.SCENARIO_BODY_LEADING,
             color=COLOR_TEXT,
         )
 
-    key_y = cards_y - gap - key_levels_h
+    key_box = boxes["key_levels"]
     _draw_card(
         canvas_obj,
-        margin_x,
-        key_y,
-        content_w,
-        key_levels_h,
+        key_box[0],
+        key_box[1],
+        key_box[2],
+        key_box[3],
         "Option Strategy Key Levels",
         base_font,
     )
@@ -1754,7 +1785,7 @@ def _draw_page2(
         columns = ["Scenario", "Price", "Move %", "Stock PnL", "Option PnL", "Net PnL", "Net ROI"]
     else:
         columns = ["Scenario", "Price", "Move %", "Option PnL", "Net PnL", "Net ROI"]
-    table_data = [columns]
+    table_data = [[label.upper() for label in columns]]
     highlight_row = None
     for idx, row in enumerate(key_rows[:10], start=1):
         if not isinstance(row, dict):
@@ -1780,10 +1811,14 @@ def _draw_page2(
     if len(table_data) == 1:
         table_data.append(["--"] * len(columns))
 
-    col_base = [1.6, 0.8, 0.7, 0.9, 0.9, 0.9, 0.8] if has_stock_position else [1.8, 0.8, 0.7, 0.9, 0.9, 0.8]
-    col_widths = [w * inch for w in col_base]
+    col_units = (
+        T.KEY_LEVELS_COL_UNITS_WITH_STOCK
+        if has_stock_position
+        else T.KEY_LEVELS_COL_UNITS_NO_STOCK
+    )
+    col_widths = [w * inch for w in col_units]
     col_total = sum(col_widths)
-    table_w = content_w - 2 * CARD_PAD
+    table_w = key_box[2] - 2 * CARD_PAD_X
     if col_total > 0:
         col_widths = [w * table_w / col_total for w in col_widths]
 
@@ -1791,56 +1826,56 @@ def _draw_page2(
     key_style = [
         ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
         ("TEXTCOLOR", (0, 0), (-1, 0), COLOR_MUTED),
-        ("GRID", (0, 0), (-1, -1), 0.25, COLOR_BORDER),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), T.LINE_GRID, COLOR_BORDER),
+        ("FONTNAME", (0, 0), (-1, 0), T.FONT_BOLD),
         ("FONTNAME", (0, 1), (-1, -1), base_font),
         ("FONTSIZE", (0, 0), (-1, 0), FONT_TABLE_HEADER),
         ("FONTSIZE", (0, 1), (-1, -1), FONT_SMALL),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 4),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LEFTPADDING", (0, 0), (-1, -1), T.TABLE_PAD_X_TIGHT),
+        ("RIGHTPADDING", (0, 0), (-1, -1), T.TABLE_PAD_X_TIGHT),
+        ("TOPPADDING", (0, 0), (-1, -1), T.TABLE_PAD_Y_TIGHT),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), T.TABLE_PAD_Y_TIGHT),
         ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
     ]
     for row in range(1, len(table_data), 2):
-        key_style.append(("BACKGROUND", (0, row), (-1, row), colors.HexColor("#F9FAFB")))
+        key_style.append(("BACKGROUND", (0, row), (-1, row), COLOR_ZEBRA))
     if highlight_row is not None:
         key_style.append(("BACKGROUND", (0, highlight_row), (-1, highlight_row), COLOR_HIGHLIGHT))
     key_table.setStyle(TableStyle(key_style))
     _draw_table(
         canvas_obj,
         key_table,
-        margin_x + CARD_PAD,
-        key_y + CARD_PAD,
-        content_w - 2 * CARD_PAD,
-        key_levels_h - 22,
+        key_box[0] + CARD_PAD_X,
+        key_box[1] + CARD_PAD_Y,
+        key_box[2] - 2 * CARD_PAD_X,
+        key_box[3] - T.CARD_TITLE_SPACE,
     )
 
-    disclosures_y = key_y - gap - disclosures_h
+    disclosures_box = boxes["disclosures"]
     _draw_card(
         canvas_obj,
-        margin_x,
-        disclosures_y,
-        content_w,
-        disclosures_h,
+        disclosures_box[0],
+        disclosures_box[1],
+        disclosures_box[2],
+        disclosures_box[3],
         "Risk Disclosures",
         base_font,
     )
     _draw_wrapped_text(
         canvas_obj,
         RISK_DISCLOSURE,
-        margin_x + CARD_PAD,
-        disclosures_y + CARD_PAD,
-        content_w - 2 * CARD_PAD,
-        disclosures_h - 20,
+        disclosures_box[0] + CARD_PAD_X,
+        disclosures_box[1] + CARD_PAD_Y,
+        disclosures_box[2] - 2 * CARD_PAD_X,
+        disclosures_box[3] - T.CARD_TITLE_SPACE,
         base_font,
-        7.5,
-        9,
+        T.DISCLAIMER_SIZE,
+        T.DISCLAIMER_LEADING,
         color=COLOR_TEXT,
     )
 
-    _draw_footer(canvas_obj, layout, 2, base_font)
+    _draw_footer(canvas_obj, 2, base_font)
 
 
 def build_report_pdf_v2(
@@ -1868,28 +1903,12 @@ def build_report_pdf_v2(
     if resolved_logo_path and not resolved_logo_path.exists():
         resolved_logo_path = None
 
-    PAGE_W, PAGE_H = letter
-    layout = {
-        "page_w": PAGE_W,
-        "page_h": PAGE_H,
-        "margin_x": 24,
-        "margin_top": 24,
-        "margin_bottom": 18,
-        "content_w": PAGE_W - 48,
-        "gap": 8,
-        "header_h": 90,
-        "tile_h": 78,
-        "details_h": 70,
-        "legs_h": 135,
-        "payoff_h": 240,
-        "right_rail_w": 170,
-        "scenario_h": 150,
-        "key_levels_h": 300,
-        "disclosures_h": 80,
-    }
-
-    canvas_obj = pdf_canvas.Canvas(path, pagesize=letter, pageCompression=0)
-    _draw_page1(canvas_obj, report_model, resolved_logo_path, layout, base_font)
+    canvas_obj = pdf_canvas.Canvas(
+        path,
+        pagesize=(T.PAGE_W, T.PAGE_H),
+        pageCompression=0,
+    )
+    _draw_page1(canvas_obj, report_model, resolved_logo_path, base_font)
     canvas_obj.showPage()
-    _draw_page2(canvas_obj, report_model, resolved_logo_path, layout, base_font)
+    _draw_page2(canvas_obj, report_model, resolved_logo_path, base_font)
     canvas_obj.save()

@@ -1,0 +1,223 @@
+:root {
+  --ubs-red: #d71920;
+  --text-primary: #1a1a1a;
+  --text-muted: #5a5a5a;
+  --border: #d9d9d9;
+  --card-fill: #f6f6f6;
+  --table-header: #ededed;
+  --zebra: #fafafa;
+  --highlight: #fff1ef;
+}
+
+@page {
+  size: Letter;
+  margin: 0.35in 0.4in 0.3in 0.4in;
+  @bottom-left {
+    content: "UBS Financial Services Inc.";
+    font-size: 8pt;
+    color: #6a6a6a;
+  }
+  @bottom-right {
+    content: "PAGE " counter(page) " OF " counter(pages);
+    font-size: 8pt;
+    color: #6a6a6a;
+  }
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Aptos", "Segoe UI", Arial, sans-serif;
+  font-size: 10pt;
+  color: var(--text-primary);
+}
+
+.page {
+  width: 100%;
+}
+
+.page1 {
+  page-break-after: always;
+}
+
+.stack > * + * {
+  margin-top: 14pt;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12pt;
+  margin-bottom: 12pt;
+}
+
+.logo-img {
+  width: 90px;
+  height: auto;
+}
+
+.header-meta {
+  text-align: right;
+}
+
+.header-kicker {
+  font-size: 8.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.header-date {
+  font-size: 9pt;
+  color: var(--text-muted);
+  margin-top: 2pt;
+}
+
+.header-title {
+  font-size: 18pt;
+  font-weight: 700;
+  color: var(--ubs-red);
+  margin-top: 4pt;
+}
+
+.header-subtitle {
+  font-size: 9pt;
+  color: var(--text-muted);
+  margin-top: 2pt;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 12pt;
+}
+
+.col-4 {
+  grid-column: span 4;
+}
+
+.col-6 {
+  grid-column: span 6;
+}
+
+.col-8 {
+  grid-column: span 8;
+}
+
+.col-12 {
+  grid-column: span 12;
+}
+
+.card {
+  background: var(--card-fill);
+  border: 1px solid var(--border);
+  border-radius: 8pt;
+  padding: 10pt;
+}
+
+.card-title {
+  font-size: 11pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  margin-bottom: 6pt;
+}
+
+.metric-large {
+  font-size: 16pt;
+  font-weight: 700;
+}
+
+.metric-small {
+  font-size: 9pt;
+  color: var(--text-muted);
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8pt;
+}
+
+.metric-tile {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 6pt;
+  padding: 6pt;
+}
+
+.metric-label {
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.metric-value {
+  font-size: 11pt;
+  font-weight: 700;
+  margin-top: 2pt;
+}
+
+.body-text {
+  font-size: 9.5pt;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+}
+
+.table th {
+  text-align: left;
+  padding: 4pt 6pt;
+  background: var(--table-header);
+  color: var(--text-muted);
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--border);
+}
+
+.table td {
+  padding: 4pt 6pt;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.table tbody tr:nth-child(even) {
+  background: var(--zebra);
+}
+
+.table tbody tr.highlight {
+  background: var(--highlight);
+}
+
+.table .num {
+  text-align: right;
+}
+
+.scenario-title {
+  font-size: 12pt;
+  font-weight: 700;
+  color: var(--ubs-red);
+  margin-bottom: 8pt;
+}
+
+.scenario-card .card-title {
+  color: var(--text-primary);
+}
+
+.scenario-condition {
+  font-size: 8.5pt;
+  color: var(--text-muted);
+  margin-bottom: 6pt;
+}

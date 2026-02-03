@@ -1,0 +1,71 @@
+<div class="header">
+  <div class="logo">
+    {% if report.logo_path %}
+    <img src="{{ report.logo_path }}" alt="UBS" class="logo-img" />
+    {% endif %}
+  </div>
+  <div class="header-meta">
+    <div class="header-kicker">Wealth Management Option Strategy</div>
+    <div class="header-date">{{ report.as_of }}</div>
+    <div class="header-title">{{ report.strategy_name }}</div>
+    <div class="header-subtitle">{{ report.ticker }} | Spot {{ report.spot }}</div>
+  </div>
+</div>
+
+<div class="stack">
+  <div class="grid">
+    <div class="card col-6">
+      <div class="card-title">Underlying</div>
+      <div class="metric-large">{{ report.ticker }}</div>
+      <div class="metric-small">Last Price: {{ report.spot }}</div>
+    </div>
+    <div class="card col-6">
+      <div class="card-title">Key Metrics</div>
+      <div class="metrics-grid">
+        {% for tile in report.metric_tiles %}
+        <div class="metric-tile">
+          <div class="metric-label">{{ tile.label }}</div>
+          <div class="metric-value">{{ tile.value }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Option Strategy Details</div>
+    <p class="body-text">{{ report.details_text }}</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Option Legs</div>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Action</th>
+          <th>Expiration</th>
+          <th class="num">Strike</th>
+          <th>Type</th>
+          <th class="num">Price</th>
+          <th class="num">Delta</th>
+          <th class="num">OTM %</th>
+          <th class="num">Premium</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in report.legs %}
+        <tr>
+          <td>{{ row.action }}</td>
+          <td>{{ row.expiration }}</td>
+          <td class="num">{{ row.strike }}</td>
+          <td>{{ row.type }}</td>
+          <td class="num">{{ row.price }}</td>
+          <td class="num">{{ row.delta }}</td>
+          <td class="num">{{ row.otm }}</td>
+          <td class="num">{{ row.premium }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

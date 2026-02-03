@@ -1,0 +1,50 @@
+<div class="scenario-title">Scenario Analysis</div>
+
+<div class="stack">
+  <div class="grid">
+    {% for card in report.scenario_cards %}
+    <div class="card col-4 scenario-card">
+      <div class="card-title">{{ card.title }}</div>
+      {% if card.condition %}
+      <div class="scenario-condition">{{ card.condition }}</div>
+      {% endif %}
+      <p class="body-text">{{ card.body }}</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Option Strategy Key Levels</div>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Scenario</th>
+          <th class="num">Price</th>
+          <th class="num">Move %</th>
+          <th class="num">Stock PnL</th>
+          <th class="num">Option PnL</th>
+          <th class="num">Net PnL</th>
+          <th class="num">Net ROI</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in report.key_levels %}
+        <tr class="{% if row.is_current %}highlight{% endif %}">
+          <td>{{ row.scenario }}</td>
+          <td class="num">{{ row.price }}</td>
+          <td class="num">{{ row.move_pct }}</td>
+          <td class="num">{{ row.stock_pnl }}</td>
+          <td class="num">{{ row.option_pnl }}</td>
+          <td class="num">{{ row.net_pnl }}</td>
+          <td class="num">{{ row.net_roi }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Risk Disclosures</div>
+    <p class="body-text">{{ report.disclosures_text }}</p>
+  </div>
+</div>

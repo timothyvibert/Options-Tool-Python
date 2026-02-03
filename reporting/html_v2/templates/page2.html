@@ -1,50 +1,82 @@
-<div class="scenario-title">Scenario Analysis</div>
+<div
+  class="
+    mx-auto bg-white shadow-2xl overflow-hidden relative flex flex-col justify-between
+    w-[8.5in] h-[11in]
+    print:shadow-none print:w-full print:h-screen print:break-after-page
+    print:mt-0 mt-8
+  "
+>
+  <div class="px-10 py-8 flex-grow">
+    <div class="space-y-8 pt-4">
+      <div class="bg-white rounded-lg border border-gray-200 p-5 shadow-sm break-inside-avoid">
+        <h3 class="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide border-b border-gray-100 pb-2">
+          Scenario Analysis
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 print:grid-cols-3 gap-4 items-stretch">
+          {% for scenario in report.scenario_analysis %}
+          <div class="border border-gray-200 bg-gray-50/50 rounded p-3 flex flex-col h-full break-inside-avoid">
+            <div class="flex items-center gap-2 mb-2">
+              <svg class="w-2.5 h-2.5 fill-current {{ scenario.dot_class }}" viewBox="0 0 10 10">
+                <circle cx="5" cy="5" r="5" />
+              </svg>
+              <h4 class="font-bold text-gray-900 text-xs">{{ scenario.title }}</h4>
+            </div>
+            <div class="text-[10px] font-semibold text-gray-700 mb-1.5 bg-white border border-gray-100 px-2 py-1 rounded self-start">
+              {{ scenario.condition }}
+            </div>
+            <p class="text-[10px] text-gray-600 leading-relaxed mt-auto">{{ scenario.description }}</p>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
 
-<div class="stack">
-  <div class="grid">
-    {% for card in report.scenario_cards %}
-    <div class="card col-4 scenario-card">
-      <div class="card-title">{{ card.title }}</div>
-      {% if card.condition %}
-      <div class="scenario-condition">{{ card.condition }}</div>
-      {% endif %}
-      <p class="body-text">{{ card.body }}</p>
+      <div>
+        <h2 class="text-lg text-[#E60000] mb-4 pb-1.5 border-b-2 border-[#E60000]">
+          Option Strategy Key Levels
+        </h2>
+        <div class="mb-6 overflow-hidden border border-gray-300 rounded-lg">
+          <table class="w-full text-[10px]">
+            <thead class="bg-gray-100">
+              <tr>
+                <th class="px-1.5 py-1.5 text-left font-semibold text-gray-700 border-b border-gray-300">Scenario</th>
+                <th class="px-1.5 py-1.5 text-right font-semibold text-gray-700 border-b border-gray-300">Price</th>
+                <th class="px-1.5 py-1.5 text-right font-semibold text-gray-700 border-b border-gray-300">Move %</th>
+                <th class="px-1.5 py-1.5 text-right font-semibold text-gray-700 border-b border-gray-300">Stock PnL</th>
+                <th class="px-1.5 py-1.5 text-right font-semibold text-gray-700 border-b border-gray-300">Option PnL</th>
+                <th class="px-1.5 py-1.5 text-right font-semibold text-gray-700 border-b border-gray-300">Option ROI</th>
+                <th class="px-1.5 py-1.5 text-right font-semibold text-gray-700 border-b border-gray-300">Net PnL</th>
+                <th class="px-1.5 py-1.5 text-right font-semibold text-gray-700 border-b border-gray-300">Net ROI</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in report.key_levels %}
+              <tr class="border-b border-gray-200 last:border-b-0 {{ row.row_class }}">
+                <td class="px-1.5 py-1.5 text-gray-900 font-medium">{{ row.scenario }}</td>
+                <td class="px-1.5 py-1.5 text-right text-gray-900">{{ row.price }}</td>
+                <td class="px-1.5 py-1.5 text-right {{ row.move_class }}">{{ row.move_percent }}</td>
+                <td class="px-1.5 py-1.5 text-right {{ row.stock_class }}">{{ row.stock_pnl }}</td>
+                <td class="px-1.5 py-1.5 text-right {{ row.option_class }}">{{ row.option_pnl }}</td>
+                <td class="px-1.5 py-1.5 text-right {{ row.option_roi_class }}">{{ row.option_roi }}</td>
+                <td class="px-1.5 py-1.5 text-right font-semibold {{ row.net_pnl_class }}">{{ row.net_pnl }}</td>
+                <td class="px-1.5 py-1.5 text-right font-semibold {{ row.net_roi_class }}">{{ row.net_roi }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="mt-8 pt-6 border-t border-gray-200">
+        <h4 class="text-[10px] font-bold text-gray-900 mb-2">Important Risk Disclosures</h4>
+        <p class="text-[9px] text-gray-500 leading-relaxed text-justify">
+          {{ report.disclosures }}
+        </p>
+      </div>
     </div>
-    {% endfor %}
   </div>
 
-  <div class="card">
-    <div class="card-title">Option Strategy Key Levels</div>
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Scenario</th>
-          <th class="num">Price</th>
-          <th class="num">Move %</th>
-          <th class="num">Stock PnL</th>
-          <th class="num">Option PnL</th>
-          <th class="num">Net PnL</th>
-          <th class="num">Net ROI</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in report.key_levels %}
-        <tr class="{% if row.is_current %}highlight{% endif %}">
-          <td>{{ row.scenario }}</td>
-          <td class="num">{{ row.price }}</td>
-          <td class="num">{{ row.move_pct }}</td>
-          <td class="num">{{ row.stock_pnl }}</td>
-          <td class="num">{{ row.option_pnl }}</td>
-          <td class="num">{{ row.net_pnl }}</td>
-          <td class="num">{{ row.net_roi }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Risk Disclosures</div>
-    <p class="body-text">{{ report.disclosures_text }}</p>
+  <div class="px-10 pb-6 pt-2 flex justify-between items-end text-[9px] text-gray-400 uppercase font-medium tracking-wider">
+    <span>UBS Financial Services Inc.</span>
+    <span>Page 2 of {{ report.page.total }}</span>
   </div>
 </div>

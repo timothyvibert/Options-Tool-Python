@@ -32,7 +32,16 @@ def main() -> None:
 
     contract_path = Path(args.contract)
     if not contract_path.exists():
-        raise SystemExit(f"Contract not found: {contract_path}")
+        repo_root = Path(__file__).resolve().parents[1]
+        alt_paths = [
+            repo_root / "Design" / "sample_report_contract.json",
+            repo_root / "Design" / "figma_report_v2" / "Design" / "sample_report_contract.json",
+        ]
+        locations = "\n".join(str(path) for path in alt_paths)
+        raise SystemExit(
+            "Contract not found. Expected one of:\n"
+            f"{locations}"
+        )
 
     report_model = json.loads(contract_path.read_text(encoding="utf-8"))
     out_path = Path(args.out)

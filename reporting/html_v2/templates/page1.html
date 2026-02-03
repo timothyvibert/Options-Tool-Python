@@ -1,71 +1,320 @@
-<div class="header">
-  <div class="logo">
-    {% if report.logo_path %}
-    <img src="{{ report.logo_path }}" alt="UBS" class="logo-img" />
-    {% endif %}
-  </div>
-  <div class="header-meta">
-    <div class="header-kicker">Wealth Management Option Strategy</div>
-    <div class="header-date">{{ report.as_of }}</div>
-    <div class="header-title">{{ report.strategy_name }}</div>
-    <div class="header-subtitle">{{ report.ticker }} | Spot {{ report.spot }}</div>
-  </div>
-</div>
+<div
+  class="
+    mx-auto bg-white shadow-2xl overflow-hidden relative flex flex-col justify-between
+    w-[8.5in] h-[11in]
+    print:shadow-none print:w-full print:h-screen print:break-after-page
+  "
+>
+  <div class="px-10 py-8 flex-grow">
+    <div class="space-y-3">
+      <div class="mb-4">
+        <div class="flex items-end justify-between mb-4">
+          <div class="flex items-center gap-2.5">
+            <svg width="36" height="36" viewBox="0 0 48 48" fill="none">
+              <path d="M26.5 15.5L34 8L36.5 10.5L29 18L26.5 15.5Z" fill="black" />
+              <path d="M22.5 19.5L30 12L32.5 14.5L25 22L22.5 19.5Z" fill="black" />
+              <path d="M18.5 23.5L26 16L28.5 18.5L21 26L18.5 23.5Z" fill="black" />
+              <path d="M12 24C12 17.3726 17.3726 12 24 12C30.6274 12 36 17.3726 36 24C36 30.6274 30.6274 36 24 36C17.3726 36 12 30.6274 12 24Z" stroke="black" stroke-width="2.5" />
+              <path d="M12 24H36" stroke="black" stroke-width="2.5" />
+              <path d="M24 12V36" stroke="black" stroke-width="2.5" />
+              <path d="M15.5 15.5L32.5 32.5" stroke="black" stroke-width="2.5" />
+              <path d="M32.5 15.5L15.5 32.5" stroke="black" stroke-width="2.5" />
+            </svg>
+            <span class="text-[#E60000] font-bold text-4xl leading-none tracking-tight">UBS</span>
+          </div>
 
-<div class="stack">
-  <div class="grid">
-    <div class="card col-6">
-      <div class="card-title">Underlying</div>
-      <div class="metric-large">{{ report.ticker }}</div>
-      <div class="metric-small">Last Price: {{ report.spot }}</div>
-    </div>
-    <div class="card col-6">
-      <div class="card-title">Key Metrics</div>
-      <div class="metrics-grid">
-        {% for tile in report.metric_tiles %}
-        <div class="metric-tile">
-          <div class="metric-label">{{ tile.label }}</div>
-          <div class="metric-value">{{ tile.value }}</div>
+          <div class="text-right">
+            <div class="text-[10.5px] font-medium text-gray-600 mb-0.5">{{ report.header.date }}</div>
+            <div class="text-[10.5px] font-bold text-gray-900 tracking-tight">{{ report.header.subtitle }}</div>
+          </div>
         </div>
-        {% endfor %}
+
+        <h1 class="text-2xl font-bold text-[#E60000] mb-2 tracking-tight leading-none">
+          {{ report.header.title }}
+        </h1>
+        <p class="text-[9.5px] text-gray-500 leading-snug text-justify max-w-full font-medium">
+          {{ report.header.disclaimer }}
+        </p>
+      </div>
+
+      <div class="mb-4">
+        <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden flex divide-x divide-gray-100 min-h-[100px]">
+          <div class="flex-[1.5] p-3 flex flex-col justify-between">
+            <div>
+              <h3 class="text-lg font-bold text-gray-900 leading-none mb-1.5">{{ report.stock_details.name }}</h3>
+              <div class="flex items-baseline gap-2 mb-1">
+                <span class="text-base font-bold text-gray-900 tracking-tight">{{ report.stock_details.last_price }}</span>
+                <span class="text-[10.5px] font-semibold flex items-center gap-1 {{ report.stock_details.change_class }}">
+                  <span>{{ report.stock_details.change_symbol }}</span>
+                  {{ report.stock_details.ten_day_change }}
+                </span>
+              </div>
+              <div class="text-[10.5px] font-bold text-gray-500 tracking-wide">{{ report.stock_details.ticker }}</div>
+            </div>
+
+            <div class="flex flex-col gap-1 pt-2 mt-2 border-t border-gray-100 text-[10.5px] text-gray-600 font-medium">
+              <div class="flex items-center gap-1.5">
+                <span class="text-gray-400">●</span>
+                <span class="truncate">{{ report.stock_details.sector }}</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-gray-400">●</span>
+                <span>Earnings Date: {{ report.stock_details.earnings_date }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex-1 p-3 bg-gray-50/30 flex flex-col">
+            <div class="flex items-center gap-1.5 mb-1 h-4">
+              <span class="text-blue-600">●</span>
+              <h4 class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Analyst View</h4>
+            </div>
+            <div class="space-y-1 mt-1 flex-grow">
+              <div class="flex justify-between items-baseline text-[10.5px] h-4.5">
+                <span class="text-gray-500">UBS Rating</span>
+                <span class="font-semibold text-gray-900">{{ report.stock_details.ubs_rating }}</span>
+              </div>
+              <div class="flex justify-between items-baseline text-[10.5px] h-4.5">
+                <span class="text-gray-500">Target</span>
+                <span class="font-semibold text-gray-900">{{ report.stock_details.ubs_target }}</span>
+              </div>
+              <div class="flex justify-between items-baseline text-[10.5px] h-4.5">
+                <span class="text-gray-500">CIO Rating</span>
+                <span class="font-semibold text-gray-900">{{ report.stock_details.cio_rating }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex-1 p-3 flex flex-col">
+            <div class="flex items-center gap-1.5 mb-1 h-4">
+              <span class="text-blue-600">●</span>
+              <h4 class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Key Data</h4>
+            </div>
+            <div class="space-y-1 mt-1 flex-grow">
+              <div class="flex justify-between items-baseline text-[10.5px] h-4.5">
+                <span class="text-gray-500">52w High</span>
+                <span class="font-semibold text-gray-900">{{ report.stock_details.fifty_two_week_high }}</span>
+              </div>
+              <div class="flex justify-between items-baseline text-[10.5px] h-4.5">
+                <span class="text-gray-500">52w Low</span>
+                <span class="font-semibold text-gray-900">{{ report.stock_details.fifty_two_week_low }}</span>
+              </div>
+              <div class="flex justify-between items-baseline text-[10.5px] h-4.5">
+                <span class="text-gray-500">Yield</span>
+                <span class="font-semibold text-gray-900">{{ report.stock_details.dividend_yield }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex-[1.2] p-3 bg-blue-50/20 flex flex-col">
+            <div class="flex items-center gap-1.5 mb-1 h-4">
+              <span class="text-blue-600">●</span>
+              <h4 class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Client Position</h4>
+            </div>
+
+            {% if report.client_position %}
+            <div class="mt-1 space-y-1.5 flex-grow flex flex-col justify-center">
+              <div class="flex justify-between items-baseline">
+                <span class="text-[10.5px] text-gray-500">Market Value</span>
+                <span class="text-[11.5px] font-bold text-gray-900 leading-none">{{ report.client_position.mkt_value }}</span>
+              </div>
+
+              <div class="flex justify-between items-center">
+                <span class="text-[10.5px] text-gray-500">Total P&amp;L</span>
+                <div class="text-[10.5px] font-bold flex items-center gap-1 {{ report.client_position.pnl_class }}">
+                  <span>{{ report.client_position.pnl_dollar }}</span>
+                  <span class="text-[9.5px] px-1.5 py-0.5 rounded {{ report.client_position.pnl_badge_class }}">
+                    {{ report.client_position.pnl_percent }}%
+                  </span>
+                </div>
+              </div>
+
+              <div class="pt-2 border-t border-blue-100 flex justify-between text-[10.5px] text-gray-500 mt-auto">
+                <span>{{ report.client_position.shares }} Shares</span>
+                <span>Avg: {{ report.client_position.avg_cost }}</span>
+              </div>
+            </div>
+            {% else %}
+            <div class="mt-2 text-[10.5px] text-gray-400 italic">No existing position</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <h2 class="text-base text-[#E60000] mb-2 pb-1 border-b border-[#E60000] font-bold">
+          Option Strategy Details
+        </h2>
+        <p class="text-[10.5px] text-gray-700 mb-3 leading-relaxed text-justify">{{ report.strategy_description }}</p>
+
+        <div class="mb-2">
+          <div class="text-[10.5px] font-semibold text-gray-900 mb-1.5">{{ report.option_legs_title }}</div>
+          <div class="overflow-hidden border border-gray-300 rounded">
+            <table class="w-full text-[10.5px]">
+              <thead class="bg-gray-100">
+                <tr>
+                  <th class="px-1.5 py-1.5 text-left font-semibold text-gray-700 border-b border-gray-300"></th>
+                  <th class="px-1.5 py-1.5 text-left font-semibold text-gray-700 border-b border-gray-300">Action</th>
+                  <th class="px-1.5 py-1.5 text-left font-semibold text-gray-700 border-b border-gray-300">Expiration</th>
+                  <th class="px-1.5 py-1.5 text-left font-semibold text-gray-700 border-b border-gray-300">Strike</th>
+                  <th class="px-1.5 py-1.5 text-left font-semibold text-gray-700 border-b border-gray-300">Type</th>
+                  <th class="px-1.5 py-1.5 text-right font-semibold text-gray-700 border-b border-gray-300">Price</th>
+                  <th class="px-1.5 py-1.5 text-right font-semibold text-gray-700 border-b border-gray-300">Delta</th>
+                  <th class="px-1.5 py-1.5 text-right font-semibold text-gray-700 border-b border-gray-300">OTM %</th>
+                  <th class="px-1.5 py-1.5 text-right font-semibold text-gray-700 border-b border-gray-300">Premium</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for leg in report.option_legs %}
+                <tr class="border-b border-gray-200 last:border-b-0">
+                  <td class="px-1.5 py-1.5 text-gray-900">{{ leg.leg }})</td>
+                  <td class="px-1.5 py-1.5 text-gray-900">{{ leg.action }} {{ leg.quantity }}</td>
+                  <td class="px-1.5 py-1.5 text-gray-900">{{ leg.expiration }}</td>
+                  <td class="px-1.5 py-1.5 text-gray-900">{{ leg.strike }}</td>
+                  <td class="px-1.5 py-1.5 text-gray-900">{{ leg.type }}</td>
+                  <td class="px-1.5 py-1.5 text-right text-gray-900">{{ leg.price }}</td>
+                  <td class="px-1.5 py-1.5 text-right text-gray-900">{{ leg.delta }}</td>
+                  <td class="px-1.5 py-1.5 text-right text-gray-900">{{ leg.otm_percent }}</td>
+                  <td class="px-1.5 py-1.5 text-right font-semibold {{ 'text-red-600' if leg.premium < 0 else 'text-gray-900' }}">
+                    {{ leg.premium_display }}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot class="bg-gray-50 border-t border-gray-300">
+                <tr>
+                  <td colspan="8" class="px-1.5 py-1.5 text-right font-semibold text-gray-900">Net Premium:</td>
+                  <td class="px-1.5 py-1.5 text-right font-bold {{ report.net_premium.class }}">
+                    {{ report.net_premium.display }}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="h-[240px]">
+        <div class="flex gap-4 items-stretch h-full">
+          <div class="flex-grow w-2/3">
+            <div class="bg-white border border-gray-200 rounded-lg p-3 h-full">
+              <div class="flex justify-between items-center mb-2">
+                <h3 class="text-sm font-semibold text-gray-900">Payoff Diagram</h3>
+                <div class="text-xs text-gray-500">Spot: {{ report.stock_details.last_price }}</div>
+              </div>
+              <div class="h-[300px] w-full flex items-center justify-center">
+                <div class="text-[10px] text-gray-500">Payoff Diagram</div>
+              </div>
+              <div class="flex justify-center gap-4 mt-2">
+                <div class="flex items-center gap-1.5">
+                  <div class="w-3 h-0.5 bg-blue-300"></div>
+                  <span class="text-[10px] text-gray-600">Stock</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <div class="w-3 h-0.5 bg-violet-300"></div>
+                  <span class="text-[10px] text-gray-600">Options</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <div class="w-3 h-0.5 bg-gray-600 border-t border-dashed"></div>
+                  <span class="text-[10px] text-gray-600">Combined</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="w-1/3 flex flex-col gap-2">
+            <div class="bg-gray-50 border border-gray-200 rounded-md p-2 flex-1 flex flex-col justify-center">
+              <h4 class="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 border-b border-gray-200 pb-1">Risk &amp; Reward</h4>
+              <div class="space-y-1">
+                <div class="flex justify-between items-baseline text-[10px]">
+                  <span class="text-gray-600">{{ report.metrics.max_profit.label }}</span>
+                  <div class="text-right">
+                    <span class="font-bold {{ report.metrics.max_profit.class }}">{{ report.metrics.max_profit.display }}</span>
+                    <span class="text-[9px] text-gray-400 ml-1.5 hidden xl:inline">({{ report.metrics.max_profit.sub_display }})</span>
+                  </div>
+                </div>
+                <div class="flex justify-between items-baseline text-[10px]">
+                  <span class="text-gray-600">{{ report.metrics.max_loss.label }}</span>
+                  <div class="text-right">
+                    <span class="font-bold {{ report.metrics.max_loss.class }}">{{ report.metrics.max_loss.display }}</span>
+                    <span class="text-[9px] text-gray-400 ml-1.5 hidden xl:inline">({{ report.metrics.max_loss.sub_display }})</span>
+                  </div>
+                </div>
+                <div class="flex justify-between items-baseline text-[10px]">
+                  <span class="text-gray-600">{{ report.metrics.reward_risk.label }}</span>
+                  <div class="text-right">
+                    <span class="font-bold {{ report.metrics.reward_risk.class }}">{{ report.metrics.reward_risk.display }}</span>
+                    <span class="text-[9px] text-gray-400 ml-1.5 hidden xl:inline">({{ report.metrics.reward_risk.sub_display }})</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-gray-50 border border-gray-200 rounded-md p-2 flex-1 flex flex-col justify-center">
+              <h4 class="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 border-b border-gray-200 pb-1">Return Metrics</h4>
+              <div class="space-y-1">
+                <div class="flex justify-between items-baseline text-[10px]">
+                  <span class="text-gray-600">{{ report.metrics.max_roi.label }}</span>
+                  <div class="text-right">
+                    <span class="font-bold {{ report.metrics.max_roi.class }}">{{ report.metrics.max_roi.display }}</span>
+                    <span class="text-[9px] text-gray-400 ml-1.5 hidden xl:inline">({{ report.metrics.max_roi.sub_display }})</span>
+                  </div>
+                </div>
+                <div class="flex justify-between items-baseline text-[10px]">
+                  <span class="text-gray-600">{{ report.metrics.min_roi.label }}</span>
+                  <div class="text-right">
+                    <span class="font-bold {{ report.metrics.min_roi.class }}">{{ report.metrics.min_roi.display }}</span>
+                    <span class="text-[9px] text-gray-400 ml-1.5 hidden xl:inline">({{ report.metrics.min_roi.sub_display }})</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-gray-50 border border-gray-200 rounded-md p-2 flex-1 flex flex-col justify-center">
+              <h4 class="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 border-b border-gray-200 pb-1">Capital</h4>
+              <div class="space-y-1">
+                <div class="flex justify-between items-baseline text-[10px]">
+                  <span class="text-gray-600">{{ report.metrics.capital_basis.label }}</span>
+                  <div class="text-right">
+                    <span class="font-bold {{ report.metrics.capital_basis.class }}">{{ report.metrics.capital_basis.display }}</span>
+                    <span class="text-[9px] text-gray-400 ml-1.5 hidden xl:inline">({{ report.metrics.capital_basis.sub_display }})</span>
+                  </div>
+                </div>
+                <div class="flex justify-between items-baseline text-[10px]">
+                  <span class="text-gray-600">{{ report.metrics.cost_credit.label }}</span>
+                  <div class="text-right">
+                    <span class="font-bold {{ report.metrics.cost_credit.class }}">{{ report.metrics.cost_credit.display }}</span>
+                    <span class="text-[9px] text-gray-400 ml-1.5 hidden xl:inline">({{ report.metrics.cost_credit.sub_display }})</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-gray-50 border border-gray-200 rounded-md p-2 flex-1 flex flex-col justify-center">
+              <h4 class="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 border-b border-gray-200 pb-1">Premium</h4>
+              <div class="space-y-1">
+                <div class="flex justify-between items-baseline text-[10px]">
+                  <span class="text-gray-600">{{ report.metrics.net_prem_per_share.label }}</span>
+                  <div class="text-right">
+                    <span class="font-bold {{ report.metrics.net_prem_per_share.class }}">{{ report.metrics.net_prem_per_share.display }}</span>
+                  </div>
+                </div>
+                <div class="flex justify-between items-baseline text-[10px]">
+                  <span class="text-gray-600">{{ report.metrics.net_prem_percent.label }}</span>
+                  <div class="text-right">
+                    <span class="font-bold {{ report.metrics.net_prem_percent.class }}">{{ report.metrics.net_prem_percent.display }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-title">Option Strategy Details</div>
-    <p class="body-text">{{ report.details_text }}</p>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Option Legs</div>
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Action</th>
-          <th>Expiration</th>
-          <th class="num">Strike</th>
-          <th>Type</th>
-          <th class="num">Price</th>
-          <th class="num">Delta</th>
-          <th class="num">OTM %</th>
-          <th class="num">Premium</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in report.legs %}
-        <tr>
-          <td>{{ row.action }}</td>
-          <td>{{ row.expiration }}</td>
-          <td class="num">{{ row.strike }}</td>
-          <td>{{ row.type }}</td>
-          <td class="num">{{ row.price }}</td>
-          <td class="num">{{ row.delta }}</td>
-          <td class="num">{{ row.otm }}</td>
-          <td class="num">{{ row.premium }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="px-10 pb-6 pt-2 flex justify-between items-end text-[9px] text-gray-400 uppercase font-medium tracking-wider">
+    <span>UBS Financial Services Inc.</span>
+    <span>Page 1 of {{ report.page.total }}</span>
   </div>
 </div>

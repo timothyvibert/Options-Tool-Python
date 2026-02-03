@@ -66,6 +66,7 @@ def test_report_pdf_v2_smoke():
         assert b"Page 3 of 2" not in payload
         assert b"Commentary" not in payload
         assert b"Payoff chart (placeholder)" not in payload
+        assert b"kaleido" not in payload
         assert b"install kaleido" not in payload
         assert b"Payoff chart unavailable (install kaleido)" not in payload
     finally:

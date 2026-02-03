@@ -594,6 +594,8 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
                 {
                     "leg": _fmt_text(leg.get("index", idx + 1)),
                     "side": _fmt_text(leg.get("side")),
+                    "qty": _fmt_text(leg.get("ratio")),
+                    "type": _fmt_text(leg.get("kind")),
                     "expiry": _fmt_text(leg.get("expiry") or expiry_text),
                     "Expiry": _fmt_text(leg.get("expiry") or expiry_text),
                     "strike": _fmt_currency(leg.get("strike")),
@@ -607,6 +609,8 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
                 {
                     "leg": str(idx + 1),
                     "side": _fmt_text(state.get(f"pos_{idx}") if include else None),
+                    "qty": _fmt_text(state.get(f"qty_{idx}") if include else None),
+                    "type": _fmt_text(state.get(f"type_{idx}") if include else None),
                     "expiry": _fmt_text(expiry_text if include else None),
                     "Expiry": _fmt_text(expiry_text if include else None),
                     "strike": _fmt_currency(

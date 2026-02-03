@@ -5,9 +5,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
-import plotly.graph_objects as go
-
-from io import BytesIO
 
 try:
     from reportlab.lib import colors
@@ -49,22 +46,30 @@ if colors is None:
     COLOR_PAGE_BG = None
     COLOR_CARD_BG = None
     COLOR_HEADER_BG = None
+    COLOR_TILE_BG = None
     COLOR_BORDER = None
     COLOR_TEXT = None
     COLOR_MUTED = None
     COLOR_ACCENT = None
     COLOR_TABLE_HEADER_BG = None
     COLOR_HIGHLIGHT = None
+    COLOR_CHART_STOCK = None
+    COLOR_CHART_OPTIONS = None
+    COLOR_CHART_COMBINED = None
 else:
     COLOR_PAGE_BG = colors.white
     COLOR_CARD_BG = colors.HexColor("#FFFFFF")
     COLOR_HEADER_BG = colors.HexColor("#F8FAFC")
+    COLOR_TILE_BG = colors.HexColor("#F9FAFB")
     COLOR_BORDER = colors.HexColor("#E5E7EB")
     COLOR_TEXT = colors.HexColor("#111827")
     COLOR_MUTED = colors.HexColor("#6B7280")
     COLOR_ACCENT = colors.HexColor("#E60000")
     COLOR_TABLE_HEADER_BG = colors.HexColor("#F3F4F6")
     COLOR_HIGHLIGHT = colors.HexColor("#FEF3C7")
+    COLOR_CHART_STOCK = colors.HexColor("#9CA3AF")
+    COLOR_CHART_OPTIONS = colors.HexColor("#2563EB")
+    COLOR_CHART_COMBINED = colors.HexColor("#111827")
 
 FONT_TITLE = 16
 FONT_SECTION = 9.5
@@ -83,6 +88,17 @@ DEFAULT_DISCLAIMERS = [
     "Past performance is not indicative of future results.",
 ]
 
+HEADER_DISCLAIMER = (
+    "This material is provided for informational purposes only and does not constitute a "
+    "recommendation, offer, or solicitation to buy or sell any security or investment product."
+)
+
+RISK_DISCLOSURE = (
+    "Options involve risk and are not suitable for all investors. Prior to buying or selling an "
+    "option, investors must receive a copy of the Options Disclosure Document. Tax treatment and "
+    "investment suitability may vary; consult your financial advisor for guidance."
+)
+
 
 def _fmt_value(value: Any) -> str:
     if value is None:
@@ -90,6 +106,74 @@ def _fmt_value(value: Any) -> str:
     if isinstance(value, float):
         return f"{value:,.4f}".rstrip("0").rstrip(".")
     return str(value)
+
+
+def _safe_text(value: object, fallback: str = "--") -> str:
+    if value is None:
+        return fallback
+    text = str(value).strip()
+    return text if text else fallback
+
+
+def _coerce_float(value: object) -> Optional[float]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text or text == "--":
+            return None
+        text = text.replace("$", "").replace(",", "").replace("%", "")
+        try:
+            return float(text)
+        except ValueError:
+            return None
+    return None
+
+
+def _format_mmddyyyy(value: object) -> str:
+    if value is None:
+        return "--"
+    if isinstance(value, datetime):
+        return value.strftime("%m/%d/%Y")
+    text = str(value).strip()
+    if not text:
+        return "--"
+    head = text[:10]
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y"):
+        try:
+            parsed = datetime.strptime(head, fmt)
+            return parsed.strftime("%m/%d/%Y")
+        except ValueError:
+            continue
+    return text
+
+
+def _format_currency_symbol(value: object) -> str:
+    numeric = _coerce_float(value)
+    if numeric is None:
+        return "--"
+    return f"${numeric:,.2f}"
+
+
+def _format_currency_plain(value: object) -> str:
+    numeric = _coerce_float(value)
+    if numeric is None:
+        return "--"
+    return f"{numeric:,.2f}"
+
+
+def _format_percent(value: object, decimals: int = 2) -> str:
+    if isinstance(value, str) and "%" in value:
+        return value
+    numeric = _coerce_float(value)
+    if numeric is None:
+        return "--"
+    return f"{numeric:.{decimals}f}%"
 
 
 def _build_key_value_table(rows: List[List[Any]]) -> Table:
@@ -158,46 +242,6 @@ def _styles(base_font: str = "Helvetica") -> Dict[str, ParagraphStyle]:
     }
 
 
-def _build_payoff_figure(payoff_payload: Dict[str, Any]) -> go.Figure:
-    x = payoff_payload.get("price_grid") or []
-    y = payoff_payload.get("combined_pnl") or payoff_payload.get("pnl") or []
-    strikes = payoff_payload.get("strikes") or []
-    breakevens = payoff_payload.get("breakevens") or []
-    fig = go.Figure()
-    if x and y and len(x) == len(y):
-        fig.add_trace(go.Scatter(x=x, y=y, name="Combined PnL"))
-    fig.add_hline(y=0, line_color="#9CA3AF", line_width=1)
-    for strike in strikes:
-        try:
-            strike_val = float(strike)
-        except (TypeError, ValueError):
-            continue
-        fig.add_vline(x=strike_val, line_color="#E5E7EB", line_width=1)
-    for breakeven in breakevens:
-        try:
-            be_val = float(breakeven)
-        except (TypeError, ValueError):
-            continue
-        fig.add_vline(x=be_val, line_color="#9CA3AF", line_width=1, line_dash="dot")
-    fig.update_layout(
-        template="plotly_white",
-        margin=dict(l=20, r=10, t=10, b=20),
-        font=dict(size=10),
-        showlegend=False,
-    )
-    return fig
-
-
-def _try_export_payoff_png(
-    payoff_payload: Dict[str, Any],
-) -> tuple[Optional[bytes], Optional[str]]:
-    try:
-        fig = _build_payoff_figure(payoff_payload)
-        return fig.to_image(format="png", scale=2), None
-    except Exception as exc:
-        return None, f"{type(exc).__name__}: {exc}"
-
-
 def _draw_payoff_chart_vector(
     canvas_obj,
     box: tuple[float, float, float, float],
@@ -206,15 +250,37 @@ def _draw_payoff_chart_vector(
 ) -> None:
     x0, y0, w, h = box
     x = payoff_payload.get("price_grid") or []
-    y = payoff_payload.get("combined_pnl") or payoff_payload.get("pnl") or []
-    if not x or not y or len(x) != len(y):
+    combined = payoff_payload.get("combined_pnl") or payoff_payload.get("pnl") or []
+    stock = payoff_payload.get("stock_pnl") or []
+    options = payoff_payload.get("options_pnl") or payoff_payload.get("option_pnl") or []
+    if not x or not combined or len(x) != len(combined):
         canvas_obj.setFont(base_font, 9)
         canvas_obj.drawCentredString(x0 + w / 2, y0 + h / 2, "Payoff chart unavailable")
         return
     try:
         x_vals = [float(v) for v in x]
-        y_vals = [float(v) for v in y]
+        combined_vals = [float(v) for v in combined]
+        stock_vals = (
+            [float(v) for v in stock] if stock and len(stock) == len(x_vals) else None
+        )
+        option_vals = (
+            [float(v) for v in options] if options and len(options) == len(x_vals) else None
+        )
     except Exception:
+        canvas_obj.setFont(base_font, 9)
+        canvas_obj.drawCentredString(x0 + w / 2, y0 + h / 2, "Payoff chart unavailable")
+        return
+
+    series = [
+        ("Stock", stock_vals, COLOR_CHART_STOCK),
+        ("Options", option_vals, COLOR_CHART_OPTIONS),
+        ("Combined", combined_vals, COLOR_CHART_COMBINED),
+    ]
+    series = [item for item in series if item[1] is not None]
+    all_y = []
+    for _, vals, _ in series:
+        all_y.extend(vals)
+    if not all_y:
         canvas_obj.setFont(base_font, 9)
         canvas_obj.drawCentredString(x0 + w / 2, y0 + h / 2, "Payoff chart unavailable")
         return
@@ -224,8 +290,8 @@ def _draw_payoff_chart_vector(
     if x_min == x_max:
         x_min -= 1.0
         x_max += 1.0
-    y_min = min(y_vals)
-    y_max = max(y_vals)
+    y_min = min(all_y)
+    y_max = max(all_y)
     if y_min == y_max:
         y_min -= 1.0
         y_max += 1.0
@@ -281,26 +347,48 @@ def _draw_payoff_chart_vector(
         canvas_obj.setFont(base_font, 7)
         canvas_obj.drawString(x_to_px(spot_val) + 2, y0 + h - 10, "Spot")
 
-    canvas_obj.setStrokeColor(colors.black)
-    canvas_obj.setLineWidth(0.75)
-    points = list(zip(x_vals, y_vals))
-    if points:
+    canvas_obj.setLineWidth(0.8)
+    for label, vals, color in series:
+        canvas_obj.setStrokeColor(color)
         path = canvas_obj.beginPath()
-        first_x, first_y = points[0]
+        first_x, first_y = x_vals[0], vals[0]
         path.moveTo(x_to_px(first_x), y_to_px(first_y))
-        for px, py in points[1:]:
+        for px, py in zip(x_vals[1:], vals[1:]):
             path.lineTo(x_to_px(px), y_to_px(py))
-    canvas_obj.drawPath(path, stroke=1, fill=0)
+        canvas_obj.drawPath(path, stroke=1, fill=0)
+
+    legend_x = x0 + w - 70
+    legend_y = y0 + h - 10
+    canvas_obj.setFont(base_font, 7)
+    for label, _, color in series:
+        canvas_obj.setStrokeColor(color)
+        canvas_obj.line(legend_x, legend_y, legend_x + 12, legend_y)
+        canvas_obj.setFillColor(COLOR_TEXT)
+        canvas_obj.drawString(legend_x + 15, legend_y - 3, label)
+        legend_y -= 10
 
 
-def _draw_card(canvas_obj, x: float, y: float, w: float, h: float, title: str | None, base_font: str) -> None:
-    canvas_obj.setFillColor(COLOR_CARD_BG)
-    canvas_obj.setStrokeColor(COLOR_BORDER)
+def _draw_card(
+    canvas_obj,
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+    title: str | None,
+    base_font: str,
+    *,
+    fill_color=COLOR_CARD_BG,
+    border_color=COLOR_BORDER,
+    title_color=COLOR_TEXT,
+    title_size: float = FONT_SECTION,
+) -> None:
+    canvas_obj.setFillColor(fill_color)
+    canvas_obj.setStrokeColor(border_color)
     canvas_obj.setLineWidth(0.6)
     canvas_obj.roundRect(x, y, w, h, CARD_RADIUS, stroke=1, fill=1)
     if title:
-        canvas_obj.setFillColor(COLOR_TEXT)
-        canvas_obj.setFont("Helvetica-Bold", FONT_SECTION)
+        canvas_obj.setFillColor(title_color)
+        canvas_obj.setFont("Helvetica-Bold", title_size)
         canvas_obj.drawString(x + CARD_PAD, y + h - (CARD_PAD + 4), title)
 
 
@@ -343,6 +431,59 @@ def _draw_paragraphs(
             break
         para.drawOn(canvas_obj, x, cursor - th)
         cursor -= th + 2
+
+
+def _wrap_lines(
+    canvas_obj,
+    text: str,
+    max_width: float,
+    font_name: str,
+    font_size: float,
+) -> list[str]:
+    words = text.split()
+    if not words:
+        return [""]
+    lines: list[str] = []
+    line = ""
+    for word in words:
+        candidate = f"{line} {word}".strip()
+        if canvas_obj.stringWidth(candidate, font_name, font_size) <= max_width:
+            line = candidate
+        else:
+            if line:
+                lines.append(line)
+            line = word
+    if line:
+        lines.append(line)
+    return lines
+
+
+def _draw_wrapped_text(
+    canvas_obj,
+    text: str,
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+    font_name: str,
+    font_size: float,
+    leading: float,
+    color=COLOR_TEXT,
+) -> None:
+    canvas_obj.setFillColor(color)
+    canvas_obj.setFont(font_name, font_size)
+    lines: list[str] = []
+    for raw_line in str(text).splitlines():
+        if raw_line.strip() == "":
+            lines.append("")
+            continue
+        lines.extend(_wrap_lines(canvas_obj, raw_line, w, font_name, font_size))
+    cursor = y + h - font_size
+    for line in lines:
+        if cursor < y:
+            break
+        canvas_obj.drawString(x, cursor, line)
+        cursor -= leading
 
 
 def build_report_pdf(
@@ -599,7 +740,7 @@ def build_report_pdf(
     doc.build(story)
 
 
-def build_report_pdf_v2(
+def _build_report_pdf_v2_legacy(
     path: str,
     *,
     report_model: Dict[str, Any],
@@ -1008,3 +1149,747 @@ def build_report_pdf_v2(
     c.showPage()
     _page2(c)
     c.save()
+
+
+def _metric_lookup(metrics_rows: list[dict], label: str) -> str:
+    target = label.strip().lower()
+    for row in metrics_rows:
+        if not isinstance(row, dict):
+            continue
+        metric = str(row.get("metric", "")).strip().lower()
+        if metric == target:
+            value = row.get("combined")
+            if value in (None, "", "--"):
+                value = row.get("options")
+            return _safe_text(value)
+    return "--"
+
+
+def _calc_rr_ratio(max_profit: str, max_loss: str) -> str:
+    profit_val = _coerce_float(max_profit)
+    loss_val = _coerce_float(max_loss)
+    if profit_val is None or loss_val is None or abs(loss_val) < 1e-9:
+        return "--"
+    return f"{abs(profit_val / loss_val):.2f}x"
+
+
+def _draw_header(
+    canvas_obj,
+    report_model: Dict[str, Any],
+    logo_path: Optional[Path],
+    layout: Dict[str, float],
+    base_font: str,
+    *,
+    show_disclaimer: bool,
+) -> None:
+    header = report_model.get("header", {}) if isinstance(report_model, dict) else {}
+    page_h = layout["page_h"]
+    margin_x = layout["margin_x"]
+    margin_top = layout["margin_top"]
+    content_w = layout["content_w"]
+    header_h = layout["header_h"]
+
+    x = margin_x
+    y = page_h - margin_top - header_h
+
+    logo_w = 74
+    logo_h = 20
+    if logo_path and Image is not None:
+        try:
+            canvas_obj.drawImage(
+                str(logo_path),
+                x,
+                y + header_h - logo_h,
+                width=logo_w,
+                height=logo_h,
+                preserveAspectRatio=True,
+                mask="auto",
+            )
+        except Exception:
+            pass
+
+    right_x = x + content_w
+    canvas_obj.setFillColor(COLOR_MUTED)
+    canvas_obj.setFont(base_font, 8)
+    canvas_obj.drawRightString(
+        right_x,
+        y + header_h - 12,
+        "Wealth Management Option Strategy",
+    )
+    canvas_obj.drawRightString(
+        right_x,
+        y + header_h - 24,
+        _format_mmddyyyy(header.get("report_time")),
+    )
+
+    title_x = x + logo_w + 12
+    title_y = y + header_h - 34
+    canvas_obj.setFillColor(COLOR_ACCENT)
+    canvas_obj.setFont("Helvetica-Bold", 14)
+    canvas_obj.drawString(title_x, title_y, _safe_text(header.get("strategy_name")))
+
+    if show_disclaimer:
+        _draw_wrapped_text(
+            canvas_obj,
+            HEADER_DISCLAIMER,
+            title_x,
+            y + 4,
+            content_w - (title_x - x),
+            header_h - 40,
+            base_font,
+            7.5,
+            9,
+            color=COLOR_MUTED,
+        )
+
+    canvas_obj.setStrokeColor(COLOR_BORDER)
+    canvas_obj.setLineWidth(0.6)
+    canvas_obj.line(x, y, x + content_w, y)
+
+
+def _draw_footer(canvas_obj, layout: Dict[str, float], page_num: int, base_font: str) -> None:
+    margin_x = layout["margin_x"]
+    margin_bottom = layout["margin_bottom"]
+    page_w = layout["page_w"]
+    canvas_obj.setFont(base_font, FONT_FOOTER)
+    canvas_obj.setFillColor(COLOR_MUTED)
+    canvas_obj.drawString(margin_x, margin_bottom, "UBS Financial Services Inc.")
+    canvas_obj.drawRightString(
+        page_w - margin_x,
+        margin_bottom,
+        f"PAGE {page_num} OF 2",
+    )
+
+
+def _draw_page1(
+    canvas_obj,
+    report_model: Dict[str, Any],
+    logo_path: Optional[Path],
+    layout: Dict[str, float],
+    base_font: str,
+) -> None:
+    page_w = layout["page_w"]
+    page_h = layout["page_h"]
+    margin_x = layout["margin_x"]
+    margin_top = layout["margin_top"]
+    content_w = layout["content_w"]
+    gap = layout["gap"]
+    header_h = layout["header_h"]
+    tile_h = layout["tile_h"]
+    details_h = layout["details_h"]
+    legs_h = layout["legs_h"]
+    payoff_h = layout["payoff_h"]
+    right_rail_w = layout["right_rail_w"]
+
+    canvas_obj.setFillColor(COLOR_PAGE_BG)
+    canvas_obj.rect(0, 0, page_w, page_h, stroke=0, fill=1)
+
+    _draw_header(
+        canvas_obj,
+        report_model,
+        logo_path,
+        layout,
+        base_font,
+        show_disclaimer=True,
+    )
+
+    header = report_model.get("header", {}) if isinstance(report_model, dict) else {}
+    stock_banner = report_model.get("stock_banner", {}) if isinstance(report_model, dict) else {}
+    metrics_rows = (
+        report_model.get("metrics", {}).get("rows", [])
+        if isinstance(report_model, dict)
+        else []
+    )
+    structure = report_model.get("structure", {}) if isinstance(report_model, dict) else {}
+    legs_rows = structure.get("legs", []) if isinstance(structure, dict) else []
+    scenario_cards = report_model.get("scenario_analysis_cards") if isinstance(report_model, dict) else []
+    payoff_payload = report_model.get("payoff") if isinstance(report_model, dict) else {}
+
+    def _draw_tile(x: float, y: float, w: float, h: float, title: str, lines: list[object]) -> None:
+        _draw_card(
+            canvas_obj,
+            x,
+            y,
+            w,
+            h,
+            None,
+            base_font,
+            fill_color=COLOR_TILE_BG,
+            border_color=COLOR_BORDER,
+        )
+        canvas_obj.setFillColor(COLOR_MUTED)
+        canvas_obj.setFont("Helvetica-Bold", 7)
+        canvas_obj.drawString(x + 6, y + h - 12, title)
+        line_y = y + h - 24
+        for entry in lines:
+            if isinstance(entry, tuple):
+                text, font_name, font_size, color = entry
+            else:
+                text = str(entry)
+                font_name = base_font
+                font_size = 7.5
+                color = COLOR_TEXT
+            if not text:
+                continue
+            canvas_obj.setFillColor(color)
+            canvas_obj.setFont(font_name, font_size)
+            canvas_obj.drawString(x + 6, line_y, text)
+            line_y -= font_size + 2
+
+    cursor = page_h - margin_top - header_h - gap
+    tile_y = cursor - tile_h
+    tile_w = (content_w - 3 * gap) / 4
+
+    ticker = _safe_text(header.get("ticker"))
+    last_price = _safe_text(header.get("last_price"))
+    underlying_lines = [
+        (f"{ticker} {last_price}", "Helvetica-Bold", 9.5, COLOR_TEXT),
+        ("Change: 0.00%", base_font, 7.5, COLOR_MUTED),
+        _safe_text(header.get("name")),
+        _safe_text(header.get("sector")),
+        f"Earnings: {_safe_text(header.get('earnings_date'))}",
+    ]
+    _draw_tile(
+        margin_x,
+        tile_y,
+        tile_w,
+        tile_h,
+        "Underlying",
+        underlying_lines,
+    )
+
+    analyst_lines = [
+        f"UBS Rating: {_safe_text(header.get('ubs_rating'))}",
+        f"Target: {_safe_text(header.get('target'))}",
+        f"CIO Rating: {_safe_text(header.get('cio_rating'))}",
+    ]
+    _draw_tile(
+        margin_x + (tile_w + gap),
+        tile_y,
+        tile_w,
+        tile_h,
+        "Analyst View",
+        analyst_lines,
+    )
+
+    week_range = stock_banner.get("week_52_range") if isinstance(stock_banner, dict) else None
+    if not week_range or week_range == "--":
+        high = _safe_text(header.get("high_52w"))
+        low = _safe_text(header.get("low_52w"))
+        if "--" in (high, low):
+            week_range = "--"
+        else:
+            week_range = f"{high} / {low}"
+    key_data_lines = [
+        f"52W High/Low: {week_range}",
+        f"Dividend Yield: {_safe_text(header.get('dividend_yield'))}",
+    ]
+    _draw_tile(
+        margin_x + 2 * (tile_w + gap),
+        tile_y,
+        tile_w,
+        tile_h,
+        "Key Data",
+        key_data_lines,
+    )
+
+    shares_text = _safe_text(stock_banner.get("shares") if isinstance(stock_banner, dict) else None)
+    avg_cost_text = _safe_text(stock_banner.get("avg_cost") if isinstance(stock_banner, dict) else None)
+    shares_val = _coerce_float(shares_text)
+    last_price_val = _coerce_float(header.get("last_price"))
+    avg_cost_val = _coerce_float(avg_cost_text)
+    market_value_text = "--"
+    total_pnl_text = "--"
+    if shares_val is not None and last_price_val is not None:
+        market_value_text = _format_currency_symbol(shares_val * last_price_val)
+    if shares_val is not None and last_price_val is not None and avg_cost_val is not None:
+        total_pnl_text = _format_currency_symbol((last_price_val - avg_cost_val) * shares_val)
+    client_lines = [
+        f"Market Value: {market_value_text}",
+        f"Total P&L: {total_pnl_text}",
+        f"Shares: {shares_text}",
+        f"Avg Cost: {avg_cost_text}",
+    ]
+    _draw_tile(
+        margin_x + 3 * (tile_w + gap),
+        tile_y,
+        tile_w,
+        tile_h,
+        "Client Position",
+        client_lines,
+    )
+
+    details_y = tile_y - gap - details_h
+    _draw_card(
+        canvas_obj,
+        margin_x,
+        details_y,
+        content_w,
+        details_h,
+        "Option Strategy Details",
+        base_font,
+    )
+    detail_text = ""
+    if isinstance(scenario_cards, list) and len(scenario_cards) > 1:
+        card = scenario_cards[1]
+        if isinstance(card, dict):
+            detail_text = card.get("body") or card.get("condition") or card.get("title") or ""
+    if not detail_text:
+        detail_text = "Scenario narrative unavailable for this strategy."
+    _draw_wrapped_text(
+        canvas_obj,
+        detail_text,
+        margin_x + CARD_PAD,
+        details_y + CARD_PAD,
+        content_w - 2 * CARD_PAD,
+        details_h - 20,
+        base_font,
+        8,
+        10,
+        color=COLOR_TEXT,
+    )
+
+    legs_y = details_y - gap - legs_h
+    _draw_card(
+        canvas_obj,
+        margin_x,
+        legs_y,
+        content_w,
+        legs_h,
+        "Option Legs",
+        base_font,
+    )
+
+    def _action_from_side(side: object) -> str:
+        text = str(side or "").strip().lower()
+        if text in {"long", "buy", "bto"}:
+            return "Buy"
+        if text in {"short", "sell", "sto"}:
+            return "Sell"
+        if text:
+            return text.title()
+        return "--"
+
+    legs_data = [["Action", "Expiration", "Strike", "Type", "Price", "Delta", "OTM %", "Premium"]]
+    for leg in legs_rows[:4]:
+        if not isinstance(leg, dict):
+            continue
+        action = _action_from_side(leg.get("side"))
+        expiry = _safe_text(leg.get("expiry") or leg.get("Expiry"))
+        strike = _safe_text(leg.get("strike"))
+        leg_type = _safe_text(leg.get("type") or leg.get("kind"))
+        price_text = _format_currency_plain(leg.get("premium"))
+        qty_val = _coerce_float(leg.get("qty"))
+        price_val = _coerce_float(leg.get("premium"))
+        premium_total = None
+        if qty_val is not None and price_val is not None:
+            sign = -1.0 if action.lower() == "buy" else 1.0
+            premium_total = price_val * qty_val * 100.0 * sign
+        premium_text = _format_currency_plain(premium_total) if premium_total is not None else price_text
+        legs_data.append(
+            [
+                action,
+                expiry,
+                strike,
+                leg_type,
+                price_text,
+                "--",
+                "--",
+                premium_text,
+            ]
+        )
+    if len(legs_data) == 1:
+        legs_data.append(["--"] * 8)
+
+    col_base = [0.9, 1.05, 0.9, 0.7, 0.7, 0.6, 0.6, 0.95]
+    col_widths = [w * inch for w in col_base]
+    col_total = sum(col_widths)
+    table_w = content_w - 2 * CARD_PAD
+    if col_total > 0:
+        col_widths = [w * table_w / col_total for w in col_widths]
+    legs_table = Table(legs_data, colWidths=col_widths)
+    legs_style = [
+        ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
+        ("TEXTCOLOR", (0, 0), (-1, 0), COLOR_MUTED),
+        ("GRID", (0, 0), (-1, -1), 0.25, COLOR_BORDER),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, 1), (-1, -1), base_font),
+        ("FONTSIZE", (0, 0), (-1, 0), FONT_TABLE_HEADER),
+        ("FONTSIZE", (0, 1), (-1, -1), FONT_SMALL),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
+    ]
+    for row in range(1, len(legs_data), 2):
+        legs_style.append(("BACKGROUND", (0, row), (-1, row), colors.HexColor("#F9FAFB")))
+    legs_table.setStyle(TableStyle(legs_style))
+    _draw_table(
+        canvas_obj,
+        legs_table,
+        margin_x + CARD_PAD,
+        legs_y + CARD_PAD + 10,
+        content_w - 2 * CARD_PAD,
+        legs_h - 30,
+    )
+
+    net_premium = _safe_text(structure.get("net_premium_total") if isinstance(structure, dict) else None)
+    canvas_obj.setFillColor(COLOR_TEXT)
+    canvas_obj.setFont("Helvetica-Bold", 8)
+    canvas_obj.drawRightString(
+        margin_x + content_w - CARD_PAD,
+        legs_y + 6,
+        f"Net Premium: {net_premium}",
+    )
+
+    payoff_y = legs_y - gap - payoff_h
+    payoff_w = content_w - right_rail_w - gap
+    payoff_x = margin_x
+    right_x = payoff_x + payoff_w + gap
+
+    _draw_card(
+        canvas_obj,
+        payoff_x,
+        payoff_y,
+        payoff_w,
+        payoff_h,
+        "Payoff Diagram",
+        base_font,
+    )
+    _draw_payoff_chart_vector(
+        canvas_obj,
+        (
+            payoff_x + CARD_PAD,
+            payoff_y + CARD_PAD,
+            payoff_w - 2 * CARD_PAD,
+            payoff_h - 24,
+        ),
+        payoff_payload if isinstance(payoff_payload, dict) else {},
+        base_font,
+    )
+
+    rail_tile_h = (payoff_h - 3 * gap) / 4
+
+    def _draw_rail_tile(index: int, title: str, rows: list[tuple[str, str]]) -> None:
+        tile_y = payoff_y + payoff_h - (index + 1) * rail_tile_h - index * gap
+        _draw_card(
+            canvas_obj,
+            right_x,
+            tile_y,
+            right_rail_w,
+            rail_tile_h,
+            None,
+            base_font,
+            fill_color=COLOR_TILE_BG,
+            border_color=COLOR_BORDER,
+        )
+        canvas_obj.setFillColor(COLOR_MUTED)
+        canvas_obj.setFont("Helvetica-Bold", 7.5)
+        canvas_obj.drawString(right_x + 6, tile_y + rail_tile_h - 12, title)
+        line_y = tile_y + rail_tile_h - 24
+        for label, value in rows:
+            canvas_obj.setFillColor(COLOR_TEXT)
+            canvas_obj.setFont(base_font, 7)
+            canvas_obj.drawString(right_x + 6, line_y, f"{label}: {value}")
+            line_y -= 10
+
+    max_profit = _metric_lookup(metrics_rows, "Max Profit")
+    max_loss = _metric_lookup(metrics_rows, "Max Loss")
+    rr_ratio = _calc_rr_ratio(max_profit, max_loss)
+    _draw_rail_tile(
+        0,
+        "Risk & Reward",
+        [
+            ("Max Profit", max_profit),
+            ("Max Loss", max_loss),
+            ("R/R Ratio", rr_ratio),
+        ],
+    )
+
+    _draw_rail_tile(
+        1,
+        "Return Metrics",
+        [
+            ("Max ROI", _metric_lookup(metrics_rows, "Max ROI")),
+            ("Min ROI", _metric_lookup(metrics_rows, "Min ROI")),
+        ],
+    )
+
+    _draw_rail_tile(
+        2,
+        "Capital",
+        [
+            ("Capital Basis", _metric_lookup(metrics_rows, "Capital Basis")),
+            ("Net Cost", _metric_lookup(metrics_rows, "Cost/Credit")),
+        ],
+    )
+
+    net_prem_share = _metric_lookup(metrics_rows, "Net Prem/Share")
+    if net_prem_share == "--":
+        net_prem_share = _safe_text(structure.get("net_premium_per_share"))
+    _draw_rail_tile(
+        3,
+        "Premium",
+        [
+            ("Net Prem/Share", net_prem_share),
+            ("Yield %", _metric_lookup(metrics_rows, "Net Prem % Spot")),
+        ],
+    )
+
+    _draw_footer(canvas_obj, layout, 1, base_font)
+
+
+def _draw_page2(
+    canvas_obj,
+    report_model: Dict[str, Any],
+    logo_path: Optional[Path],
+    layout: Dict[str, float],
+    base_font: str,
+) -> None:
+    page_w = layout["page_w"]
+    page_h = layout["page_h"]
+    margin_x = layout["margin_x"]
+    margin_top = layout["margin_top"]
+    content_w = layout["content_w"]
+    gap = layout["gap"]
+    header_h = layout["header_h"]
+    scenario_h = layout["scenario_h"]
+    key_levels_h = layout["key_levels_h"]
+    disclosures_h = layout["disclosures_h"]
+
+    canvas_obj.setFillColor(COLOR_PAGE_BG)
+    canvas_obj.rect(0, 0, page_w, page_h, stroke=0, fill=1)
+
+    _draw_header(
+        canvas_obj,
+        report_model,
+        logo_path,
+        layout,
+        base_font,
+        show_disclaimer=False,
+    )
+
+    cursor = page_h - margin_top - header_h - gap
+    cards_y = cursor - scenario_h
+    _draw_card(
+        canvas_obj,
+        margin_x,
+        cards_y,
+        content_w,
+        scenario_h,
+        "Scenario Analysis",
+        base_font,
+    )
+
+    cards = report_model.get("scenario_analysis_cards") if isinstance(report_model, dict) else []
+    if not isinstance(cards, list):
+        cards = []
+    while len(cards) < 3:
+        cards.append({"title": "--", "condition": "--", "body": "--"})
+
+    inner_x = margin_x + CARD_PAD
+    title_offset = 14
+    inner_y = cards_y + CARD_PAD
+    inner_w = content_w - 2 * CARD_PAD
+    inner_h = scenario_h - 2 * CARD_PAD - title_offset
+    card_w = (inner_w - 2 * gap) / 3
+
+    for idx, card in enumerate(cards[:3]):
+        card_x = inner_x + idx * (card_w + gap)
+        card_y = inner_y
+        _draw_card(
+            canvas_obj,
+            card_x,
+            card_y,
+            card_w,
+            inner_h,
+            None,
+            base_font,
+            fill_color=COLOR_TILE_BG,
+            border_color=COLOR_BORDER,
+        )
+        title = _safe_text(card.get("title")) if isinstance(card, dict) else "--"
+        condition = _safe_text(card.get("condition")) if isinstance(card, dict) else "--"
+        body = _safe_text(card.get("body")) if isinstance(card, dict) else "--"
+        canvas_obj.setFillColor(COLOR_TEXT)
+        canvas_obj.setFont("Helvetica-Bold", 8)
+        canvas_obj.drawString(card_x + 6, card_y + inner_h - 14, title)
+        canvas_obj.setFillColor(COLOR_MUTED)
+        canvas_obj.setFont(base_font, 7)
+        canvas_obj.drawString(card_x + 6, card_y + inner_h - 26, condition)
+        _draw_wrapped_text(
+            canvas_obj,
+            body,
+            card_x + 6,
+            card_y + 6,
+            card_w - 12,
+            inner_h - 36,
+            base_font,
+            7,
+            9,
+            color=COLOR_TEXT,
+        )
+
+    key_y = cards_y - gap - key_levels_h
+    _draw_card(
+        canvas_obj,
+        margin_x,
+        key_y,
+        content_w,
+        key_levels_h,
+        "Option Strategy Key Levels",
+        base_font,
+    )
+
+    key_rows = report_model.get("key_levels_display_rows_by_price") if isinstance(report_model, dict) else None
+    if not isinstance(key_rows, list):
+        key_rows = report_model.get("key_levels_display_rows") if isinstance(report_model, dict) else []
+    if not isinstance(key_rows, list):
+        key_rows = []
+    has_stock_position = bool(report_model.get("has_stock_position", False)) if isinstance(report_model, dict) else False
+
+    if has_stock_position:
+        columns = ["Scenario", "Price", "Move %", "Stock PnL", "Option PnL", "Net PnL", "Net ROI"]
+    else:
+        columns = ["Scenario", "Price", "Move %", "Option PnL", "Net PnL", "Net ROI"]
+    table_data = [columns]
+    highlight_row = None
+    for idx, row in enumerate(key_rows[:10], start=1):
+        if not isinstance(row, dict):
+            continue
+        scenario_label = _safe_text(row.get("Scenario") or row.get("scenario"))
+        if scenario_label.strip().lower() == "current market price":
+            highlight_row = idx
+        row_values = [
+            scenario_label,
+            _safe_text(row.get("Price")),
+            _safe_text(row.get("Move %")),
+        ]
+        if has_stock_position:
+            row_values.append(_safe_text(row.get("Stock PnL")))
+        row_values.extend(
+            [
+                _safe_text(row.get("Option PnL")),
+                _safe_text(row.get("Net PnL")),
+                _safe_text(row.get("Net ROI")),
+            ]
+        )
+        table_data.append(row_values)
+    if len(table_data) == 1:
+        table_data.append(["--"] * len(columns))
+
+    col_base = [1.6, 0.8, 0.7, 0.9, 0.9, 0.9, 0.8] if has_stock_position else [1.8, 0.8, 0.7, 0.9, 0.9, 0.8]
+    col_widths = [w * inch for w in col_base]
+    col_total = sum(col_widths)
+    table_w = content_w - 2 * CARD_PAD
+    if col_total > 0:
+        col_widths = [w * table_w / col_total for w in col_widths]
+
+    key_table = Table(table_data, colWidths=col_widths, repeatRows=1)
+    key_style = [
+        ("BACKGROUND", (0, 0), (-1, 0), COLOR_TABLE_HEADER_BG),
+        ("TEXTCOLOR", (0, 0), (-1, 0), COLOR_MUTED),
+        ("GRID", (0, 0), (-1, -1), 0.25, COLOR_BORDER),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, 1), (-1, -1), base_font),
+        ("FONTSIZE", (0, 0), (-1, 0), FONT_TABLE_HEADER),
+        ("FONTSIZE", (0, 1), (-1, -1), FONT_SMALL),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
+    ]
+    for row in range(1, len(table_data), 2):
+        key_style.append(("BACKGROUND", (0, row), (-1, row), colors.HexColor("#F9FAFB")))
+    if highlight_row is not None:
+        key_style.append(("BACKGROUND", (0, highlight_row), (-1, highlight_row), COLOR_HIGHLIGHT))
+    key_table.setStyle(TableStyle(key_style))
+    _draw_table(
+        canvas_obj,
+        key_table,
+        margin_x + CARD_PAD,
+        key_y + CARD_PAD,
+        content_w - 2 * CARD_PAD,
+        key_levels_h - 22,
+    )
+
+    disclosures_y = key_y - gap - disclosures_h
+    _draw_card(
+        canvas_obj,
+        margin_x,
+        disclosures_y,
+        content_w,
+        disclosures_h,
+        "Risk Disclosures",
+        base_font,
+    )
+    _draw_wrapped_text(
+        canvas_obj,
+        RISK_DISCLOSURE,
+        margin_x + CARD_PAD,
+        disclosures_y + CARD_PAD,
+        content_w - 2 * CARD_PAD,
+        disclosures_h - 20,
+        base_font,
+        7.5,
+        9,
+        color=COLOR_TEXT,
+    )
+
+    _draw_footer(canvas_obj, layout, 2, base_font)
+
+
+def build_report_pdf_v2(
+    path: str,
+    *,
+    report_model: Dict[str, Any],
+    logo_path: Optional[str] = None,
+) -> None:
+    if _REPORTLAB_ERROR is not None:
+        raise RuntimeError(
+            "reportlab is required to build PDF reports. Install reportlab to continue."
+        ) from _REPORTLAB_ERROR
+
+    base_font = "Helvetica"
+
+    if pdf_canvas is None:
+        raise RuntimeError("reportlab canvas unavailable")
+
+    resolved_logo_path = None
+    if logo_path:
+        resolved_logo_path = Path(logo_path)
+    else:
+        repo_root = Path(__file__).resolve().parents[1]
+        resolved_logo_path = repo_root / "Design" / "UBS Logo Png.png"
+    if resolved_logo_path and not resolved_logo_path.exists():
+        resolved_logo_path = None
+
+    PAGE_W, PAGE_H = letter
+    layout = {
+        "page_w": PAGE_W,
+        "page_h": PAGE_H,
+        "margin_x": 24,
+        "margin_top": 24,
+        "margin_bottom": 18,
+        "content_w": PAGE_W - 48,
+        "gap": 8,
+        "header_h": 90,
+        "tile_h": 78,
+        "details_h": 70,
+        "legs_h": 135,
+        "payoff_h": 240,
+        "right_rail_w": 170,
+        "scenario_h": 150,
+        "key_levels_h": 300,
+        "disclosures_h": 80,
+    }
+
+    canvas_obj = pdf_canvas.Canvas(path, pagesize=letter, pageCompression=0)
+    _draw_page1(canvas_obj, report_model, resolved_logo_path, layout, base_font)
+    canvas_obj.showPage()
+    _draw_page2(canvas_obj, report_model, resolved_logo_path, layout, base_font)
+    canvas_obj.save()

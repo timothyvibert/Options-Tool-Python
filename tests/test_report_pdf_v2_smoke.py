@@ -69,6 +69,26 @@ def test_report_pdf_v2_smoke():
         assert b"kaleido" not in payload
         assert b"install kaleido" not in payload
         assert b"Payoff chart unavailable (install kaleido)" not in payload
+
+        header_text = "Wealth Management Option Strategy"
+        pdf_reader = None
+        try:
+            from pypdf import PdfReader as _PdfReader  # type: ignore
+        except Exception:
+            _PdfReader = None
+        if _PdfReader is None:
+            try:
+                from PyPDF2 import PdfReader as _PdfReader  # type: ignore
+            except Exception:
+                _PdfReader = None
+        if _PdfReader is not None:
+            pdf_reader = _PdfReader(tmp_path)
+            page0_text = (pdf_reader.pages[0].extract_text() or "").strip()
+            page1_text = (pdf_reader.pages[1].extract_text() or "").strip()
+            assert header_text in page0_text
+            assert header_text not in page1_text
+        else:
+            assert payload.count(header_text.encode()) == 1
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)

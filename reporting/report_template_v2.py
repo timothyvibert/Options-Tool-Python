@@ -229,11 +229,8 @@ def _page1_boxes() -> Dict[str, Tuple[float, float, float, float]]:
 
 
 def _page2_boxes() -> Dict[str, Tuple[float, float, float, float]]:
-    header_x = CONTENT_X
-    header_y = PAGE_H - MARGIN_TOP - HEADER_H
-    header_box = _box(header_x, header_y, CONTENT_W, HEADER_H)
-
-    scenario_y = header_y - GUTTER - SCENARIO_H
+    top_y = PAGE_H - MARGIN_TOP
+    scenario_y = top_y - SCENARIO_H
     key_y = scenario_y - GUTTER - KEY_LEVELS_H
     disclosures_y = key_y - GUTTER - DISCLOSURES_H
 
@@ -244,7 +241,6 @@ def _page2_boxes() -> Dict[str, Tuple[float, float, float, float]]:
     card_x = CONTENT_X + CARD_PAD_X
 
     boxes: Dict[str, Tuple[float, float, float, float]] = {
-        "header": header_box,
         "scenario": _box(CONTENT_X, scenario_y, CONTENT_W, SCENARIO_H),
         "scenario_card_1": _box(card_x, card_y, card_w, card_h),
         "scenario_card_2": _box(card_x + (card_w + GUTTER), card_y, card_w, card_h),

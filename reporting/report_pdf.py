@@ -514,6 +514,62 @@ def _draw_wrapped_text(
         cursor -= leading
 
 
+def _paragraph_style(
+    name: str,
+    font_name: str,
+    font_size: float,
+    leading: float,
+    color,
+) -> ParagraphStyle:
+    return ParagraphStyle(
+        name,
+        fontName=font_name,
+        fontSize=font_size,
+        leading=leading,
+        textColor=color,
+    )
+
+
+def _wrap_paragraph(text: str, style: ParagraphStyle, width: float) -> tuple[Paragraph, float]:
+    para = Paragraph(text, style)
+    _, height = para.wrap(width, 10_000)
+    return para, height
+
+
+def _draw_paragraph_top(
+    canvas_obj,
+    para: Paragraph,
+    x: float,
+    y_top: float,
+    width: float,
+    height: float | None = None,
+) -> float:
+    if height is None:
+        _, height = para.wrap(width, 10_000)
+    para.drawOn(canvas_obj, x, y_top - height)
+    return height
+
+
+def _draw_card_with_title(
+    canvas_obj,
+    box: tuple[float, float, float, float],
+    title: str,
+    title_style: ParagraphStyle,
+    base_font: str,
+) -> tuple[float, float, float, float]:
+    x, y, w, h = box
+    _draw_card(canvas_obj, x, y, w, h, None, base_font)
+    content_x = x + CARD_PAD_X
+    content_y = y + CARD_PAD_Y
+    content_w = w - 2 * CARD_PAD_X
+    content_h = h - 2 * CARD_PAD_Y
+    title_para, title_h = _wrap_paragraph(title, title_style, content_w)
+    _draw_paragraph_top(canvas_obj, title_para, content_x, content_y + content_h, content_w, title_h)
+    body_top = content_y + content_h - title_h - T.TITLE_SPACING
+    body_h = max(0.0, body_top - content_y)
+    return content_x, content_y, content_w, body_h
+
+
 def build_report_pdf(
     path: str,
     title: str,
@@ -1460,13 +1516,25 @@ def _draw_page1(
     )
 
     details_box = boxes["details"]
-    _draw_card(
+    title_style = _paragraph_style(
+        "details-title",
+        T.FONT_BOLD,
+        T.SECTION_TITLE_SIZE,
+        T.SECTION_TITLE_SIZE + T.STYLE_SECTION_LEADING_EXTRA,
+        COLOR_TEXT,
+    )
+    body_style = _paragraph_style(
+        "details-body",
+        base_font,
+        T.BODY_SIZE,
+        T.DETAILS_LEADING,
+        COLOR_TEXT,
+    )
+    content_x, content_y, content_w, content_h = _draw_card_with_title(
         canvas_obj,
-        details_box[0],
-        details_box[1],
-        details_box[2],
-        details_box[3],
+        details_box,
         "Option Strategy Details",
+        title_style,
         base_font,
     )
     detail_text = ""
@@ -1476,17 +1544,14 @@ def _draw_page1(
             detail_text = card.get("body") or card.get("condition") or card.get("title") or ""
     if not detail_text:
         detail_text = "Scenario narrative unavailable for this strategy."
-    _draw_wrapped_text(
+    detail_para, detail_h = _wrap_paragraph(detail_text, body_style, content_w)
+    _draw_paragraph_top(
         canvas_obj,
-        detail_text,
-        details_box[0] + CARD_PAD_X,
-        details_box[1] + CARD_PAD_Y,
-        details_box[2] - 2 * CARD_PAD_X,
-        details_box[3] - T.CARD_TITLE_SPACE,
-        base_font,
-        T.BODY_SIZE,
-        T.DETAILS_LEADING,
-        color=COLOR_TEXT,
+        detail_para,
+        content_x,
+        content_y + content_h,
+        content_w,
+        detail_h,
     )
 
     legs_box = boxes["legs"]
@@ -1694,15 +1759,6 @@ def _draw_page2(
     canvas_obj.setFillColor(COLOR_PAGE_BG)
     canvas_obj.rect(0, 0, T.PAGE_W, T.PAGE_H, stroke=0, fill=1)
 
-    _draw_header(
-        canvas_obj,
-        report_model,
-        logo_path,
-        boxes,
-        base_font,
-        show_disclaimer=False,
-    )
-
     scenario_box = boxes["scenario"]
     _draw_card(
         canvas_obj,
@@ -1764,13 +1820,18 @@ def _draw_page2(
         )
 
     key_box = boxes["key_levels"]
-    _draw_card(
+    key_title_style = _paragraph_style(
+        "key-levels-title",
+        T.FONT_BOLD,
+        T.SECTION_TITLE_SIZE,
+        T.SECTION_TITLE_SIZE + T.STYLE_SECTION_LEADING_EXTRA,
+        COLOR_TEXT,
+    )
+    key_content_x, key_content_y, key_content_w, key_content_h = _draw_card_with_title(
         canvas_obj,
-        key_box[0],
-        key_box[1],
-        key_box[2],
-        key_box[3],
+        key_box,
         "Option Strategy Key Levels",
+        key_title_style,
         base_font,
     )
 
@@ -1818,7 +1879,7 @@ def _draw_page2(
     )
     col_widths = [w * inch for w in col_units]
     col_total = sum(col_widths)
-    table_w = key_box[2] - 2 * CARD_PAD_X
+    table_w = key_content_w
     if col_total > 0:
         col_widths = [w * table_w / col_total for w in col_widths]
 
@@ -1846,33 +1907,42 @@ def _draw_page2(
     _draw_table(
         canvas_obj,
         key_table,
-        key_box[0] + CARD_PAD_X,
-        key_box[1] + CARD_PAD_Y,
-        key_box[2] - 2 * CARD_PAD_X,
-        key_box[3] - T.CARD_TITLE_SPACE,
+        key_content_x,
+        key_content_y,
+        key_content_w,
+        key_content_h,
     )
 
     disclosures_box = boxes["disclosures"]
-    _draw_card(
-        canvas_obj,
-        disclosures_box[0],
-        disclosures_box[1],
-        disclosures_box[2],
-        disclosures_box[3],
-        "Risk Disclosures",
-        base_font,
+    disclosure_title_style = _paragraph_style(
+        "disclosure-title",
+        T.FONT_BOLD,
+        T.SECTION_TITLE_SIZE,
+        T.SECTION_TITLE_SIZE + T.STYLE_SECTION_LEADING_EXTRA,
+        COLOR_TEXT,
     )
-    _draw_wrapped_text(
-        canvas_obj,
-        RISK_DISCLOSURE,
-        disclosures_box[0] + CARD_PAD_X,
-        disclosures_box[1] + CARD_PAD_Y,
-        disclosures_box[2] - 2 * CARD_PAD_X,
-        disclosures_box[3] - T.CARD_TITLE_SPACE,
+    disclosure_body_style = _paragraph_style(
+        "disclosure-body",
         base_font,
         T.DISCLAIMER_SIZE,
         T.DISCLAIMER_LEADING,
-        color=COLOR_TEXT,
+        COLOR_TEXT,
+    )
+    disc_x, disc_y, disc_w, disc_h = _draw_card_with_title(
+        canvas_obj,
+        disclosures_box,
+        "Risk Disclosures",
+        disclosure_title_style,
+        base_font,
+    )
+    disclosure_para, disclosure_h = _wrap_paragraph(RISK_DISCLOSURE, disclosure_body_style, disc_w)
+    _draw_paragraph_top(
+        canvas_obj,
+        disclosure_para,
+        disc_x,
+        disc_y + disc_h,
+        disc_w,
+        disclosure_h,
     )
 
     _draw_footer(canvas_obj, 2, base_font)

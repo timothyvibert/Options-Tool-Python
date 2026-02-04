@@ -390,66 +390,123 @@ def _from_template_data(data: Mapping[str, object]) -> Dict[str, object]:
     }
 
 
+def _field_value(field: object) -> Optional[object]:
+    if not isinstance(field, Mapping):
+        return None
+    if field.get("status") != "computed":
+        return None
+    return field.get("value")
+
+
+def _field_text(field: object) -> str:
+    return _to_text(_field_value(field))
+
+
 def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, object]:
-    header = contract.get("header") if isinstance(contract.get("header"), Mapping) else {}
-    structure = contract.get("structure") if isinstance(contract.get("structure"), Mapping) else {}
-    metrics_rows = contract.get("metrics", {}).get("rows") if isinstance(contract.get("metrics"), Mapping) else []
-    metrics_rows = metrics_rows if isinstance(metrics_rows, list) else []
-    key_levels_rows = (
-        contract.get("key_levels_display_rows_by_price")
-        if isinstance(contract.get("key_levels_display_rows_by_price"), list)
-        else contract.get("key_levels_display_rows")
-    )
-    if not isinstance(key_levels_rows, list):
-        key_levels_rows = contract.get("key_levels") if isinstance(contract.get("key_levels"), list) else []
-    scenario_cards = contract.get("scenario_analysis_cards")
-    scenario_cards = scenario_cards if isinstance(scenario_cards, list) else []
-    stock_banner = contract.get("stock_banner") if isinstance(contract.get("stock_banner"), Mapping) else {}
+    data = contract if isinstance(contract, Mapping) else {}
+    analysis_status = data.get("analysis_status") if isinstance(data.get("analysis_status"), Mapping) else {}
+    sections = data.get("sections") if isinstance(data.get("sections"), Mapping) else {}
+    underlying = data.get("underlying") if isinstance(data.get("underlying"), Mapping) else {}
+    analyst = data.get("analyst") if isinstance(data.get("analyst"), Mapping) else {}
+    client_position = data.get("client_position") if isinstance(data.get("client_position"), Mapping) else {}
+    strategy = data.get("strategy") if isinstance(data.get("strategy"), Mapping) else {}
+    metrics = data.get("metrics") if isinstance(data.get("metrics"), Mapping) else {}
 
-    last_price = _to_number(header.get("last_price")) or 0.0
-    shares = _to_number(header.get("shares")) or _to_number(stock_banner.get("shares")) or 0.0
-    avg_cost = _to_number(header.get("avg_cost")) or _to_number(stock_banner.get("avg_cost")) or 0.0
-    mkt_value = last_price * shares
-    cost_value = avg_cost * shares
-    pnl_dollar = mkt_value - cost_value
-    pnl_percent = (pnl_dollar / cost_value * 100.0) if cost_value else 0.0
+    sections_client = sections.get("client_position") if isinstance(sections.get("client_position"), Mapping) else {}
+    sections_scenario = sections.get("scenario_analysis") if isinstance(sections.get("scenario_analysis"), Mapping) else {}
+    sections_key_levels = sections.get("key_levels") if isinstance(sections.get("key_levels"), Mapping) else {}
+    sections_disclosures = sections.get("disclosures") if isinstance(sections.get("disclosures"), Mapping) else {}
 
-    move_text = _to_text(
-        header.get("ten_day_change")
-        or header.get("chg_pct_ytd")
-        or stock_banner.get("chg_pct_ytd")
-        or "0.00%"
-    )
+    client_visible = bool(sections_client.get("visible", True))
+    scenario_visible = bool(sections_scenario.get("visible", True))
+    key_levels_visible = bool(sections_key_levels.get("visible", True))
+    disclosures_visible = bool(sections_disclosures.get("visible", True))
 
-    option_legs: List[Dict[str, object]] = []
-    legs = structure.get("legs") if isinstance(structure.get("legs"), list) else []
-    if legs:
-        for idx, leg in enumerate(legs):
-            if not isinstance(leg, Mapping):
-                continue
-            side_text = _to_text(leg.get("side"))
-            side_info = _normalize_side(side_text)
-            qty = _to_number(leg.get("qty")) or 1
-            strike_num = _to_number(leg.get("strike")) or 0.0
-            premium_num = _to_number(leg.get("premium")) or 0.0
-            price_num = abs(premium_num)
-            option_legs.append(
-                {
-                    "leg": int(_to_number(leg.get("leg")) or (idx + 1)),
-                    "action": side_info["action"],
-                    "quantity": int(qty) if float(qty).is_integer() else qty,
-                    "expiration": _to_text(leg.get("Expiry") or leg.get("expiry")),
-                    "strike": _format_currency(strike_num, decimals=2),
-                    "type": side_info["type"] or _to_text(leg.get("type") or leg.get("kind")),
-                    "price": f"at {_format_currency(price_num, decimals=2)}",
-                    "delta": _format_number(leg.get("delta") or 0, decimals=2),
-                    "otm_percent": MISSING,
-                    "premium": premium_num,
-                    "premium_display": _format_currency(premium_num, decimals=2),
-                }
-            )
-    if not option_legs:
-        option_legs.append(
+    move_value = _field_value(underlying.get("move_pct"))
+    move_text = _format_percent(move_value, decimals=2)
+    negative_move = False
+    if isinstance(move_value, (int, float)):
+        negative_move = move_value < 0
+    elif isinstance(move_text, str) and move_text.startswith("-"):
+        negative_move = True
+    change_class = "text-gray-900"
+    change_symbol = ""
+    if move_text != MISSING:
+        change_class = "text-red-600" if negative_move else "text-green-600"
+        change_symbol = "-" if negative_move else "+"
+
+    header = {
+        "title": _field_text(strategy.get("name")),
+        "subtitle": "Wealth Management Option Strategy",
+        "date": _format_date(analysis_status.get("as_of")),
+        "disclaimer": (
+            "The illustration is intended for informational and internal use. "
+            "Although it can be shared with clients approved for trading Options or "
+            "have received a copy of the Option Disclosure Document. For specific stock "
+            "ratings relative to UBS INV research, CIO research, and/or SPGMI's Quality "
+            "ranking, please refer to the research tab on ConsultWorks. Commissions or fees not included."
+        ),
+    }
+
+    stock_details = {
+        "ticker": _field_text(underlying.get("ticker")),
+        "name": _field_text(underlying.get("name")),
+        "sector": _field_text(underlying.get("sector")),
+        "ubs_rating": _field_text(analyst.get("ubs_rating")),
+        "ubs_target": _format_currency(_field_value(analyst.get("price_target")), decimals=2),
+        "cio_rating": _field_text(analyst.get("cio_view")),
+        "last_price": _format_currency(_field_value(underlying.get("spot")), decimals=2),
+        "ten_day_change": move_text,
+        "change_class": change_class,
+        "change_symbol": change_symbol,
+        "fifty_two_week_high": _format_currency(_field_value(underlying.get("high_52w")), decimals=0),
+        "fifty_two_week_low": _format_currency(_field_value(underlying.get("low_52w")), decimals=0),
+        "dividend_yield": _format_percent(_field_value(underlying.get("dividend_yield")), decimals=2),
+        "earnings_date": _field_text(underlying.get("earnings_date")),
+    }
+
+    if client_visible:
+        pnl_dollar = _field_value(client_position.get("pnl_dollar"))
+        pnl_class = "text-green-600"
+        pnl_badge_class = "bg-green-100 text-green-800"
+        if isinstance(pnl_dollar, (int, float)) and pnl_dollar < 0:
+            pnl_class = "text-red-600"
+            pnl_badge_class = "bg-red-100 text-red-800"
+        client_block = {
+            "shares": _format_number(_field_value(client_position.get("shares")), decimals=0),
+            "avg_cost": _format_currency(_field_value(client_position.get("avg_cost")), decimals=2),
+            "mkt_value": _format_currency(_field_value(client_position.get("market_value")), decimals=2),
+            "pnl_dollar": _format_currency(pnl_dollar, decimals=2),
+            "pnl_percent": _format_number(_field_value(client_position.get("pnl_percent")), decimals=2),
+            "pnl_class": pnl_class,
+            "pnl_badge_class": pnl_badge_class,
+        }
+    else:
+        client_block = None
+
+    legs: List[Dict[str, object]] = []
+    for idx, leg in enumerate(data.get("legs", [])):
+        if not isinstance(leg, Mapping):
+            continue
+        premium_value = _field_value(leg.get("premium"))
+        premium_num = _to_number(premium_value) or 0
+        legs.append(
+            {
+                "leg": idx + 1,
+                "action": _field_text(leg.get("action")),
+                "quantity": _format_number(_field_value(leg.get("quantity")), decimals=0),
+                "expiration": _field_text(leg.get("expiry")),
+                "strike": _format_currency(_field_value(leg.get("strike")), decimals=2),
+                "type": _field_text(leg.get("type")),
+                "price": _format_currency(_field_value(leg.get("price")), decimals=2),
+                "delta": _format_number(_field_value(leg.get("delta")), decimals=2),
+                "otm_percent": _format_percent(_field_value(leg.get("otm_percent")), decimals=2),
+                "premium": premium_num,
+                "premium_display": _format_currency(_field_value(leg.get("premium")), decimals=2),
+            }
+        )
+    if not legs:
+        legs.append(
             {
                 "leg": 1,
                 "action": MISSING,
@@ -465,87 +522,127 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
             }
         )
 
-    net_premium_value = _to_number(structure.get("net_premium_total")) or 0.0
-    net_premium_display = _format_currency(net_premium_value, decimals=2)
-
-    metrics = _build_metrics(metrics_rows)
-    metric_view = _build_metric_view(metrics)
-
     option_legs_title = (
-        f"Option Leg(s) for {_to_text(header.get('strategy_name'))} on {_to_text(header.get('ticker'))}"
+        f"Option Leg(s) for {_field_text(strategy.get('name'))} on {_field_text(underlying.get('ticker'))}"
     )
 
-    return {
-        "header": {
-            "title": _to_text(header.get("strategy_name")),
-            "subtitle": "Wealth Management Option Strategy",
-            "date": _format_date(header.get("report_time") or header.get("as_of")),
-            "disclaimer": (
-                "The illustration is intended for informational and internal use. "
-                "Although it can be shared with clients approved for trading Options or "
-                "have received a copy of the Option Disclosure Document. For specific stock "
-                "ratings relative to UBS INV research, CIO research, and/or SPGMI's Quality "
-                "ranking, please refer to the research tab on ConsultWorks. Commissions or fees not included."
-            ),
-        },
-        "stock_details": {
-            "ticker": _to_text(header.get("ticker")),
-            "name": _to_text(header.get("name")),
-            "sector": _to_text(header.get("sector")),
-            "ubs_rating": _to_text(header.get("ubs_rating") or header.get("ubs_grp_rating") or "N/A"),
-            "ubs_target": _format_currency(
-                _to_number(header.get("target") or header.get("ubs_grp_target")) or 0.0
-            ),
-            "cio_rating": _to_text(header.get("cio_rating") or header.get("ubs_cio_rating") or "N/A"),
-            "last_price": _format_currency(last_price, decimals=2),
-            "ten_day_change": move_text,
-            "change_class": "text-red-600" if "-" in move_text else "text-green-600",
-            "change_symbol": "-" if "-" in move_text else "+",
-            "fifty_two_week_high": _format_currency(
-                _to_number(header.get("high_52w") or stock_banner.get("high_52w")) or 0.0,
-                decimals=0,
-            ),
-            "fifty_two_week_low": _format_currency(
-                _to_number(header.get("low_52w") or stock_banner.get("low_52w")) or 0.0,
-                decimals=0,
-            ),
-            "dividend_yield": _format_percent(
-                _to_number(header.get("dividend_yield") or stock_banner.get("dividend_yield")) or 0.0,
-                decimals=2,
-            ),
-            "earnings_date": _to_text(header.get("earnings_date") or stock_banner.get("earnings_date")),
-        },
-        "client_position": (
-            {
-                "shares": f"{shares:,.0f}",
-                "avg_cost": _format_currency(avg_cost, decimals=2),
-                "mkt_value": _format_currency(mkt_value, decimals=2),
-                "pnl_dollar": _format_currency(pnl_dollar, decimals=2),
-                "pnl_percent": f"{pnl_percent:.2f}",
-                "pnl_class": "text-green-600" if pnl_dollar >= 0 else "text-red-600",
-                "pnl_badge_class": "bg-green-100 text-green-800"
-                if pnl_dollar >= 0
-                else "bg-red-100 text-red-800",
-            }
-            if shares
-            else None
+    def metric_entry(label: str, field: object, kind: str) -> Dict[str, str]:
+        raw = _field_value(field)
+        if kind == "percent":
+            display = _format_percent(raw, decimals=2)
+        elif kind == "ratio":
+            display = _format_number(raw, decimals=2)
+        else:
+            display = _format_currency(raw, decimals=0)
+        return {
+            "label": label,
+            "display": display,
+            "class": _value_class(raw),
+            "sub_display": display,
+        }
+
+    metric_view = {
+        "max_profit": metric_entry("Max Profit", metrics.get("max_profit"), "currency"),
+        "max_loss": metric_entry("Max Loss", metrics.get("max_loss"), "currency"),
+        "reward_risk": metric_entry("R/R Ratio", metrics.get("reward_risk"), "ratio"),
+        "max_roi": metric_entry("Max ROI", metrics.get("max_roi"), "percent"),
+        "min_roi": metric_entry("Min ROI", metrics.get("min_roi"), "percent"),
+        "capital_basis": metric_entry("Capital Basis", metrics.get("capital_basis"), "currency"),
+        "cost_credit": metric_entry("Net Cost", metrics.get("net_cost"), "currency"),
+        "net_prem_per_share": metric_entry(
+            "Net Prem/Share", metrics.get("net_premium_per_share"), "currency"
         ),
-        "strategy_description": _strategy_description(contract),
+        "net_prem_percent": metric_entry("Yield %", metrics.get("yield_percent"), "percent"),
+    }
+
+    net_premium_value = _field_value(metrics.get("net_premium_total"))
+    net_premium_display = _format_currency(net_premium_value, decimals=2)
+
+    key_levels_rows = (
+        data.get("key_levels", {}).get("rows")
+        if isinstance(data.get("key_levels"), Mapping)
+        else []
+    )
+    key_levels_display: List[Dict[str, str]] = []
+    if key_levels_visible:
+        for row in key_levels_rows if isinstance(key_levels_rows, list) else []:
+            if not isinstance(row, Mapping):
+                continue
+            label = _field_text(row.get("label"))
+            price_val = _field_value(row.get("underlying_price"))
+            move_val = _field_value(row.get("move_pct"))
+            stock_val = _field_value(row.get("stock_pnl"))
+            option_val = _field_value(row.get("option_pnl"))
+            option_roi_val = _field_value(row.get("option_roi"))
+            net_val = _field_value(row.get("net_pnl"))
+            net_roi_val = _field_value(row.get("net_roi"))
+            key_levels_display.append(
+                {
+                    "scenario": label,
+                    "price": _format_currency(price_val, decimals=2),
+                    "move_percent": _format_percent(move_val, decimals=2),
+                    "move_class": _value_class(move_val),
+                    "stock_pnl": _format_currency(stock_val, decimals=2),
+                    "stock_class": _value_class(stock_val),
+                    "option_pnl": _format_currency(option_val, decimals=2),
+                    "option_class": _value_class(option_val),
+                    "option_roi": _format_percent(option_roi_val, decimals=2),
+                    "option_roi_class": _value_class(option_roi_val),
+                    "net_pnl": _format_currency(net_val, decimals=2),
+                    "net_pnl_class": _value_class(net_val),
+                    "net_roi": _format_percent(net_roi_val, decimals=2),
+                    "net_roi_class": _value_class(net_roi_val),
+                    "row_class": "bg-yellow-50" if label == "Current Market Price" else "",
+                }
+            )
+
+    scenario_rows = data.get("scenarios") if isinstance(data.get("scenarios"), list) else []
+    scenario_display: List[Dict[str, str]] = []
+    if scenario_visible:
+        for row in scenario_rows:
+            if not isinstance(row, Mapping):
+                continue
+            label = _field_text(row.get("label"))
+            narrative = _field_text(row.get("narrative"))
+            type_text = label.lower()
+            if "bear" in type_text:
+                dot_class = "text-[#E60000]"
+            elif "bull" in type_text:
+                dot_class = "text-[#00A550]"
+            else:
+                dot_class = "text-gray-400"
+            scenario_display.append(
+                {
+                    "title": label,
+                    "condition": "",
+                    "description": "" if narrative == MISSING else narrative,
+                    "dot_class": dot_class,
+                }
+            )
+
+    disclosures_text = ""
+    disclosures_block = data.get("disclosures") if isinstance(data.get("disclosures"), Mapping) else {}
+    if disclosures_visible:
+        disclosures_text = _field_text(disclosures_block.get("text"))
+        if disclosures_text == MISSING:
+            disclosures_text = DEFAULT_DISCLOSURE
+
+    return {
+        "header": header,
+        "stock_details": stock_details,
+        "client_position": client_block,
+        "strategy_description": _field_text(strategy.get("description")),
         "option_legs_title": option_legs_title,
-        "option_legs": option_legs,
+        "option_legs": legs,
         "net_premium": {
             "display": net_premium_display,
-            "class": "text-red-600" if net_premium_value < 0 else "text-gray-900",
+            "class": _value_class(net_premium_value),
         },
         "metrics": metric_view,
-        "key_levels": _build_key_levels(key_levels_rows),
-        "scenario_analysis": _build_scenarios(scenario_cards),
-        "disclosures": _join_disclosures(
-            contract.get("disclosures_text")
-            or contract.get("disclosures")
-            or contract.get("disclaimers")
-            or ""
-        ),
+        "key_levels": key_levels_display,
+        "scenario_analysis": scenario_display,
+        "disclosures": disclosures_text,
+        "sections": sections,
         "page": {"total": 2},
     }
 
@@ -553,6 +650,4 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
 def build_view_model(data: Mapping[str, object]) -> Dict[str, object]:
     if not isinstance(data, Mapping):
         return build_view_model_from_contract({})
-    if _looks_like_template_data(data):
-        return _from_template_data(data)
     return build_view_model_from_contract(data)

@@ -8,6 +8,7 @@
 >
   <div class="px-10 py-8 flex-grow">
     <div class="space-y-8 pt-4">
+      {% if report.sections.scenario_analysis.visible %}
       <div class="bg-white rounded-lg border border-gray-200 p-5 shadow-sm break-inside-avoid avoid-break">
         <h3 class="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide border-b border-gray-100 pb-2">
           Scenario Analysis
@@ -21,15 +22,19 @@
               </svg>
               <h4 class="font-bold text-gray-900 text-xs">{{ scenario.title }}</h4>
             </div>
+            {% if scenario.condition %}
             <div class="text-[10px] font-semibold text-gray-700 mb-1.5 bg-white border border-gray-100 px-2 py-1 rounded self-start">
               {{ scenario.condition }}
             </div>
+            {% endif %}
             <p class="text-[10px] text-gray-600 leading-relaxed mt-auto">{{ scenario.description }}</p>
           </div>
           {% endfor %}
         </div>
       </div>
+      {% endif %}
 
+      {% if report.sections.key_levels.visible %}
       <div>
         <h2 class="text-lg text-[#E60000] mb-4 pb-1.5 border-b-2 border-[#E60000]">
           Option Strategy Key Levels
@@ -65,13 +70,16 @@
           </table>
         </div>
       </div>
+      {% endif %}
 
+      {% if report.sections.disclosures.visible %}
       <div class="mt-8 pt-6 border-t border-gray-200">
         <h4 class="text-[10px] font-bold text-gray-900 mb-2">Important Risk Disclosures</h4>
         <p class="text-[9px] text-gray-500 leading-relaxed text-justify">
           {{ report.disclosures }}
         </p>
       </div>
+      {% endif %}
     </div>
   </div>
 

@@ -1,0 +1,310 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Report Contract v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "meta",
+    "analysis_status",
+    "layout",
+    "sections",
+    "underlying",
+    "analyst",
+    "client_position",
+    "strategy",
+    "legs",
+    "metrics",
+    "scenarios",
+    "key_levels",
+    "disclosures"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["report_version"],
+      "properties": {
+        "report_version": {
+          "type": "string",
+          "const": "v1"
+        }
+      }
+    },
+    "analysis_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["computed", "as_of"],
+      "properties": {
+        "computed": { "type": "boolean" },
+        "as_of": { "type": "string", "format": "date-time" }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["top_banner_mode", "center_key_data"],
+      "properties": {
+        "top_banner_mode": {
+          "type": "string",
+          "enum": ["client_and_analyst", "analyst_only"]
+        },
+        "center_key_data": { "type": "boolean" }
+      }
+    },
+    "sections": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "client_position",
+        "analyst_view",
+        "key_data",
+        "scenario_analysis",
+        "key_levels",
+        "disclosures"
+      ],
+      "properties": {
+        "client_position": { "$ref": "#/definitions/SectionVisibility" },
+        "analyst_view": { "$ref": "#/definitions/SectionVisibility" },
+        "key_data": { "$ref": "#/definitions/SectionVisibility" },
+        "scenario_analysis": { "$ref": "#/definitions/SectionVisibility" },
+        "key_levels": { "$ref": "#/definitions/SectionVisibility" },
+        "disclosures": { "$ref": "#/definitions/SectionVisibility" }
+      }
+    },
+    "underlying": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ticker",
+        "name",
+        "sector",
+        "spot",
+        "move_pct",
+        "dividend_yield",
+        "high_52w",
+        "low_52w",
+        "earnings_date"
+      ],
+      "properties": {
+        "ticker": { "$ref": "#/definitions/FieldString" },
+        "name": { "$ref": "#/definitions/FieldString" },
+        "sector": { "$ref": "#/definitions/FieldString" },
+        "spot": { "$ref": "#/definitions/FieldNumber" },
+        "move_pct": { "$ref": "#/definitions/FieldNumber" },
+        "dividend_yield": { "$ref": "#/definitions/FieldNumber" },
+        "high_52w": { "$ref": "#/definitions/FieldNumber" },
+        "low_52w": { "$ref": "#/definitions/FieldNumber" },
+        "earnings_date": { "$ref": "#/definitions/FieldString" }
+      }
+    },
+    "analyst": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ubs_rating", "price_target", "cio_view"],
+      "properties": {
+        "ubs_rating": { "$ref": "#/definitions/FieldString" },
+        "price_target": { "$ref": "#/definitions/FieldNumber" },
+        "cio_view": { "$ref": "#/definitions/FieldString" }
+      }
+    },
+    "client_position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shares",
+        "avg_cost",
+        "market_value",
+        "pnl_dollar",
+        "pnl_percent"
+      ],
+      "properties": {
+        "shares": { "$ref": "#/definitions/FieldNumber" },
+        "avg_cost": { "$ref": "#/definitions/FieldNumber" },
+        "market_value": { "$ref": "#/definitions/FieldNumber" },
+        "pnl_dollar": { "$ref": "#/definitions/FieldNumber" },
+        "pnl_percent": { "$ref": "#/definitions/FieldNumber" }
+      }
+    },
+    "strategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description"],
+      "properties": {
+        "name": { "$ref": "#/definitions/FieldString" },
+        "description": { "$ref": "#/definitions/FieldString" }
+      }
+    },
+    "legs": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Leg" }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_profit",
+        "max_loss",
+        "reward_risk",
+        "max_roi",
+        "min_roi",
+        "capital_basis",
+        "net_cost",
+        "net_premium_total",
+        "net_premium_per_share",
+        "yield_percent"
+      ],
+      "properties": {
+        "max_profit": { "$ref": "#/definitions/FieldNumber" },
+        "max_loss": { "$ref": "#/definitions/FieldNumber" },
+        "reward_risk": { "$ref": "#/definitions/FieldNumber" },
+        "max_roi": { "$ref": "#/definitions/FieldNumber" },
+        "min_roi": { "$ref": "#/definitions/FieldNumber" },
+        "capital_basis": { "$ref": "#/definitions/FieldNumber" },
+        "net_cost": { "$ref": "#/definitions/FieldNumber" },
+        "net_premium_total": { "$ref": "#/definitions/FieldNumber" },
+        "net_premium_per_share": { "$ref": "#/definitions/FieldNumber" },
+        "yield_percent": { "$ref": "#/definitions/FieldNumber" }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Scenario" }
+    },
+    "key_levels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rows"],
+      "properties": {
+        "rows": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/KeyLevelRow" }
+        }
+      }
+    },
+    "disclosures": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text"],
+      "properties": {
+        "text": { "$ref": "#/definitions/FieldString" }
+      }
+    }
+  },
+  "definitions": {
+    "FieldStatus": {
+      "type": "string",
+      "enum": ["computed", "not_computed", "not_applicable", "hidden"]
+    },
+    "FieldString": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "status"],
+      "properties": {
+        "value": { "type": ["string", "null"] },
+        "status": { "$ref": "#/definitions/FieldStatus" }
+      }
+    },
+    "FieldNumber": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "status"],
+      "properties": {
+        "value": { "type": ["number", "string", "null"] },
+        "status": { "$ref": "#/definitions/FieldStatus" }
+      }
+    },
+    "FieldBool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "status"],
+      "properties": {
+        "value": { "type": ["boolean", "null"] },
+        "status": { "$ref": "#/definitions/FieldStatus" }
+      }
+    },
+    "SectionVisibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["visible", "reason"],
+      "properties": {
+        "visible": { "type": "boolean" },
+        "reason": { "type": "string" }
+      }
+    },
+    "Leg": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "type",
+        "quantity",
+        "expiry",
+        "strike",
+        "price",
+        "delta",
+        "otm_percent",
+        "premium"
+      ],
+      "properties": {
+        "action": { "$ref": "#/definitions/FieldString" },
+        "type": { "$ref": "#/definitions/FieldString" },
+        "quantity": { "$ref": "#/definitions/FieldNumber" },
+        "expiry": { "$ref": "#/definitions/FieldString" },
+        "strike": { "$ref": "#/definitions/FieldNumber" },
+        "price": { "$ref": "#/definitions/FieldNumber" },
+        "delta": { "$ref": "#/definitions/FieldNumber" },
+        "otm_percent": { "$ref": "#/definitions/FieldNumber" },
+        "premium": { "$ref": "#/definitions/FieldNumber" }
+      }
+    },
+    "Scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "underlying_price",
+        "move_pct",
+        "stock_pnl",
+        "option_pnl",
+        "option_roi",
+        "net_pnl",
+        "net_roi"
+      ],
+      "properties": {
+        "label": { "$ref": "#/definitions/FieldString" },
+        "narrative": { "$ref": "#/definitions/FieldString" },
+        "underlying_price": { "$ref": "#/definitions/FieldNumber" },
+        "move_pct": { "$ref": "#/definitions/FieldNumber" },
+        "stock_pnl": { "$ref": "#/definitions/FieldNumber" },
+        "option_pnl": { "$ref": "#/definitions/FieldNumber" },
+        "option_roi": { "$ref": "#/definitions/FieldNumber" },
+        "net_pnl": { "$ref": "#/definitions/FieldNumber" },
+        "net_roi": { "$ref": "#/definitions/FieldNumber" }
+      }
+    },
+    "KeyLevelRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "underlying_price",
+        "move_pct",
+        "stock_pnl",
+        "option_pnl",
+        "option_roi",
+        "net_pnl",
+        "net_roi"
+      ],
+      "properties": {
+        "label": { "$ref": "#/definitions/FieldString" },
+        "underlying_price": { "$ref": "#/definitions/FieldNumber" },
+        "move_pct": { "$ref": "#/definitions/FieldNumber" },
+        "stock_pnl": { "$ref": "#/definitions/FieldNumber" },
+        "option_pnl": { "$ref": "#/definitions/FieldNumber" },
+        "option_roi": { "$ref": "#/definitions/FieldNumber" },
+        "net_pnl": { "$ref": "#/definitions/FieldNumber" },
+        "net_roi": { "$ref": "#/definitions/FieldNumber" }
+      }
+    }
+  }
+}

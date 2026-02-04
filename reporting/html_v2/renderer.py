@@ -93,6 +93,12 @@ def build_report_pdf_html(report_model: Mapping[str, object], *, out_path: Optio
     template = env.get_template("base.html")
     html_text = template.render(report=context, css=css_text)
 
+    if os.environ.get("REPORT_HTML_DEBUG") == "1":
+        debug_dir = repo_root / "out"
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        debug_path = debug_dir / "report_debug.html"
+        debug_path.write_text(html_text, encoding="utf-8")
+
     base_url = str(repo_root)
     html = HTML(string=html_text, base_url=base_url)
     try:

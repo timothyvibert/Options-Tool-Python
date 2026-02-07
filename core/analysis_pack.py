@@ -178,6 +178,7 @@ def build_analysis_pack(
     scenario_mode: str,
     downside_tgt: float,
     upside_tgt: float,
+    risk_free_rate: float = 0.0,
 ) -> dict:
     meta = strategy_meta if isinstance(strategy_meta, Mapping) else {}
     as_of = meta.get("as_of") or "--"
@@ -366,7 +367,7 @@ def build_analysis_pack(
             strategy_input,
             _compute_pnl_for_price,
             S0=strategy_input.spot,
-            r=0.0,
+            r=risk_free_rate,
             q=0.0,
             sigma_mode=vol_mode,
             atm_iv=atm_iv,
@@ -432,11 +433,15 @@ def build_analysis_pack(
     ]
 
     legs_meta = _safe_list(meta.get("legs_meta") or meta.get("legs"))
+    bbg_quotes = []
+    if isinstance(bbg_leg_snapshots, Mapping):
+        bbg_quotes = bbg_leg_snapshots.get("leg_quotes") or []
     legs = []
     for idx, leg in enumerate(strategy_input.legs):
         meta_leg = legs_meta[idx] if idx < len(legs_meta) else {}
         side = "Long" if leg.position > 0 else "Short"
         ratio = abs(leg.position)
+        quote = bbg_quotes[idx] if idx < len(bbg_quotes) and isinstance(bbg_quotes[idx], dict) else {}
         legs.append(
             {
                 "index": meta_leg.get("index", idx + 1),
@@ -447,6 +452,7 @@ def build_analysis_pack(
                 "premium": meta_leg.get("premium", leg.premium),
                 "ticker": meta_leg.get("ticker"),
                 "override": bool(meta_leg.get("override", False)),
+                "delta_mid": quote.get("delta"),
             }
         )
 
@@ -637,6 +643,12 @@ def build_analysis_pack(
             "earnings_related_implied_move": _clean_value(
                 earnings_related_implied_move
             ),
+            "ubs_rating": _clean_value(normalized_profile.get("UBS_RATING")
+                or normalized_profile.get("BEST_ANALYST_REC")
+                or profile_value.get("ubs_rating")),
+            "ubs_target": _clean_value(normalized_profile.get("UBS_TARGET")
+                or normalized_profile.get("BEST_TARGET_PRICE")
+                or profile_value.get("ubs_target")),
             "earnings_date": expected_report_value,
             "earnings_risk": {
                 "earnings_date": (

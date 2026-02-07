@@ -165,7 +165,97 @@ def fetch_underlying_snapshot(ticker: str) -> pd.Series:
     record["projected_dividend"] = bds_dividend.get("projected_dividend")
     record["dividend_status"] = bds_dividend.get("dividend_status")
     record["dividend_debug"] = bds_dividend.get("debug") or {}
+    analyst = fetch_ubs_analyst_data(ticker)
+    record["ubs_rating"] = analyst.get("ubs_rating")
+    record["ubs_target"] = analyst.get("ubs_target")
     return record
+
+
+def fetch_ubs_analyst_data(ticker: str) -> Dict[str, object]:
+    """Fetch UBS-specific analyst rating and target price from Bloomberg.
+
+    Uses BDP with BE998=UBS override for firm-specific data.
+    Falls back to consensus (BEST_ANALYST_REC / BEST_TARGET_PRICE) if
+    the polars_bloomberg override API is not available.
+    """
+    if not ticker:
+        return {}
+    fields = ["BEST_ANALYST_REC", "BEST_TARGET_PRICE"]
+    result: Dict[str, object] = {}
+    try:
+        with with_session() as query:
+            bdp_fn = getattr(query, "bdp", None)
+            if bdp_fn is None:
+                return result
+            # polars_bloomberg BQuery.bdp overrides: list[tuple] | None
+            try:
+                raw = bdp_fn([ticker], fields, overrides=[("BE998", "UBS")])
+            except TypeError:
+                raw = bdp_fn([ticker], fields)
+            except Exception:
+                raw = bdp_fn([ticker], fields)
+            df = _ensure_security_column(_to_pandas(raw))
+            df = _ensure_columns(df, fields)
+            if df.empty:
+                return result
+            row = df.loc[df["security"] == ticker]
+            if row.empty:
+                row = df.iloc[[0]]
+            rec = row.iloc[0]
+            rating = rec.get("BEST_ANALYST_REC")
+            target = rec.get("BEST_TARGET_PRICE")
+            if rating is not None:
+                try:
+                    if not pd.isna(rating):
+                        result["ubs_rating"] = str(rating).strip()
+                except (TypeError, ValueError):
+                    result["ubs_rating"] = str(rating).strip()
+            if target is not None:
+                try:
+                    if not pd.isna(target):
+                        result["ubs_target"] = float(target)
+                except (TypeError, ValueError):
+                    pass
+    except Exception as e:
+        print(f"[UBS_ANALYST] Failed to fetch UBS analyst data for {ticker}: {e}")
+    return result
+
+
+# Treasury index tickers ordered by maturity (days)
+_TREASURY_INDICES = [
+    (30, "USGG1M Index"),
+    (90, "USGG3M Index"),
+    (180, "USGG6M Index"),
+    (365, "USGG1Y Index"),
+]
+
+
+def fetch_risk_free_rate(dte: int) -> float:
+    """Fetch risk-free rate from US Treasury indices matched to option DTE.
+
+    Selects the treasury index whose maturity is closest to *dte* days,
+    fetches PX_LAST (yield as %), and returns the rate as a decimal
+    (e.g. 4.5% → 0.045).  Returns 0.0 on any failure.
+    """
+    if dte <= 0:
+        return 0.0
+    # Pick the closest maturity
+    best_ticker = min(_TREASURY_INDICES, key=lambda t: abs(t[0] - dte))[1]
+    try:
+        with with_session() as query:
+            raw = query.bdp([best_ticker], ["PX_LAST"])
+        df = _ensure_security_column(_to_pandas(raw))
+        if "PX_LAST" not in df.columns or df.empty:
+            return 0.0
+        row = df.loc[df["security"] == best_ticker]
+        if row.empty:
+            row = df.iloc[[0]]
+        value = row["PX_LAST"].iloc[0]
+        if pd.isna(value):
+            return 0.0
+        return float(value) / 100.0  # convert percentage to decimal
+    except Exception:
+        return 0.0
 
 
 def fetch_option_snapshot(option_tickers: list[str]) -> pd.DataFrame:

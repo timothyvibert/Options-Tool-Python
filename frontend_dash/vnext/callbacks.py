@@ -1128,6 +1128,19 @@ def register_callbacks(
             if per_leg_iv is not None or leg_quotes is not None:
                 bbg_leg_snapshots = {"per_leg_iv": per_leg_iv, "leg_quotes": leg_quotes}
 
+        # Fetch risk-free rate from Bloomberg treasury indices
+        rfr = 0.0
+        if expiry_value:
+            try:
+                from adapters.bloomberg import fetch_risk_free_rate as _fetch_rfr
+                from datetime import date as _date
+                exp_date = _date.fromisoformat(str(expiry_value)[:10])
+                dte = (exp_date - _date.today()).days
+                if dte > 0:
+                    rfr = _fetch_rfr(dte)
+            except Exception:
+                rfr = 0.0
+
         try:
             strategy_input = StrategyInput(
                 spot=spot,
@@ -1147,6 +1160,7 @@ def register_callbacks(
                 scenario_mode=scenario_mode_backend,
                 downside_tgt=downside_factor,
                 upside_tgt=upside_factor,
+                risk_free_rate=rfr,
             )
         except Exception as exc:
             return {"key": None, "as_of": _utc_now_str(), "error": str(exc)}, to_jsonable(

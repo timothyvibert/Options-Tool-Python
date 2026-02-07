@@ -413,6 +413,7 @@ def refresh_leg_premiums(
                 "mid": _get_field(quote, ["PX_MID", "MID", "mid"]),
                 "last": _get_field(quote, ["PX_LAST", "last"]),
                 "iv": _get_field(quote, ["IVOL_MID", "IV_MID", "iv_mid", "iv"]),
+                "delta": _get_field(quote, ["DELTA_MID_RT", "delta_mid", "delta"]),
             }
         )
         per_leg_iv.append(leg_quotes[-1]["iv"])

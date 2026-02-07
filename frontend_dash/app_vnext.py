@@ -19,10 +19,12 @@ from frontend_dash.vnext import ids as ID
 try:
     from adapters.bloomberg import resolve_security as _bbg_resolve_security
     from adapters.bloomberg import fetch_spot as _bbg_fetch_spot
+    from adapters.bloomberg import fetch_risk_free_rate as _bbg_fetch_rfr
     BLOOMBERG_AVAILABLE = True
 except Exception:
     _bbg_resolve_security = None
     _bbg_fetch_spot = None
+    _bbg_fetch_rfr = None
     BLOOMBERG_AVAILABLE = False
 
 try:
@@ -765,6 +767,18 @@ def _run_analysis(
         if per_leg_iv is not None or leg_quotes is not None:
             bbg_leg_snapshots = {"per_leg_iv": per_leg_iv, "leg_quotes": leg_quotes}
 
+    # Fetch risk-free rate from Bloomberg treasury indices
+    rfr = 0.0
+    if BLOOMBERG_AVAILABLE and _bbg_fetch_rfr and expiry_value:
+        try:
+            from datetime import date as _date
+            exp_date = _date.fromisoformat(expiry_value[:10])
+            dte = (exp_date - _date.today()).days
+            if dte > 0:
+                rfr = _bbg_fetch_rfr(dte)
+        except Exception:
+            rfr = 0.0
+
     try:
         strategy_input = StrategyInput(
             spot=spot,
@@ -784,6 +798,7 @@ def _run_analysis(
             scenario_mode=scenario_mode_backend,
             downside_tgt=downside_factor,
             upside_tgt=upside_factor,
+            risk_free_rate=rfr,
         )
     except Exception as exc:
         return {"key": None, "as_of": _utc_now_str(), "error": str(exc)}, to_jsonable(

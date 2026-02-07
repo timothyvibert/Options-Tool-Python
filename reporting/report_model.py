@@ -583,6 +583,14 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         "earnings_date": earnings_date_text,
         "policies": _fmt_text(policy_value),
         "title": _fmt_text(state.get("title")),
+        "ubs_rating": _fmt_text(
+            pack_underlying.get("ubs_rating")
+            or _get_from_snapshot(profile_source, ["ubs_rating", "BEST_ANALYST_REC"])
+        ),
+        "ubs_target": _fmt_currency(
+            pack_underlying.get("ubs_target")
+            or _get_from_snapshot(profile_source, ["ubs_target", "BEST_TARGET_PRICE"])
+        ),
     }
 
     strategy_description = None
@@ -591,12 +599,27 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         strategy_description = get_strategy_description(str(strategy_name_text))
 
     expiry_text = header["expiry"]
+    spot_value = pack_underlying.get("spot")
+    spot_number = None
+    if spot_value is not None:
+        try:
+            spot_number = float(spot_value)
+        except (TypeError, ValueError):
+            pass
     structure_legs: List[Dict[str, str]] = []
     pack_legs = analysis_pack.get("legs") if analysis_pack else None
     if isinstance(pack_legs, list) and pack_legs:
         for idx, leg in enumerate(pack_legs):
             if not isinstance(leg, Mapping):
                 continue
+            # FIX 2: Compute OTM% from strike and spot
+            otm_percent = None
+            strike_raw = leg.get("strike")
+            if strike_raw is not None and spot_number and spot_number > 0:
+                try:
+                    otm_percent = abs(float(strike_raw) - spot_number) / spot_number * 100.0
+                except (TypeError, ValueError):
+                    pass
             structure_legs.append(
                 {
                     "leg": _fmt_text(leg.get("index", idx + 1)),
@@ -607,6 +630,8 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
                     "Expiry": _fmt_text(leg.get("expiry") or expiry_text),
                     "strike": _fmt_currency(leg.get("strike")),
                     "premium": _fmt_currency(leg.get("premium")),
+                    "delta": leg.get("delta_mid") or leg.get("delta"),
+                    "otm_percent": otm_percent,
                 }
             )
     else:

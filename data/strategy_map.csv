@@ -1,64 +1,64 @@
-strategy_id,group,subgroup,strategy_name,template_kind,leg_1_type,leg_1_side,leg_1_ratio,leg_1_strike,leg_2_type,leg_2_side,leg_2_ratio,leg_2_strike,leg_3_type,leg_3_side,leg_3_ratio,leg_3_strike,leg_4_type,leg_4_side,leg_4_ratio,leg_4_strike
-1,Basics,Custom,Custom Strategy,STOCK_ONLY,,,,,,,,,,,,,,,,
-2,Basics,Bullish,Long Stock,STOCK_ONLY,STOCK,LONG,1,,,,,,,,,,,,,
-3,Basics,Bearish,Short Stock,STOCK_ONLY,STOCK,SHORT,1,,,,,,,,,,,,,
-4,Basics,Bullish,Long Call,OPTIONS,CALL,LONG,1,,,,,,,,,,,,,
-5,Basics,Bearish,Short Call,OPTIONS,CALL,SHORT,1,,,,,,,,,,,,,
-6,Basics,Bearish,Long Put,OPTIONS,PUT,LONG,1,,,,,,,,,,,,,
-7,Basics,Bullish,Short Put,OPTIONS,PUT,SHORT,1,,,,,,,,,,,,,
-8,Basics,Bullish,Covered Call,MIXED,STOCK,LONG,1,,CALL,SHORT,1,HIGHER,,,,,,,,
-9,Basics,Bearish,Covered Put,MIXED,STOCK,SHORT,1,,PUT,SHORT,1,LOWER,,,,,,,,
-10,Basics,Bearish,Protective Call,MIXED,STOCK,SHORT,1,,CALL,LONG,1,HIGHER,,,,,,,,
-11,Basics,Bullish,Protective Put,MIXED,STOCK,LONG,1,,PUT,LONG,1,LOWER,,,,,,,,
-12,Basics,Neutral,Collar,MIXED,STOCK,LONG,1,,PUT,LONG,1,LOWER,CALL,SHORT,1,HIGHER,,,,
-13,Vertical Spreads,Bullish,Bull Call Spread,OPTIONS,CALL,LONG,1,LOWER,CALL,SHORT,1,HIGHER,,,,,,,,
-14,Vertical Spreads,Bearish,Bear Put Spread,OPTIONS,PUT,LONG,1,HIGHER,PUT,SHORT,1,LOWER,,,,,,,,
-15,Vertical Spreads,Bearish,Bear Call Spread,OPTIONS,CALL,SHORT,1,LOWER,CALL,LONG,1,HIGHER,,,,,,,,
-16,Vertical Spreads,Bullish,Bull Put Spread,OPTIONS,PUT,SHORT,1,HIGHER,PUT,LONG,1,LOWER,,,,,,,,
-17,Ratio Spreads,Bullish,Call Ratio Backspread,OPTIONS,CALL,SHORT,1,LOWER,CALL,LONG,2,HIGHER,,,,,,,,
-18,Ratio Spreads,Bearish,Put Ratio Backspread,OPTIONS,PUT,SHORT,1,HIGHER,PUT,LONG,2,LOWER,,,,,,,,
-19,Ratio Spreads,Bearish,Call Ratio Spread,OPTIONS,CALL,LONG,1,LOWER,CALL,SHORT,2,HIGHER,,,,,,,,
-20,Ratio Spreads,Bullish,Put Ratio Spread,OPTIONS,PUT,LONG,1,HIGHER,PUT,SHORT,2,LOWER,,,,,,,,
-21,Ladders,Bullish,Bull Call Ladder,OPTIONS,CALL,LONG,1,LOW,CALL,SHORT,1,MID,CALL,SHORT,1,HIGH,,,,
-22,Ladders,Bearish,Bear Put Ladder,OPTIONS,PUT,LONG,1,HIGH,PUT,SHORT,1,MID,PUT,SHORT,1,LOW,,,,
-23,Ladders,Bearish,Bear Call Ladder,OPTIONS,CALL,SHORT,1,LOW,CALL,LONG,1,MID,CALL,LONG,1,HIGH,,,,
-24,Ladders,Bullish,Bull Put Ladder,OPTIONS,PUT,SHORT,1,HIGH,PUT,LONG,1,MID,PUT,LONG,1,LOW,,,,
-25,Condors & Flys,Short Vol,Long Call Butterfly,OPTIONS,CALL,LONG,1,LOW,CALL,SHORT,2,MID,CALL,LONG,1,HIGH,,,,
-26,Condors & Flys,Short Vol,Long Put Butterfly,OPTIONS,PUT,LONG,1,LOW,PUT,SHORT,2,MID,PUT,LONG,1,HIGH,,,,
-27,Condors & Flys,Short Vol,Iron Butterfly,OPTIONS,PUT,LONG,1,LOW,PUT,SHORT,1,MID,CALL,SHORT,1,MID,CALL,LONG,1,HIGH
-28,Condors & Flys,Short Vol,Long Call Condor,OPTIONS,CALL,LONG,1,LOWEST,CALL,SHORT,1,LOW-MID,CALL,SHORT,1,HIGH-MID,CALL,LONG,1,HIGHEST
-29,Condors & Flys,Short Vol,Long Put Condor,OPTIONS,PUT,LONG,1,LOWEST,PUT,SHORT,1,LOW-MID,PUT,SHORT,1,HIGH-MID,PUT,LONG,1,HIGHEST
-30,Condors & Flys,Short Vol,Iron Condor,OPTIONS,PUT,LONG,1,LOWEST,PUT,SHORT,1,LOW-MID,CALL,SHORT,1,HIGH-MID,CALL,LONG,1,HIGHEST
-31,Condors & Flys,Long Vol,Short Call Butterfly,OPTIONS,CALL,SHORT,1,LOW,CALL,LONG,2,MID,CALL,SHORT,1,HIGH,,,,
-32,Condors & Flys,Long Vol,Short Put Butterfly,OPTIONS,PUT,SHORT,1,LOW,PUT,LONG,2,MID,PUT,SHORT,1,HIGH,,,,
-33,Condors & Flys,Long Vol,Rev Iron Butterfly,OPTIONS,PUT,SHORT,1,LOW,PUT,LONG,1,MID,CALL,LONG,1,MID,CALL,SHORT,1,HIGH
-34,Condors & Flys,Long Vol,Short Call Condor,OPTIONS,CALL,SHORT,1,LOWEST,CALL,LONG,1,LOW-MID,CALL,LONG,1,HIGH-MID,CALL,SHORT,1,HIGHEST
-35,Condors & Flys,Long Vol,Short Put Condor,OPTIONS,PUT,SHORT,1,LOWEST,PUT,LONG,1,LOW-MID,PUT,LONG,1,HIGH-MID,PUT,SHORT,1,HIGHEST
-36,Condors & Flys,Long Vol,Rev Iron Condor,OPTIONS,PUT,SHORT,1,LOWEST,PUT,LONG,1,LOW-MID,CALL,LONG,1,HIGH-MID,CALL,SHORT,1,HIGHEST
-37,Straddles,Long Vol,Long Straddle,OPTIONS,PUT,LONG,1,ATM,CALL,LONG,1,ATM,,,,,,,,
-38,Straddles,Short Vol,Short Straddle,OPTIONS,PUT,SHORT,1,ATM,CALL,SHORT,1,ATM,,,,,,,,
-39,Straddles,Long Vol,Long Strangle,OPTIONS,PUT,LONG,1,LOWER,CALL,LONG,1,HIGHER,,,,,,,,
-40,Straddles,Short Vol,Short Strangle,OPTIONS,PUT,SHORT,1,LOWER,CALL,SHORT,1,HIGHER,,,,,,,,
-41,Straddles,Long Vol,Long Guts,OPTIONS,CALL,LONG,1,LOWER,PUT,LONG,1,HIGHER,,,,,,,,
-42,Straddles,Short Vol,Short Guts,OPTIONS,CALL,SHORT,1,LOWER,PUT,SHORT,1,HIGHER,,,,,,,,
-43,Straddles,Bearish/Vol,Strip,OPTIONS,PUT,LONG,2,ATM,CALL,LONG,1,ATM,,,,,,,,
-44,Straddles,Bullish/Vol,Strap,OPTIONS,PUT,LONG,1,ATM,CALL,LONG,2,ATM,,,,,,,,
-45,Straddles,Bullish,Covered Short Straddle,MIXED,STOCK,LONG,1,,PUT,SHORT,1,ATM,CALL,SHORT,1,ATM,,,,
-46,Straddles,Bullish,Covered Short Strangle,MIXED,STOCK,LONG,1,,PUT,SHORT,1,LOWER,CALL,SHORT,1,HIGHER,,,,
-47,Boxes,Neutral,Long Box Spread,OPTIONS,CALL,LONG,1,LOWER,CALL,SHORT,1,HIGHER,PUT,LONG,1,HIGHER,PUT,SHORT,1,LOWER
-48,Boxes,Neutral,Short Box Spread,OPTIONS,CALL,SHORT,1,LOWER,CALL,LONG,1,HIGHER,PUT,SHORT,1,HIGHER,PUT,LONG,1,LOWER
-49,Synthetics,Bullish,Synthetic Long Stock,OPTIONS,PUT,SHORT,1,ATM,CALL,LONG,1,ATM,,,,,,,,
-50,Synthetics,Bearish,Synthetic Short Stock,OPTIONS,PUT,LONG,1,ATM,CALL,SHORT,1,ATM,,,,,,,,
-51,Synthetics,Bullish,Long Combo,OPTIONS,PUT,SHORT,1,LOWER,CALL,LONG,1,HIGHER,,,,,,,,
-52,Synthetics,Bearish,Short Combo,OPTIONS,PUT,LONG,1,LOWER,CALL,SHORT,1,HIGHER,,,,,,,,
-53,Synthetics,Long Vol,L. Call Syn. Straddle,MIXED,STOCK,SHORT,1,,CALL,LONG,2,ATM,,,,,,,,
-54,Synthetics,Long Vol,L. Put Syn. Straddle,MIXED,STOCK,LONG,1,,PUT,LONG,2,ATM,,,,,,,,
-55,Synthetics,Short Vol,S. Call Syn. Straddle,MIXED,STOCK,LONG,1,,CALL,SHORT,2,ATM,,,,,,,,
-56,Synthetics,Short Vol,S. Put Syn. Straddle,MIXED,STOCK,SHORT,1,,PUT,SHORT,2,ATM,,,,,,,,
-57,Synthetics,Long Vol,L. Call Syn. Strangle,MIXED,STOCK,SHORT,1,,CALL,LONG,1,LOWER,CALL,LONG,1,HIGHER,,,,
-58,Synthetics,Long Vol,L. Put Syn. Strangle,MIXED,STOCK,LONG,1,,PUT,LONG,1,LOWER,PUT,LONG,1,HIGHER,,,,
-59,Synthetics,Short Vol,S. Call Syn. Strangle,MIXED,STOCK,LONG,1,,CALL,SHORT,1,LOWER,CALL,SHORT,1,HIGHER,,,,
-60,Synthetics,Short Vol,S. Put Syn. Strangle,MIXED,STOCK,SHORT,1,,PUT,SHORT,1,LOWER,PUT,SHORT,1,HIGHER,,,,
-61,Synthetics,Bullish,Syn. Covered Call,OPTIONS,PUT,SHORT,1,HIGHER,,,,,,,,,,,,
-62,Synthetics,Bearish,Syn. Covered Put,OPTIONS,CALL,SHORT,1,LOWER,,,,,,,,,,,,
-63,Arbitrage,Neutral,Conversion,MIXED,STOCK,LONG,1,,PUT,LONG,1,ATM,CALL,SHORT,1,ATM,,,,
+strategy_id,group,subgroup,strategy_name,template_kind,leg_1_type,leg_1_side,leg_1_ratio,leg_1_strike,leg_2_type,leg_2_side,leg_2_ratio,leg_2_strike,leg_3_type,leg_3_side,leg_3_ratio,leg_3_strike,leg_4_type,leg_4_side,leg_4_ratio,leg_4_strike,description
+1,Basics,Custom,Custom Strategy,STOCK_ONLY,,,,,,,,,,,,,,,,,A user-defined strategy with flexible parameters. Its risk and reward profile depends entirely on the specific combination of option legs selected.
+2,Basics,Bullish,Long Stock,STOCK_ONLY,STOCK,LONG,1,,,,,,,,,,,,,,A long stock position involves purchasing shares of the underlying asset. It offers unlimited profit potential if the price rises and carries significant risk if the price falls to zero.
+3,Basics,Bearish,Short Stock,STOCK_ONLY,STOCK,SHORT,1,,,,,,,,,,,,,,A short stock position involves selling borrowed shares of the underlying asset. It profits if the price falls but carries theoretically unlimited risk if the price rises significantly.
+4,Basics,Bullish,Long Call,OPTIONS,CALL,LONG,1,,,,,,,,,,,,,,"A long call consists of buying a call option, giving the right to buy the asset at a fixed price. It offers unlimited upside potential with risk limited to the premium paid, benefiting from a rise in the stock price."
+5,Basics,Bearish,Short Call,OPTIONS,CALL,SHORT,1,,,,,,,,,,,,,,"A short call involves selling a call option, creating an obligation to sell the asset at a fixed price. It offers limited profit (the premium received) but carries theoretically unlimited risk if the stock price rises."
+6,Basics,Bearish,Long Put,OPTIONS,PUT,LONG,1,,,,,,,,,,,,,,"A long put consists of buying a put option, giving the right to sell the asset at a fixed price. It profits if the stock price falls, with risk limited to the premium paid."
+7,Basics,Bullish,Short Put,OPTIONS,PUT,SHORT,1,,,,,,,,,,,,,,"A short put involves selling a put option, creating an obligation to buy the asset at a fixed price. It offers limited profit (the premium received) but carries significant risk if the stock price falls."
+8,Basics,Bullish,Covered Call,MIXED,STOCK,LONG,1,,CALL,SHORT,1,HIGHER,,,,,,,,,"A covered call consists of holding the underlying stock and selling a call option against it. This strategy generates income from the option premium and offers limited downside protection, but caps the profit potential if the stock rises."
+9,Basics,Bearish,Covered Put,MIXED,STOCK,SHORT,1,,PUT,SHORT,1,LOWER,,,,,,,,,A covered put consists of shorting the underlying stock and selling a put option against it. It generates income from the premium to cushion the short stock position but limits the maximum profit if the stock falls.
+10,Basics,Bearish,Protective Call,MIXED,STOCK,SHORT,1,,CALL,LONG,1,HIGHER,,,,,,,,,"A protective call consists of shorting the underlying stock and buying a call option to hedge. The long call caps the risk of the short stock position if the price rises, creating a synthetic long put profile."
+11,Basics,Bullish,Protective Put,MIXED,STOCK,LONG,1,,PUT,LONG,1,LOWER,,,,,,,,,"A protective put consists of owning the underlying stock and buying a put option to hedge. The long put limits the downside risk of the stock position, creating a synthetic long call profile."
+12,Basics,Neutral,Collar,MIXED,STOCK,LONG,1,,PUT,LONG,1,LOWER,CALL,SHORT,1,HIGHER,,,,,"A collar consists of holding the underlying stock, buying a protective put, and selling a covered call. It limits both risk and reward, effectively locking the position's value within a specific price range."
+13,Vertical Spreads,Bullish,Bull Call Spread,OPTIONS,CALL,LONG,1,LOWER,CALL,SHORT,1,HIGHER,,,,,,,,,A bull call spread consists of buying a lower strike call and selling a higher strike call. It reduces the cost of a long call and profits from a moderate rise in the stock price with defined risk and capped profit.
+14,Vertical Spreads,Bearish,Bear Put Spread,OPTIONS,PUT,LONG,1,HIGHER,PUT,SHORT,1,LOWER,,,,,,,,,A bear put spread consists of buying a higher strike put and selling a lower strike put. It reduces the cost of a long put and profits from a moderate decline in the stock price with defined risk and capped profit.
+15,Vertical Spreads,Bearish,Bear Call Spread,OPTIONS,CALL,SHORT,1,LOWER,CALL,LONG,1,HIGHER,,,,,,,,,"A bear call spread consists of selling a lower strike call and buying a higher strike call. It generates a net credit and profits if the stock price falls, stays flat, or rises slightly, provided it stays below the short strike."
+16,Vertical Spreads,Bullish,Bull Put Spread,OPTIONS,PUT,SHORT,1,HIGHER,PUT,LONG,1,LOWER,,,,,,,,,"A bull put spread consists of selling a higher strike put and buying a lower strike put. It generates a net credit and profits if the stock price rises, stays flat, or falls slightly, provided it stays above the short strike."
+17,Ratio Spreads,Bullish,Call Ratio Backspread,OPTIONS,CALL,SHORT,1,LOWER,CALL,LONG,2,HIGHER,,,,,,,,,"A call ratio backspread consists of selling one lower strike call and buying two (or more) higher strike calls. It offers unlimited profit potential from a sharp rally or high volatility, with limited risk if the stock falls."
+18,Ratio Spreads,Bearish,Put Ratio Backspread,OPTIONS,PUT,SHORT,1,HIGHER,PUT,LONG,2,LOWER,,,,,,,,,"A put ratio backspread consists of selling one higher strike put and buying two (or more) lower strike puts. It offers significant profit potential from a sharp decline or high volatility, with limited risk if the stock rises."
+19,Ratio Spreads,Bearish,Call Ratio Spread,OPTIONS,CALL,LONG,1,LOWER,CALL,SHORT,2,HIGHER,,,,,,,,,A call ratio spread consists of buying one lower strike call and selling two (or more) higher strike calls. It profits from a slight rise or neutral price action but carries unlimited risk if the stock rallies significantly.
+20,Ratio Spreads,Bullish,Put Ratio Spread,OPTIONS,PUT,LONG,1,HIGHER,PUT,SHORT,2,LOWER,,,,,,,,,A put ratio spread consists of buying one higher strike put and selling two (or more) lower strike puts. It profits from a slight fall or neutral price action but carries significant risk if the stock crashes.
+21,Ladders,Bullish,Bull Call Ladder,OPTIONS,CALL,LONG,1,LOW,CALL,SHORT,1,MID,CALL,SHORT,1,HIGH,,,,,A bull call ladder consists of a bull call spread with an additional short call sold at a higher strike. It profits from a moderate rise in price but carries unlimited risk if the stock continues to rally aggressively.
+22,Ladders,Bearish,Bear Put Ladder,OPTIONS,PUT,LONG,1,HIGH,PUT,SHORT,1,MID,PUT,SHORT,1,LOW,,,,,A bear put ladder consists of a bear put spread with an additional short put sold at a lower strike. It profits from a moderate decline in price but carries significant risk if the stock crashes below the lowest strike.
+23,Ladders,Bearish,Bear Call Ladder,OPTIONS,CALL,SHORT,1,LOW,CALL,LONG,1,MID,CALL,LONG,1,HIGH,,,,,"A bear call ladder consists of selling an ITM call and buying two higher strike calls. Despite the name, it is a bullish volatility strategy that profits if the stock rallies significantly, with limited risk if the stock falls."
+24,Ladders,Bullish,Bull Put Ladder,OPTIONS,PUT,SHORT,1,HIGH,PUT,LONG,1,MID,PUT,LONG,1,LOW,,,,,"A bull put ladder consists of selling an ITM put and buying two lower strike puts. It is a bearish volatility strategy that profits if the stock crashes significantly, with limited risk if the stock rises."
+25,Condors & Flys,Short Vol,Long Call Butterfly,OPTIONS,CALL,LONG,1,LOW,CALL,SHORT,2,MID,CALL,LONG,1,HIGH,,,,,"A long call butterfly consists of buying one lower call, selling two middle calls, and buying one higher call. It profits if the stock price remains stable near the middle strike at expiration."
+26,Condors & Flys,Short Vol,Long Put Butterfly,OPTIONS,PUT,LONG,1,LOW,PUT,SHORT,2,MID,PUT,LONG,1,HIGH,,,,,"A long put butterfly consists of buying one lower put, selling two middle puts, and buying one higher put. It profits if the stock price remains stable near the middle strike at expiration."
+27,Condors & Flys,Short Vol,Iron Butterfly,OPTIONS,PUT,LONG,1,LOW,PUT,SHORT,1,MID,CALL,SHORT,1,MID,CALL,LONG,1,HIGH,"An iron butterfly consists of selling an at-the-money straddle and buying an out-of-the-money strangle. It profits from neutral price action where the stock stays near the central strike, with defined risk."
+28,Condors & Flys,Short Vol,Long Call Condor,OPTIONS,CALL,LONG,1,LOWEST,CALL,SHORT,1,LOW-MID,CALL,SHORT,1,HIGH-MID,CALL,LONG,1,HIGHEST,"A long call condor consists of buying a low strike call, selling a lower-mid call, selling a higher-mid call, and buying a high strike call. It profits if the stock price stays within the range of the two middle strikes."
+29,Condors & Flys,Short Vol,Long Put Condor,OPTIONS,PUT,LONG,1,LOWEST,PUT,SHORT,1,LOW-MID,PUT,SHORT,1,HIGH-MID,PUT,LONG,1,HIGHEST,"A long put condor consists of buying a low strike put, selling a lower-mid put, selling a higher-mid put, and buying a high strike put. It profits if the stock price stays within the range of the two middle strikes."
+30,Condors & Flys,Short Vol,Iron Condor,OPTIONS,PUT,LONG,1,LOWEST,PUT,SHORT,1,LOW-MID,CALL,SHORT,1,HIGH-MID,CALL,LONG,1,HIGHEST,An iron condor consists of selling an out-of-the-money put spread and selling an out-of-the-money call spread. It profits if the stock price remains between the two short strikes (the inner range).
+31,Condors & Flys,Long Vol,Short Call Butterfly,OPTIONS,CALL,SHORT,1,LOW,CALL,LONG,2,MID,CALL,SHORT,1,HIGH,,,,,"A short call butterfly consists of selling one lower call, buying two middle calls, and selling one higher call. It profits from high volatility if the stock price moves significantly away from the middle strike."
+32,Condors & Flys,Long Vol,Short Put Butterfly,OPTIONS,PUT,SHORT,1,LOW,PUT,LONG,2,MID,PUT,SHORT,1,HIGH,,,,,"A short put butterfly consists of selling one lower put, buying two middle puts, and selling one higher put. It profits from high volatility if the stock price moves significantly away from the middle strike."
+33,Condors & Flys,Long Vol,Rev Iron Butterfly,OPTIONS,PUT,SHORT,1,LOW,PUT,LONG,1,MID,CALL,LONG,1,MID,CALL,SHORT,1,HIGH,"A reverse iron butterfly consists of buying an at-the-money straddle and selling an out-of-the-money strangle. It profits from high volatility, gaining value if the stock moves significantly in either direction."
+34,Condors & Flys,Long Vol,Short Call Condor,OPTIONS,CALL,SHORT,1,LOWEST,CALL,LONG,1,LOW-MID,CALL,LONG,1,HIGH-MID,CALL,SHORT,1,HIGHEST,"A short call condor consists of selling a low strike call, buying a lower-mid call, buying a higher-mid call, and selling a high strike call. It profits if the stock price breaks out of the range of the middle strikes."
+35,Condors & Flys,Long Vol,Short Put Condor,OPTIONS,PUT,SHORT,1,LOWEST,PUT,LONG,1,LOW-MID,PUT,LONG,1,HIGH-MID,PUT,SHORT,1,HIGHEST,"A short put condor consists of selling a low strike put, buying a lower-mid put, buying a higher-mid put, and selling a high strike put. It profits if the stock price breaks out of the range of the middle strikes."
+36,Condors & Flys,Long Vol,Rev Iron Condor,OPTIONS,PUT,SHORT,1,LOWEST,PUT,LONG,1,LOW-MID,CALL,LONG,1,HIGH-MID,CALL,SHORT,1,HIGHEST,"A reverse iron condor consists of buying a bull call spread and buying a bear put spread. It profits from high volatility, gaining value if the stock moves significantly outside the inner strikes."
+37,Straddles,Long Vol,Long Straddle,OPTIONS,PUT,LONG,1,ATM,CALL,LONG,1,ATM,,,,,,,,,"A long straddle consists of buying an at-the-money call and an at-the-money put. It offers unlimited profit potential from a large move in either direction, benefiting from high volatility."
+38,Straddles,Short Vol,Short Straddle,OPTIONS,PUT,SHORT,1,ATM,CALL,SHORT,1,ATM,,,,,,,,,"A short straddle consists of selling an at-the-money call and an at-the-money put. It profits if the stock price remains stable at the strike price, but carries unlimited risk if the market moves significantly."
+39,Straddles,Long Vol,Long Strangle,OPTIONS,PUT,LONG,1,LOWER,CALL,LONG,1,HIGHER,,,,,,,,,"A long strangle consists of buying an out-of-the-money call and an out-of-the-money put. It requires a larger move than a straddle to profit but costs less upfront, benefiting from high volatility."
+40,Straddles,Short Vol,Short Strangle,OPTIONS,PUT,SHORT,1,LOWER,CALL,SHORT,1,HIGHER,,,,,,,,,"A short strangle consists of selling an out-of-the-money call and an out-of-the-money put. It profits if the stock price remains between the two strike prices, but carries unlimited risk on a breakout."
+41,Straddles,Long Vol,Long Guts,OPTIONS,CALL,LONG,1,LOWER,PUT,LONG,1,HIGHER,,,,,,,,,"A long guts consists of buying an in-the-money call and an in-the-money put. It functions like a straddle but with higher premiums, profiting from significant price movement in either direction."
+42,Straddles,Short Vol,Short Guts,OPTIONS,CALL,SHORT,1,LOWER,PUT,SHORT,1,HIGHER,,,,,,,,,A short guts consists of selling an in-the-money call and an in-the-money put. It is a credit strategy that profits if the stock remains range-bound between the strikes.
+43,Straddles,Bearish/Vol,Strip,OPTIONS,PUT,LONG,2,ATM,CALL,LONG,1,ATM,,,,,,,,,A strip consists of buying one at-the-money call and two at-the-money puts. It is a bearish volatility strategy that profits more from a downward move than an upward move.
+44,Straddles,Bullish/Vol,Strap,OPTIONS,PUT,LONG,1,ATM,CALL,LONG,2,ATM,,,,,,,,,A strap consists of buying two at-the-money calls and one at-the-money put. It is a bullish volatility strategy that profits more from an upward move than a downward move.
+45,Straddles,Bullish,Covered Short Straddle,MIXED,STOCK,LONG,1,,PUT,SHORT,1,ATM,CALL,SHORT,1,ATM,,,,,"A covered short straddle consists of a long stock position combined with a short straddle. It profits from neutral to slightly bullish price action, with the stock covering the risk of the short call leg."
+46,Straddles,Bullish,Covered Short Strangle,MIXED,STOCK,LONG,1,,PUT,SHORT,1,LOWER,CALL,SHORT,1,HIGHER,,,,,"A covered short strangle consists of a long stock position combined with a short strangle. It profits if the stock stays within a specific range or rises moderately, with the stock hedging the short call."
+47,Boxes,Neutral,Long Box Spread,OPTIONS,CALL,LONG,1,LOWER,CALL,SHORT,1,HIGHER,PUT,LONG,1,HIGHER,PUT,SHORT,1,LOWER,A long box spread consists of buying a bull call spread and buying a bear put spread with the same strikes. It is an arbitrage strategy used to lock in a risk-free return (synthetic lending).
+48,Boxes,Neutral,Short Box Spread,OPTIONS,CALL,SHORT,1,LOWER,CALL,LONG,1,HIGHER,PUT,SHORT,1,HIGHER,PUT,LONG,1,LOWER,A short box spread consists of selling a bull call spread and selling a bear put spread with the same strikes. It is an arbitrage strategy used to borrow cash at a fixed rate (synthetic borrowing).
+49,Synthetics,Bullish,Synthetic Long Stock,OPTIONS,PUT,SHORT,1,ATM,CALL,LONG,1,ATM,,,,,,,,,A synthetic long stock consists of buying a call and selling a put at the same strike price. It mimics the payoff profile of owning the underlying stock with unlimited upside and downside risk.
+50,Synthetics,Bearish,Synthetic Short Stock,OPTIONS,PUT,LONG,1,ATM,CALL,SHORT,1,ATM,,,,,,,,,A synthetic short stock consists of selling a call and buying a put at the same strike price. It mimics the payoff profile of shorting the stock with unlimited upside risk and profit from a decline.
+51,Synthetics,Bullish,Long Combo,OPTIONS,PUT,SHORT,1,LOWER,CALL,LONG,1,HIGHER,,,,,,,,,"A long combo consists of selling an OTM put and buying an OTM call. It is a bullish strategy that mimics long stock but with a ""flat"" zone in the middle where no profit or loss occurs."
+52,Synthetics,Bearish,Short Combo,OPTIONS,PUT,LONG,1,LOWER,CALL,SHORT,1,HIGHER,,,,,,,,,"A short combo consists of buying an OTM put and selling an OTM call. It is a bearish strategy that mimics short stock but with a ""flat"" zone in the middle where no profit or loss occurs."
+53,Synthetics,Long Vol,L. Call Syn. Straddle,MIXED,STOCK,SHORT,1,,CALL,LONG,2,ATM,,,,,,,,,"A long call synthetic straddle consists of a short stock position combined with two long calls. It mimics the payoff of a long straddle, profiting from high volatility in either direction."
+54,Synthetics,Long Vol,L. Put Syn. Straddle,MIXED,STOCK,LONG,1,,PUT,LONG,2,ATM,,,,,,,,,"A long put synthetic straddle consists of a long stock position combined with two long puts. It mimics the payoff of a long straddle, profiting from high volatility in either direction."
+55,Synthetics,Short Vol,S. Call Syn. Straddle,MIXED,STOCK,LONG,1,,CALL,SHORT,2,ATM,,,,,,,,,"A short call synthetic straddle consists of a long stock position combined with two short calls. It mimics the payoff of a short straddle, profiting from neutral price action."
+56,Synthetics,Short Vol,S. Put Syn. Straddle,MIXED,STOCK,SHORT,1,,PUT,SHORT,2,ATM,,,,,,,,,"A short put synthetic straddle consists of a short stock position combined with two short puts. It mimics the payoff of a short straddle, profiting from neutral price action."
+57,Synthetics,Long Vol,L. Call Syn. Strangle,MIXED,STOCK,SHORT,1,,CALL,LONG,1,LOWER,CALL,LONG,1,HIGHER,,,,,"A long call synthetic strangle consists of a short stock position combined with a lower strike long call and a higher strike long call. It mimics a long strangle, profiting from high volatility."
+58,Synthetics,Long Vol,L. Put Syn. Strangle,MIXED,STOCK,LONG,1,,PUT,LONG,1,LOWER,PUT,LONG,1,HIGHER,,,,,"A long put synthetic strangle consists of a long stock position combined with a lower strike long put and a higher strike long put. It mimics a long strangle, profiting from high volatility."
+59,Synthetics,Short Vol,S. Call Syn. Strangle,MIXED,STOCK,LONG,1,,CALL,SHORT,1,LOWER,CALL,SHORT,1,HIGHER,,,,,"A short call synthetic strangle consists of a long stock position combined with a lower strike short call and a higher strike short call. It mimics a short strangle, profiting from neutral price action."
+60,Synthetics,Short Vol,S. Put Syn. Strangle,MIXED,STOCK,SHORT,1,,PUT,SHORT,1,LOWER,PUT,SHORT,1,HIGHER,,,,,"A short put synthetic strangle consists of a short stock position combined with a lower strike short put and a higher strike short put. It mimics a short strangle, profiting from neutral price action."
+61,Synthetics,Bullish,Syn. Covered Call,OPTIONS,PUT,SHORT,1,HIGHER,,,,,,,,,,,,,A synthetic covered call is constructed by selling a put option. It replicates the risk and reward profile of a covered call (income generation with capped upside and downside risk).
+62,Synthetics,Bearish,Syn. Covered Put,OPTIONS,CALL,SHORT,1,LOWER,,,,,,,,,,,,,A synthetic covered put is constructed by selling a call option. It replicates the risk and reward profile of a covered put (income generation with capped profit on the downside).
+63,Arbitrage,Neutral,Conversion,MIXED,STOCK,LONG,1,,PUT,LONG,1,ATM,CALL,SHORT,1,ATM,,,,,"A conversion consists of long stock, a long put, and a short call. It is an arbitrage strategy that locks in a risk-free profit if the call option is overpriced relative to the put."

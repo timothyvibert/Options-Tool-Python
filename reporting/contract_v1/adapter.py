@@ -74,6 +74,25 @@ def _parse_number(value: object) -> Optional[float]:
     return None
 
 
+def _parse_shares_value(value: object) -> Optional[float]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if text in MISSING_TEXT:
+            return None
+        match = re.search(r"[-+]?\d*\.?\d+", text.replace(",", ""))
+        if not match:
+            return None
+        try:
+            return float(match.group(0))
+        except ValueError:
+            return None
+    return None
+
+
 def _parse_value(value: object) -> Optional[object]:
     number = _parse_number(value)
     if number is not None:
@@ -214,7 +233,7 @@ def build_report_contract_v1(legacy_report_model: Dict[str, object]) -> Dict[str
     )
     analyst_cio = _field(_pick(header, ["cio_rating", "ubs_cio_rating"]))
 
-    shares_value = _parse_number(
+    shares_value = _parse_shares_value(
         _pick(header, ["shares"]) or _pick(stock_banner, ["shares"])
     )
     avg_cost_value = _parse_number(
@@ -222,7 +241,9 @@ def build_report_contract_v1(legacy_report_model: Dict[str, object]) -> Dict[str
     )
     spot_number = _parse_number(spot_value)
 
-    has_client_position = bool(shares_value is not None and shares_value > 0)
+    has_client_position = bool(
+        shares_value is not None and abs(shares_value) > 0
+    )
     market_value = None
     pnl_dollar = None
     pnl_percent = None
@@ -233,13 +254,22 @@ def build_report_contract_v1(legacy_report_model: Dict[str, object]) -> Dict[str
         if cost_value:
             pnl_percent = (pnl_dollar / cost_value) * 100.0
 
-    client_position = {
-        "shares": _field(shares_value),
-        "avg_cost": _field(avg_cost_value),
-        "market_value": _field(market_value),
-        "pnl_dollar": _field(pnl_dollar),
-        "pnl_percent": _field(pnl_percent),
-    }
+    if has_client_position:
+        client_position = {
+            "shares": _field(shares_value),
+            "avg_cost": _field(avg_cost_value),
+            "market_value": _field(market_value),
+            "pnl_dollar": _field(pnl_dollar),
+            "pnl_percent": _field(pnl_percent),
+        }
+    else:
+        client_position = {
+            "shares": _field(None, status="not_applicable"),
+            "avg_cost": _field(None, status="not_applicable"),
+            "market_value": _field(None, status="not_applicable"),
+            "pnl_dollar": _field(None, status="not_applicable"),
+            "pnl_percent": _field(None, status="not_applicable"),
+        }
 
     strategy_name = _field(_pick(header, ["strategy_name"]))
     strategy_description = _field(_extract_strategy_description(legacy))

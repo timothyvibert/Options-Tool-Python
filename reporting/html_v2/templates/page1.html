@@ -1,12 +1,124 @@
-<div
-  class="
-    page page-1 mx-auto bg-white shadow-2xl overflow-hidden relative flex flex-col justify-between
-    w-[8.5in] h-[11in]
-    print:shadow-none print:w-full print:h-screen
-  "
->
-  <div class="px-10 py-8 flex-grow">
-    <div class="space-y-3">
+<div class="page page-1">
+  <div class="wm-page-body">
+      <div class="wm-header">
+        <table class="wm-header-table">
+          <tr>
+            <td class="wm-header-left">
+              {% if assets.ubs_logo_data_uri %}
+              <img class="wm-logo" src="{{ assets.ubs_logo_data_uri }}" alt="UBS" />
+              {% else %}
+              <div class="wm-logo">UBS</div>
+              {% endif %}
+            </td>
+            <td class="wm-header-right">
+              <div class="wm-header-date">{{ report.header.date }}</div>
+              <div class="wm-header-subtitle">{{ report.header.subtitle }}</div>
+            </td>
+          </tr>
+        </table>
+        <div class="wm-title">{{ report.header.title }}</div>
+        <div class="wm-disclaimer">{{ report.header.disclaimer }}</div>
+      </div>
+
+      <div class="wm-banner">
+        <table class="wm-banner-table">
+          {% if report.sections.client_position.visible and report.client_position %}
+          <colgroup>
+            <col class="wm-col-stock-4" />
+            <col class="wm-col-card-4" />
+            <col class="wm-col-card-4" />
+            <col class="wm-col-card-4" />
+          </colgroup>
+          {% else %}
+          <colgroup>
+            <col class="wm-col-stock-3" />
+            <col class="wm-col-card-3" />
+            <col class="wm-col-card-3" />
+          </colgroup>
+          {% endif %}
+          <tr>
+            <td class="wm-banner-cell">
+              <div class="wm-stock-name">{{ report.stock_details.name }}</div>
+              <div>
+                <span class="wm-stock-price">{{ report.stock_details.last_price }}</span>
+                <span class="wm-stock-change {{ report.stock_details.change_class }}">
+                  {{ report.stock_details.change_symbol }}{{ report.stock_details.ten_day_change }}
+                </span>
+              </div>
+              <div class="wm-stock-ticker">{{ report.stock_details.ticker }}</div>
+              <div class="wm-stock-meta">
+                <div>Sector: {{ report.stock_details.sector }}</div>
+                <div>Earnings Date: {{ report.stock_details.earnings_date }}</div>
+              </div>
+            </td>
+            <td class="wm-banner-cell wm-banner-divider">
+              <div class="wm-card">
+                <div class="wm-card-title">Analyst View</div>
+                <table class="wm-kv-table">
+                  <tr>
+                    <td class="wm-kv-label">UBS Rating</td>
+                    <td class="wm-kv-value">{{ report.stock_details.ubs_rating }}</td>
+                  </tr>
+                  <tr>
+                    <td class="wm-kv-label">Target</td>
+                    <td class="wm-kv-value">{{ report.stock_details.ubs_target }}</td>
+                  </tr>
+                  <tr>
+                    <td class="wm-kv-label">CIO Rating</td>
+                    <td class="wm-kv-value">{{ report.stock_details.cio_rating }}</td>
+                  </tr>
+                </table>
+              </div>
+            </td>
+            <td class="wm-banner-cell wm-banner-divider">
+              <div class="wm-card">
+                <div class="wm-card-title">Key Data</div>
+                <table class="wm-kv-table">
+                  <tr>
+                    <td class="wm-kv-label">52W High</td>
+                    <td class="wm-kv-value">{{ report.stock_details.fifty_two_week_high }}</td>
+                  </tr>
+                  <tr>
+                    <td class="wm-kv-label">52W Low</td>
+                    <td class="wm-kv-value">{{ report.stock_details.fifty_two_week_low }}</td>
+                  </tr>
+                  <tr>
+                    <td class="wm-kv-label">Yield</td>
+                    <td class="wm-kv-value">{{ report.stock_details.dividend_yield }}</td>
+                  </tr>
+                </table>
+              </div>
+            </td>
+            {% if report.sections.client_position.visible and report.client_position %}
+            <td class="wm-banner-cell wm-banner-divider">
+              <div class="wm-card">
+                <div class="wm-card-title">Client Position</div>
+                <table class="wm-kv-table">
+                  <tr>
+                    <td class="wm-kv-label">Market Value</td>
+                    <td class="wm-kv-value">{{ report.client_position.mkt_value }}</td>
+                  </tr>
+                  <tr>
+                    <td class="wm-kv-label">Total P&amp;L</td>
+                    <td class="wm-kv-value {{ report.client_position.pnl_class }}">
+                      {{ report.client_position.pnl_dollar }}
+                      {% if report.client_position.pnl_percent %}
+                      <span class="wm-metric-sub">({{ report.client_position.pnl_percent }}%)</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                </table>
+                <div class="wm-client-footer">
+                  {{ report.client_position.shares }} Shares | Avg: {{ report.client_position.avg_cost }}
+                </div>
+              </div>
+            </td>
+            {% endif %}
+          </tr>
+        </table>
+      </div>
+
+      {#
       <div class="mb-4">
         <div class="flex items-end justify-between mb-4">
           <div class="flex items-center gap-2.5">
@@ -141,180 +253,166 @@
         </div>
       </div>
 
-      <div class="mb-4">
-        <h2 class="text-base text-[#E60000] mb-2 pb-1 border-b border-[#E60000] font-bold">
-          Option Strategy Details
-        </h2>
-        <p class="text-[10.5px] text-gray-700 mb-3 leading-relaxed text-justify">{{ report.strategy_description }}</p>
+      #}
+      <div class="wm-section-title">Option Strategy Details</div>
+      <div class="wm-section-text">{{ report.strategy_description }}</div>
+      <div class="wm-subsection-title">{{ report.option_legs_title }}</div>
+      <table class="wm-table">
+        <thead>
+          <tr>
+            <th class="text-left"></th>
+            <th class="text-left">Action</th>
+            <th class="text-left">Expiration</th>
+            <th class="text-left">Strike</th>
+            <th class="text-left">Type</th>
+            <th class="text-right">Price</th>
+            <th class="text-right">Delta</th>
+            <th class="text-right">OTM %</th>
+            <th class="text-right">Premium</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for leg in report.option_legs %}
+          <tr>
+            <td>{{ leg.leg }})</td>
+            <td>{{ leg.action }} {{ leg.quantity }}</td>
+            <td>{{ leg.expiration }}</td>
+            <td>{{ leg.strike }}</td>
+            <td>{{ leg.type }}</td>
+            <td class="text-right">{{ leg.price }}</td>
+            <td class="text-right">{{ leg.delta }}</td>
+            <td class="text-right">{{ leg.otm_percent }}</td>
+            <td class="text-right {{ leg.premium_class }}">{{ leg.premium_display }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="8" class="text-right">Net Premium:</td>
+            <td class="text-right {{ report.net_premium.class }}">{{ report.net_premium.display }}</td>
+          </tr>
+        </tfoot>
+      </table>
 
-        <div class="mb-2">
-          <div class="text-[10.5px] font-semibold text-gray-900 mb-1.5">{{ report.option_legs_title }}</div>
-          <div class="overflow-hidden border border-gray-300 rounded">
-            <table class="w-full text-[10.5px]">
-              <thead class="bg-gray-100">
+      <table class="wm-two-col">
+        <colgroup>
+          <col class="wm-col-payoff" />
+          <col class="wm-col-metrics" />
+        </colgroup>
+        <tr>
+          <td>
+            <div class="wm-payoff-card">
+              <div class="wm-subsection-title">Payoff Diagram</div>
+              <img class="wm-payoff-img" src="{{ assets.payoff_chart_data_uri }}" alt="Payoff Diagram" />
+              <div class="wm-legend">
+                <span class="wm-legend-item"><span class="wm-legend-line legend-stock"></span>Stock</span>
+                <span class="wm-legend-item"><span class="wm-legend-line legend-options"></span>Options</span>
+                <span class="wm-legend-item"><span class="wm-legend-line legend-combined"></span>Combined</span>
+              </div>
+            </div>
+          </td>
+          <td>
+            <div class="wm-metric-card">
+              <div class="wm-metric-title">Risk &amp; Reward</div>
+              <table class="wm-kv-table">
                 <tr>
-                  <th class="px-1.5 py-1.5 text-left font-semibold text-gray-700 border-b border-gray-300"></th>
-                  <th class="px-1.5 py-1.5 text-left font-semibold text-gray-700 border-b border-gray-300">Action</th>
-                  <th class="px-1.5 py-1.5 text-left font-semibold text-gray-700 border-b border-gray-300">Expiration</th>
-                  <th class="px-1.5 py-1.5 text-left font-semibold text-gray-700 border-b border-gray-300">Strike</th>
-                  <th class="px-1.5 py-1.5 text-left font-semibold text-gray-700 border-b border-gray-300">Type</th>
-                  <th class="px-1.5 py-1.5 text-right font-semibold text-gray-700 border-b border-gray-300">Price</th>
-                  <th class="px-1.5 py-1.5 text-right font-semibold text-gray-700 border-b border-gray-300">Delta</th>
-                  <th class="px-1.5 py-1.5 text-right font-semibold text-gray-700 border-b border-gray-300">OTM %</th>
-                  <th class="px-1.5 py-1.5 text-right font-semibold text-gray-700 border-b border-gray-300">Premium</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for leg in report.option_legs %}
-                <tr class="border-b border-gray-200 last:border-b-0">
-                  <td class="px-1.5 py-1.5 text-gray-900">{{ leg.leg }})</td>
-                  <td class="px-1.5 py-1.5 text-gray-900">{{ leg.action }} {{ leg.quantity }}</td>
-                  <td class="px-1.5 py-1.5 text-gray-900">{{ leg.expiration }}</td>
-                  <td class="px-1.5 py-1.5 text-gray-900">{{ leg.strike }}</td>
-                  <td class="px-1.5 py-1.5 text-gray-900">{{ leg.type }}</td>
-                  <td class="px-1.5 py-1.5 text-right text-gray-900">{{ leg.price }}</td>
-                  <td class="px-1.5 py-1.5 text-right text-gray-900">{{ leg.delta }}</td>
-                  <td class="px-1.5 py-1.5 text-right text-gray-900">{{ leg.otm_percent }}</td>
-                  <td class="px-1.5 py-1.5 text-right font-semibold {{ 'text-red-600' if leg.premium < 0 else 'text-gray-900' }}">
-                    {{ leg.premium_display }}
+                  <td class="wm-metric-label">{{ report.metrics.max_profit.label }}</td>
+                  <td class="wm-metric-value {{ report.metrics.max_profit.class }}">
+                    {{ report.metrics.max_profit.display }}
+                    {% if report.metrics.max_profit.sub_display %}
+                    <span class="wm-metric-sub">({{ report.metrics.max_profit.sub_display }})</span>
+                    {% endif %}
                   </td>
                 </tr>
-                {% endfor %}
-              </tbody>
-              <tfoot class="bg-gray-50 border-t border-gray-300">
                 <tr>
-                  <td colspan="8" class="px-1.5 py-1.5 text-right font-semibold text-gray-900">Net Premium:</td>
-                  <td class="px-1.5 py-1.5 text-right font-bold {{ report.net_premium.class }}">
-                    {{ report.net_premium.display }}
+                  <td class="wm-metric-label">{{ report.metrics.max_loss.label }}</td>
+                  <td class="wm-metric-value {{ report.metrics.max_loss.class }}">
+                    {{ report.metrics.max_loss.display }}
+                    {% if report.metrics.max_loss.sub_display %}
+                    <span class="wm-metric-sub">({{ report.metrics.max_loss.sub_display }})</span>
+                    {% endif %}
                   </td>
                 </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <div class="h-[240px]">
-        <div class="flex gap-4 items-stretch h-full">
-          <div class="flex-grow w-2/3">
-            <div class="bg-white border border-gray-200 rounded-lg p-3 h-full">
-              <div class="flex justify-between items-center mb-2">
-                <h3 class="text-sm font-semibold text-gray-900">Payoff Diagram</h3>
-                <div class="text-xs text-gray-500">Spot: {{ report.stock_details.last_price }}</div>
-              </div>
-              <div class="h-[300px] w-full flex items-center justify-center">
-                <div class="text-[10px] text-gray-500">Payoff Diagram</div>
-              </div>
-              <div class="flex justify-center gap-4 mt-2">
-                <div class="flex items-center gap-1.5">
-                  <div class="w-3 h-0.5 bg-blue-300"></div>
-                  <span class="text-[10px] text-gray-600">Stock</span>
-                </div>
-                <div class="flex items-center gap-1.5">
-                  <div class="w-3 h-0.5 bg-violet-300"></div>
-                  <span class="text-[10px] text-gray-600">Options</span>
-                </div>
-                <div class="flex items-center gap-1.5">
-                  <div class="w-3 h-0.5 bg-gray-600 border-t border-dashed"></div>
-                  <span class="text-[10px] text-gray-600">Combined</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="w-1/3 flex flex-col gap-2">
-            <div class="bg-gray-50 border border-gray-200 rounded-md p-2 flex-1 flex flex-col justify-center">
-              <h4 class="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 border-b border-gray-200 pb-1">Risk &amp; Reward</h4>
-              <div class="space-y-1">
-                <div class="flex justify-between items-baseline text-[10px]">
-                  <span class="text-gray-600">{{ report.metrics.max_profit.label }}</span>
-                  <div class="text-right">
-                    <span class="font-bold {{ report.metrics.max_profit.class }}">{{ report.metrics.max_profit.display }}</span>
-                    <span class="text-[9px] text-gray-400 ml-1.5 hidden xl:inline">({{ report.metrics.max_profit.sub_display }})</span>
-                  </div>
-                </div>
-                <div class="flex justify-between items-baseline text-[10px]">
-                  <span class="text-gray-600">{{ report.metrics.max_loss.label }}</span>
-                  <div class="text-right">
-                    <span class="font-bold {{ report.metrics.max_loss.class }}">{{ report.metrics.max_loss.display }}</span>
-                    <span class="text-[9px] text-gray-400 ml-1.5 hidden xl:inline">({{ report.metrics.max_loss.sub_display }})</span>
-                  </div>
-                </div>
-                <div class="flex justify-between items-baseline text-[10px]">
-                  <span class="text-gray-600">{{ report.metrics.reward_risk.label }}</span>
-                  <div class="text-right">
-                    <span class="font-bold {{ report.metrics.reward_risk.class }}">{{ report.metrics.reward_risk.display }}</span>
-                    <span class="text-[9px] text-gray-400 ml-1.5 hidden xl:inline">({{ report.metrics.reward_risk.sub_display }})</span>
-                  </div>
-                </div>
-              </div>
+                <tr>
+                  <td class="wm-metric-label">{{ report.metrics.reward_risk.label }}</td>
+                  <td class="wm-metric-value {{ report.metrics.reward_risk.class }}">
+                    {{ report.metrics.reward_risk.display }}
+                    {% if report.metrics.reward_risk.sub_display %}
+                    <span class="wm-metric-sub">({{ report.metrics.reward_risk.sub_display }})</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              </table>
             </div>
 
-            <div class="bg-gray-50 border border-gray-200 rounded-md p-2 flex-1 flex flex-col justify-center">
-              <h4 class="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 border-b border-gray-200 pb-1">Return Metrics</h4>
-              <div class="space-y-1">
-                <div class="flex justify-between items-baseline text-[10px]">
-                  <span class="text-gray-600">{{ report.metrics.max_roi.label }}</span>
-                  <div class="text-right">
-                    <span class="font-bold {{ report.metrics.max_roi.class }}">{{ report.metrics.max_roi.display }}</span>
-                    <span class="text-[9px] text-gray-400 ml-1.5 hidden xl:inline">({{ report.metrics.max_roi.sub_display }})</span>
-                  </div>
-                </div>
-                <div class="flex justify-between items-baseline text-[10px]">
-                  <span class="text-gray-600">{{ report.metrics.min_roi.label }}</span>
-                  <div class="text-right">
-                    <span class="font-bold {{ report.metrics.min_roi.class }}">{{ report.metrics.min_roi.display }}</span>
-                    <span class="text-[9px] text-gray-400 ml-1.5 hidden xl:inline">({{ report.metrics.min_roi.sub_display }})</span>
-                  </div>
-                </div>
-              </div>
+            <div class="wm-metric-card">
+              <div class="wm-metric-title">Return Metrics</div>
+              <table class="wm-kv-table">
+                <tr>
+                  <td class="wm-metric-label">{{ report.metrics.max_roi.label }}</td>
+                  <td class="wm-metric-value {{ report.metrics.max_roi.class }}">
+                    {{ report.metrics.max_roi.display }}
+                    {% if report.metrics.max_roi.sub_display %}
+                    <span class="wm-metric-sub">({{ report.metrics.max_roi.sub_display }})</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td class="wm-metric-label">{{ report.metrics.min_roi.label }}</td>
+                  <td class="wm-metric-value {{ report.metrics.min_roi.class }}">
+                    {{ report.metrics.min_roi.display }}
+                    {% if report.metrics.min_roi.sub_display %}
+                    <span class="wm-metric-sub">({{ report.metrics.min_roi.sub_display }})</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              </table>
             </div>
 
-            <div class="bg-gray-50 border border-gray-200 rounded-md p-2 flex-1 flex flex-col justify-center">
-              <h4 class="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 border-b border-gray-200 pb-1">Capital</h4>
-              <div class="space-y-1">
-                <div class="flex justify-between items-baseline text-[10px]">
-                  <span class="text-gray-600">{{ report.metrics.capital_basis.label }}</span>
-                  <div class="text-right">
-                    <span class="font-bold {{ report.metrics.capital_basis.class }}">{{ report.metrics.capital_basis.display }}</span>
-                    <span class="text-[9px] text-gray-400 ml-1.5 hidden xl:inline">({{ report.metrics.capital_basis.sub_display }})</span>
-                  </div>
-                </div>
-                <div class="flex justify-between items-baseline text-[10px]">
-                  <span class="text-gray-600">{{ report.metrics.cost_credit.label }}</span>
-                  <div class="text-right">
-                    <span class="font-bold {{ report.metrics.cost_credit.class }}">{{ report.metrics.cost_credit.display }}</span>
-                    <span class="text-[9px] text-gray-400 ml-1.5 hidden xl:inline">({{ report.metrics.cost_credit.sub_display }})</span>
-                  </div>
-                </div>
-              </div>
+            <div class="wm-metric-card">
+              <div class="wm-metric-title">Capital</div>
+              <table class="wm-kv-table">
+                <tr>
+                  <td class="wm-metric-label">{{ report.metrics.capital_basis.label }}</td>
+                  <td class="wm-metric-value {{ report.metrics.capital_basis.class }}">
+                    {{ report.metrics.capital_basis.display }}
+                    {% if report.metrics.capital_basis.sub_display %}
+                    <span class="wm-metric-sub">({{ report.metrics.capital_basis.sub_display }})</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <td class="wm-metric-label">{{ report.metrics.cost_credit.label }}</td>
+                  <td class="wm-metric-value {{ report.metrics.cost_credit.class }}">
+                    {{ report.metrics.cost_credit.display }}
+                    {% if report.metrics.cost_credit.sub_display %}
+                    <span class="wm-metric-sub">({{ report.metrics.cost_credit.sub_display }})</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              </table>
             </div>
 
-            <div class="bg-gray-50 border border-gray-200 rounded-md p-2 flex-1 flex flex-col justify-center">
-              <h4 class="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 border-b border-gray-200 pb-1">Premium</h4>
-              <div class="space-y-1">
-                <div class="flex justify-between items-baseline text-[10px]">
-                  <span class="text-gray-600">{{ report.metrics.net_prem_per_share.label }}</span>
-                  <div class="text-right">
-                    <span class="font-bold {{ report.metrics.net_prem_per_share.class }}">{{ report.metrics.net_prem_per_share.display }}</span>
-                  </div>
-                </div>
-                <div class="flex justify-between items-baseline text-[10px]">
-                  <span class="text-gray-600">{{ report.metrics.net_prem_percent.label }}</span>
-                  <div class="text-right">
-                    <span class="font-bold {{ report.metrics.net_prem_percent.class }}">{{ report.metrics.net_prem_percent.display }}</span>
-                  </div>
-                </div>
-              </div>
+            <div class="wm-metric-card">
+              <div class="wm-metric-title">Premium</div>
+              <table class="wm-kv-table">
+                <tr>
+                  <td class="wm-metric-label">{{ report.metrics.net_prem_per_share.label }}</td>
+                  <td class="wm-metric-value {{ report.metrics.net_prem_per_share.class }}">
+                    {{ report.metrics.net_prem_per_share.display }}
+                  </td>
+                </tr>
+                <tr>
+                  <td class="wm-metric-label">{{ report.metrics.net_prem_percent.label }}</td>
+                  <td class="wm-metric-value {{ report.metrics.net_prem_percent.class }}">
+                    {{ report.metrics.net_prem_percent.display }}
+                  </td>
+                </tr>
+              </table>
             </div>
-          </div>
-        </div>
-      </div>
+          </td>
+        </tr>
+      </table>
     </div>
-  </div>
-
-  <div class="px-10 pb-6 pt-2 flex justify-between items-end text-[9px] text-gray-400 uppercase font-medium tracking-wider">
-    <span>UBS Financial Services Inc.</span>
-    <span>Page 1 of {{ report.page.total }}</span>
   </div>
 </div>

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import os
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
@@ -24,6 +25,131 @@ def _ensure_dict(report_model: object) -> Dict[str, Any]:
     return {}
 
 
+def _coerce_float(value: object) -> Optional[float]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        text = value.strip().replace(",", "").replace("%", "")
+        if not text:
+            return None
+        try:
+            return float(text)
+        except ValueError:
+            return None
+    return None
+
+
+def _coerce_series(values: object) -> Optional[list[float]]:
+    if not isinstance(values, list) or not values:
+        return None
+    series: list[float] = []
+    for value in values:
+        num = _coerce_float(value)
+        if num is None:
+            return None
+        series.append(num)
+    return series
+
+
+def _svg_placeholder() -> str:
+    width = 640
+    height = 320
+    return (
+        f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 {width} {height}'>"
+        "<rect width='100%' height='100%' fill='white'/>"
+        "<line x1='48' y1='24' x2='48' y2='288' stroke='#e5e7eb' stroke-width='1'/>"
+        "<line x1='48' y1='288' x2='608' y2='288' stroke='#e5e7eb' stroke-width='1'/>"
+        "<text x='320' y='170' text-anchor='middle' fill='#6b7280' font-size='12'>Payoff Diagram</text>"
+        "</svg>"
+    )
+
+
+def _build_payoff_svg_data_uri(model: Mapping[str, object]) -> str:
+    payoff = model.get("payoff") if isinstance(model.get("payoff"), Mapping) else None
+    x_values = _coerce_series(payoff.get("price_grid")) if payoff else None
+    stock_values = _coerce_series(payoff.get("stock_pnl")) if payoff else None
+    options_values = _coerce_series(payoff.get("options_pnl")) if payoff else None
+    combined_values = _coerce_series(payoff.get("combined_pnl")) if payoff else None
+
+    if not (x_values and stock_values and options_values and combined_values):
+        data = base64.b64encode(_svg_placeholder().encode("utf-8")).decode("ascii")
+        return f"data:image/svg+xml;base64,{data}"
+
+    min_len = min(len(x_values), len(stock_values), len(options_values), len(combined_values))
+    x = x_values[:min_len]
+    stock = stock_values[:min_len]
+    options = options_values[:min_len]
+    combined = combined_values[:min_len]
+
+    min_x, max_x = min(x), max(x)
+    min_y = min(min(stock), min(options), min(combined), 0.0)
+    max_y = max(max(stock), max(options), max(combined), 0.0)
+    if min_x == max_x:
+        min_x -= 1.0
+        max_x += 1.0
+    if min_y == max_y:
+        min_y -= 1.0
+        max_y += 1.0
+
+    width = 640.0
+    height = 320.0
+    pad_left = 48.0
+    pad_right = 32.0
+    pad_top = 24.0
+    pad_bottom = 32.0
+    plot_w = width - pad_left - pad_right
+    plot_h = height - pad_top - pad_bottom
+
+    def sx(value: float) -> float:
+        return pad_left + (value - min_x) / (max_x - min_x) * plot_w
+
+    def sy(value: float) -> float:
+        return pad_top + (max_y - value) / (max_y - min_y) * plot_h
+
+    def polyline(points: list[tuple[float, float]], stroke: str, dash: Optional[str] = None) -> str:
+        pts = " ".join(f"{sx(px):.2f},{sy(py):.2f}" for px, py in points)
+        dash_attr = f" stroke-dasharray='{dash}'" if dash else ""
+        return (
+            f"<polyline points='{pts}' fill='none' stroke='{stroke}' stroke-width='2'{dash_attr} />"
+        )
+
+    grid_lines = []
+    for step in (0.25, 0.5, 0.75):
+        y = pad_top + plot_h * step
+        grid_lines.append(
+            f"<line x1='{pad_left:.2f}' y1='{y:.2f}' x2='{pad_left + plot_w:.2f}' "
+            f"y2='{y:.2f}' stroke='#f3f4f6' stroke-width='1' />"
+        )
+
+    axis_y = sy(0.0)
+    axis_y = max(pad_top, min(axis_y, pad_top + plot_h))
+    axis_line = (
+        f"<line x1='{pad_left:.2f}' y1='{axis_y:.2f}' x2='{pad_left + plot_w:.2f}' "
+        f"y2='{axis_y:.2f}' stroke='#e5e7eb' stroke-width='1' />"
+    )
+    axis_x = (
+        f"<line x1='{pad_left:.2f}' y1='{pad_top:.2f}' x2='{pad_left:.2f}' "
+        f"y2='{pad_top + plot_h:.2f}' stroke='#e5e7eb' stroke-width='1' />"
+    )
+
+    svg_parts = [
+        f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 {width:.0f} {height:.0f}'>",
+        "<rect width='100%' height='100%' fill='white'/>",
+        *grid_lines,
+        axis_line,
+        axis_x,
+        polyline(list(zip(x, stock)), "#93c5fd"),
+        polyline(list(zip(x, options)), "#c4b5fd"),
+        polyline(list(zip(x, combined)), "#4b5563", dash="4,3"),
+        "</svg>",
+    ]
+    svg = "".join(svg_parts)
+    data = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+    return f"data:image/svg+xml;base64,{data}"
+
+
 def _configure_fontconfig() -> None:
     prefix = os.environ.get("CONDA_PREFIX")
     if not prefix:
@@ -46,10 +172,22 @@ def _configure_fontconfig() -> None:
 
 
 def _load_css(repo_root: Path) -> str:
-    css_path = repo_root / "reporting" / "html_v2" / "assets" / "print.css"
+    css_path = repo_root / "reporting" / "html_v2" / "assets" / "figma_v2_print.css"
     if not css_path.exists():
         raise RuntimeError(f"Missing print stylesheet: {css_path}")
     return css_path.read_text(encoding="utf-8")
+
+
+def _load_ubs_logo_data_uri(repo_root: Path) -> str:
+    candidates = [
+        repo_root / "Design" / "UBS Logo Png.png",
+        repo_root / "Design" / "UBS Logo.png",
+    ]
+    for path in candidates:
+        if path.exists():
+            data = base64.b64encode(path.read_bytes()).decode("ascii")
+            return f"data:image/png;base64,{data}"
+    return ""
 
 
 def _is_contract_v1(data: Mapping[str, object]) -> bool:
@@ -77,6 +215,7 @@ def build_report_pdf_html(report_model: Mapping[str, object], *, out_path: Optio
 
     repo_root = Path(__file__).resolve().parents[2]
     model = _ensure_dict(report_model)
+    payoff_svg = _build_payoff_svg_data_uri(model)
     if _is_contract_v1(model):
         contract = model
     else:
@@ -85,13 +224,17 @@ def build_report_pdf_html(report_model: Mapping[str, object], *, out_path: Optio
     context = build_view_model(contract)
     template_dir = Path(__file__).resolve().parent / "templates"
     css_text = _load_css(repo_root)
+    assets = {
+        "ubs_logo_data_uri": _load_ubs_logo_data_uri(repo_root),
+        "payoff_chart_data_uri": payoff_svg,
+    }
 
     env = Environment(
         loader=FileSystemLoader(str(template_dir)),
         autoescape=select_autoescape(["html", "xml"]),
     )
     template = env.get_template("base.html")
-    html_text = template.render(report=context, css=css_text)
+    html_text = template.render(report=context, css=css_text, assets=assets)
 
     if os.environ.get("REPORT_HTML_DEBUG") == "1":
         debug_dir = repo_root / "out"

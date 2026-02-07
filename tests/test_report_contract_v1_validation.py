@@ -48,3 +48,31 @@ def test_report_contract_v1_validation():
     )
     contract = build_report_contract_v1(report_model)
     validate_report_contract_v1(contract)
+
+
+def test_client_position_hidden_when_shares_zero():
+    legacy = {
+        "header": {
+            "report_time": "2025-01-02",
+            "shares": "0 Shares",
+            "strategy_name": "Test Strategy",
+            "ticker": "TEST",
+        }
+    }
+    contract = build_report_contract_v1(legacy)
+    assert contract["sections"]["client_position"]["visible"] is False
+    assert contract["client_position"]["shares"]["status"] == "not_applicable"
+
+
+def test_client_position_hidden_when_shares_blank():
+    legacy = {
+        "header": {
+            "report_time": "2025-01-02",
+            "shares": "",
+            "strategy_name": "Test Strategy",
+            "ticker": "TEST",
+        }
+    }
+    contract = build_report_contract_v1(legacy)
+    assert contract["sections"]["client_position"]["visible"] is False
+    assert contract["client_position"]["shares"]["status"] == "not_applicable"

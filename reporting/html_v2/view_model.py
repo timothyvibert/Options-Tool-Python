@@ -116,11 +116,15 @@ def _format_percent(value: object, decimals: int = 2) -> str:
 
 def _value_class(value: object) -> str:
     if isinstance(value, (int, float)):
-        return "text-red-600" if value < 0 else "text-gray-900"
+        if value < 0:
+            return "value-negative"
+        if value > 0:
+            return "value-positive"
+        return "value-neutral"
     if isinstance(value, str):
         if "-" in value and value not in ("---", MISSING, "--"):
-            return "text-red-600"
-    return "text-gray-900"
+            return "value-negative"
+    return "value-neutral"
 
 
 def _normalize_side(raw: str) -> Dict[str, str]:
@@ -295,11 +299,11 @@ def _build_scenarios(cards: List[Mapping[str, object]]) -> List[Dict[str, str]]:
         title = _to_text(card.get("title"))
         type_text = title.lower()
         if "bear" in type_text:
-            dot_class = "text-[#E60000]"
+            dot_class = "dot-red"
         elif "bull" in type_text:
-            dot_class = "text-[#00A550]"
+            dot_class = "dot-green"
         else:
-            dot_class = "text-gray-400"
+            dot_class = "dot-gray"
         scenarios.append(
             {
                 "title": title,
@@ -309,9 +313,9 @@ def _build_scenarios(cards: List[Mapping[str, object]]) -> List[Dict[str, str]]:
             }
         )
     labels = [
-        ("Bearish", "text-[#E60000]"),
-        ("Stagnant", "text-gray-400"),
-        ("Bullish", "text-[#00A550]"),
+        ("Bearish", "dot-red"),
+        ("Stagnant", "dot-gray"),
+        ("Bullish", "dot-green"),
     ]
     while len(scenarios) < 3:
         label, dot_class = labels[len(scenarios)]
@@ -370,7 +374,7 @@ def _from_template_data(data: Mapping[str, object]) -> Dict[str, object]:
             "cio_rating": _to_text(data.get("stockDetails", {}).get("ubsCioRating") if isinstance(data.get("stockDetails"), Mapping) else None),
             "last_price": _to_text(data.get("stockDetails", {}).get("lastPrice") if isinstance(data.get("stockDetails"), Mapping) else None),
             "ten_day_change": _to_text(data.get("stockDetails", {}).get("tenDayChange") if isinstance(data.get("stockDetails"), Mapping) else None),
-            "change_class": "text-gray-900",
+            "change_class": "value-neutral",
             "change_symbol": "",
             "fifty_two_week_high": _to_text(data.get("stockDetails", {}).get("fiftyTwoWeekHigh") if isinstance(data.get("stockDetails"), Mapping) else None),
             "fifty_two_week_low": _to_text(data.get("stockDetails", {}).get("fiftyTwoWeekLow") if isinstance(data.get("stockDetails"), Mapping) else None),
@@ -429,10 +433,10 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
         negative_move = move_value < 0
     elif isinstance(move_text, str) and move_text.startswith("-"):
         negative_move = True
-    change_class = "text-gray-900"
+    change_class = "value-neutral"
     change_symbol = ""
     if move_text != MISSING:
-        change_class = "text-red-600" if negative_move else "text-green-600"
+        change_class = "change-down" if negative_move else "change-up"
         change_symbol = "-" if negative_move else "+"
 
     header = {
@@ -467,11 +471,11 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
 
     if client_visible:
         pnl_dollar = _field_value(client_position.get("pnl_dollar"))
-        pnl_class = "text-green-600"
-        pnl_badge_class = "bg-green-100 text-green-800"
+        pnl_class = "value-positive"
+        pnl_badge_class = "value-positive"
         if isinstance(pnl_dollar, (int, float)) and pnl_dollar < 0:
-            pnl_class = "text-red-600"
-            pnl_badge_class = "bg-red-100 text-red-800"
+            pnl_class = "value-negative"
+            pnl_badge_class = "value-negative"
         client_block = {
             "shares": _format_number(_field_value(client_position.get("shares")), decimals=0),
             "avg_cost": _format_currency(_field_value(client_position.get("avg_cost")), decimals=2),
@@ -503,6 +507,7 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
                 "otm_percent": _format_percent(_field_value(leg.get("otm_percent")), decimals=2),
                 "premium": premium_num,
                 "premium_display": _format_currency(_field_value(leg.get("premium")), decimals=2),
+                "premium_class": _value_class(premium_value),
             }
         )
     if not legs:
@@ -519,6 +524,7 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
                 "otm_percent": MISSING,
                 "premium": 0,
                 "premium_display": MISSING,
+                "premium_class": "value-neutral",
             }
         )
 
@@ -534,11 +540,12 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
             display = _format_number(raw, decimals=2)
         else:
             display = _format_currency(raw, decimals=0)
+        sub_display = ""
         return {
             "label": label,
             "display": display,
             "class": _value_class(raw),
-            "sub_display": display,
+            "sub_display": sub_display,
         }
 
     metric_view = {
@@ -592,7 +599,7 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
                     "net_pnl_class": _value_class(net_val),
                     "net_roi": _format_percent(net_roi_val, decimals=2),
                     "net_roi_class": _value_class(net_roi_val),
-                    "row_class": "bg-yellow-50" if label == "Current Market Price" else "",
+                    "row_class": "wm-row-highlight" if label == "Current Market Price" else "",
                 }
             )
 
@@ -606,11 +613,11 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
             narrative = _field_text(row.get("narrative"))
             type_text = label.lower()
             if "bear" in type_text:
-                dot_class = "text-[#E60000]"
+                dot_class = "dot-red"
             elif "bull" in type_text:
-                dot_class = "text-[#00A550]"
+                dot_class = "dot-green"
             else:
-                dot_class = "text-gray-400"
+                dot_class = "dot-gray"
             scenario_display.append(
                 {
                     "title": label,

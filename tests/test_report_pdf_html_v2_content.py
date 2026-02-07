@@ -46,14 +46,15 @@ def _build_pdf_and_reader():
 def test_html_v2_header_text():
     reader, report_model = _build_pdf_and_reader()
     text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    text_lower = text.lower()
 
-    assert "Wealth Management Option Strategy" in text
-    assert "Scenario Analysis" in text
-    assert "Option Strategy Details" in text
+    assert "wealth management option strategy" in text_lower
+    assert "scenario analysis" in text_lower
+    assert "option strategy details" in text_lower
 
     strategy = report_model.get("header", {}).get("strategy_name")
     if isinstance(strategy, str) and strategy.strip():
-        assert text.count(strategy.strip()) >= 2
+        assert text_lower.count(strategy.strip().lower()) >= 2
 
 
 def test_html_v2_pdf_has_two_pages():
@@ -64,18 +65,20 @@ def test_html_v2_pdf_has_two_pages():
 def test_html_v2_page1_contains_strategy_title():
     reader, report_model = _build_pdf_and_reader()
     page1_text = reader.pages[0].extract_text() or ""
+    page1_lower = page1_text.lower()
     strategy = report_model.get("header", {}).get("strategy_name", "")
     if isinstance(strategy, str) and strategy.strip():
-        assert strategy.strip() in page1_text, (
+        assert strategy.strip().lower() in page1_lower, (
             f"Strategy title '{strategy}' not found on page 1"
         )
-    assert "Wealth Management Option Strategy" in page1_text
+    assert "wealth management option strategy" in page1_lower
 
 
 def test_html_v2_page2_contains_disclosures():
     reader, _ = _build_pdf_and_reader()
     page2_text = reader.pages[1].extract_text() or ""
-    assert "Important Risk Disclosures" in page2_text or "Disclosures" in page2_text, (
+    page2_lower = page2_text.lower()
+    assert "important risk disclosures" in page2_lower or "disclosures" in page2_lower, (
         "Page 2 should contain disclosure text"
     )
 

@@ -127,6 +127,13 @@ def _normalize_iso_datetime(value: object) -> str:
     return str(value)
 
 
+def _field_value_raw(field: object) -> object:
+    """Extract the raw value from a _field() dict if status is computed."""
+    if isinstance(field, Mapping) and field.get("status") == "computed":
+        return field.get("value")
+    return None
+
+
 def _normalize_side(raw: object) -> str:
     if _is_missing(raw):
         return ""
@@ -266,6 +273,9 @@ def build_report_contract_v1(legacy_report_model: Dict[str, object]) -> Dict[str
     strategy_name = _field(_pick(header, ["strategy_name"]))
     strategy_description = _field(_extract_strategy_description(legacy))
 
+    # Determine if strategy involves stock (for metrics display mode)
+    has_stock_component = has_client_position or bool(legacy.get("has_stock_position"))
+
     legs: List[Dict[str, object]] = []
     for leg in _as_list(structure.get("legs")):
         side_text = leg.get("side")
@@ -345,6 +355,19 @@ def build_report_contract_v1(legacy_report_model: Dict[str, object]) -> Dict[str
         if target_key in options_keys:
             options_raw = row.get("options")
             metrics[f"{target_key}_options"] = _field(_parse_value(options_raw))
+
+    # Compute Reward/Risk ratio from Max Profit / Max Loss if not already set
+    if metrics["reward_risk"].get("status") != "computed":
+        max_profit_val = _parse_number(_field_value_raw(metrics.get("max_profit")))
+        max_loss_val = _parse_number(_field_value_raw(metrics.get("max_loss")))
+        if max_profit_val is not None and max_loss_val is not None and max_loss_val != 0:
+            metrics["reward_risk"] = _field(abs(max_profit_val / max_loss_val))
+
+    if metrics["reward_risk_options"].get("status") != "computed":
+        max_profit_opt = _parse_number(_field_value_raw(metrics.get("max_profit_options")))
+        max_loss_opt = _parse_number(_field_value_raw(metrics.get("max_loss_options")))
+        if max_profit_opt is not None and max_loss_opt is not None and max_loss_opt != 0:
+            metrics["reward_risk_options"] = _field(abs(max_profit_opt / max_loss_opt))
 
     scenarios: List[Dict[str, object]] = []
     for card in _as_list(legacy.get("scenario_analysis_cards")):
@@ -441,7 +464,7 @@ def build_report_contract_v1(legacy_report_model: Dict[str, object]) -> Dict[str
             "cio_view": analyst_cio,
         },
         "client_position": client_position,
-        "strategy": {"name": strategy_name, "description": strategy_description},
+        "strategy": {"name": strategy_name, "description": strategy_description, "has_stock_component": _field(has_stock_component)},
         "legs": legs,
         "metrics": metrics,
         "scenarios": scenarios,

@@ -128,10 +128,11 @@
     "strategy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "description"],
+      "required": ["name", "description", "has_stock_component"],
       "properties": {
         "name": { "$ref": "#/definitions/FieldString" },
-        "description": { "$ref": "#/definitions/FieldString" }
+        "description": { "$ref": "#/definitions/FieldString" },
+        "has_stock_component": { "$ref": "#/definitions/FieldBool" }
       }
     },
     "legs": {

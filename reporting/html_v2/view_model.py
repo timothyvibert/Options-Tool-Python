@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import math
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Mapping, Optional
 
@@ -79,6 +80,34 @@ def _format_date(value: object) -> str:
         text = value.strip()
         if not text:
             return MISSING
+        return text
+    return str(value)
+
+
+def _format_long_date(value: object) -> str:
+    """Format date as 'February 7, 2026'. Falls back to raw string."""
+    if value is None:
+        return MISSING
+    if isinstance(value, datetime):
+        return f"{value.strftime('%B')} {value.day}, {value.strftime('%Y')}"
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return MISSING
+        # Strip trailing Z, then try ISO formats
+        clean = text.replace("Z", "").replace("z", "")
+        for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+            try:
+                dt = datetime.strptime(clean, fmt)
+                return f"{dt.strftime('%B')} {dt.day}, {dt.strftime('%Y')}"
+            except ValueError:
+                continue
+        # Try date-only from first 10 chars
+        try:
+            dt = datetime.strptime(text[:10], "%Y-%m-%d")
+            return f"{dt.strftime('%B')} {dt.day}, {dt.strftime('%Y')}"
+        except ValueError:
+            pass
         return text
     return str(value)
 
@@ -417,6 +446,11 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
     strategy = data.get("strategy") if isinstance(data.get("strategy"), Mapping) else {}
     metrics = data.get("metrics") if isinstance(data.get("metrics"), Mapping) else {}
 
+    has_stock_component = False
+    strategy_stock = strategy.get("has_stock_component")
+    if isinstance(strategy_stock, Mapping) and strategy_stock.get("status") == "computed":
+        has_stock_component = bool(strategy_stock.get("value"))
+
     sections_client = sections.get("client_position") if isinstance(sections.get("client_position"), Mapping) else {}
     sections_scenario = sections.get("scenario_analysis") if isinstance(sections.get("scenario_analysis"), Mapping) else {}
     sections_key_levels = sections.get("key_levels") if isinstance(sections.get("key_levels"), Mapping) else {}
@@ -438,12 +472,19 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
     change_symbol = ""
     if move_text != MISSING:
         change_class = "change-down" if negative_move else "change-up"
-        change_symbol = "-" if negative_move else "+"
+        # Don't add symbol if the text already contains the sign
+        if negative_move and move_text.startswith("-"):
+            change_symbol = ""
+        elif negative_move:
+            change_symbol = "-"
+        else:
+            change_symbol = "+"
+        move_text = move_text + " YTD"
 
     header = {
         "title": _field_text(strategy.get("name")),
         "subtitle": "Wealth Management Option Strategy",
-        "date": _format_date(analysis_status.get("as_of")),
+        "date": _format_long_date(analysis_status.get("as_of")),
         "disclaimer": (
             "The illustration is intended for informational and internal use. "
             "Although it can be shared with clients approved for trading Options or "
@@ -495,10 +536,18 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
             continue
         premium_value = _field_value(leg.get("premium"))
         premium_num = _to_number(premium_value) or 0
+        action_text = _field_text(leg.get("action"))
+        # Premium color: Buy = debit (red), Sell = credit (green)
+        if action_text == "Buy":
+            premium_class = "value-negative"
+        elif action_text == "Sell":
+            premium_class = "value-positive"
+        else:
+            premium_class = _value_class(premium_value)
         legs.append(
             {
                 "leg": idx + 1,
-                "action": _field_text(leg.get("action")),
+                "action": action_text,
                 "quantity": _format_number(_field_value(leg.get("quantity")), decimals=0),
                 "expiration": _field_text(leg.get("expiry")),
                 "strike": _format_currency(_field_value(leg.get("strike")), decimals=2),
@@ -508,7 +557,7 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
                 "otm_percent": _format_percent(_field_value(leg.get("otm_percent")), decimals=2),
                 "premium": premium_num,
                 "premium_display": _format_currency(_field_value(leg.get("premium")), decimals=2),
-                "premium_class": _value_class(premium_value),
+                "premium_class": premium_class,
             }
         )
     if not legs:
@@ -534,22 +583,29 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
     )
 
     def metric_entry(label: str, field: object, kind: str, options_field: object = None) -> Dict[str, str]:
-        # Prefer options value; fall back to combined
-        raw = None
+        # Options value (preferred for main display)
+        options_raw = None
         if options_field is not None:
-            raw = _field_value(options_field)
-        if raw is None:
-            raw = _field_value(field)
-        if kind == "percent":
-            display = _format_percent(raw, decimals=2)
-        elif kind == "ratio":
-            display = _format_number(raw, decimals=2)
-        else:
-            display = _format_currency(raw, decimals=0)
+            options_raw = _field_value(options_field)
+        if options_raw is None:
+            options_raw = _field_value(field)
+        # Combined value
+        combined_raw = _field_value(field)
+
+        def _fmt(raw: object, kind: str) -> str:
+            if kind == "percent":
+                return _format_percent(raw, decimals=2)
+            elif kind == "ratio":
+                return _format_number(raw, decimals=2)
+            else:
+                return _format_currency(raw, decimals=0)
+
         return {
             "label": label,
-            "display": display,
-            "class": _value_class(raw),
+            "display": _fmt(options_raw, kind),
+            "class": _value_class(options_raw),
+            "combined_display": _fmt(combined_raw, kind),
+            "combined_class": _value_class(combined_raw),
             "sub_display": "",
         }
 
@@ -651,6 +707,7 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
             "class": _value_class(net_premium_value),
         },
         "metrics": metric_view,
+        "metrics_has_stock_component": has_stock_component,
         "key_levels": key_levels_display,
         "scenario_analysis": scenario_display,
         "disclosures": disclosures_text,
@@ -664,14 +721,14 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
 # ---------------------------------------------------------------------------
 
 _SVG_WIDTH = 700.0
-_SVG_HEIGHT = 400.0
-_SVG_PAD_LEFT = 52.0
-_SVG_PAD_RIGHT = 36.0
-_SVG_PAD_TOP = 32.0
-_SVG_PAD_BOTTOM = 36.0
+_SVG_HEIGHT = 350.0
+_SVG_PAD_LEFT = 60.0
+_SVG_PAD_RIGHT = 30.0
+_SVG_PAD_TOP = 30.0
+_SVG_PAD_BOTTOM = 40.0
 _STRIKE_COLOR = "#E5E7EB"
 _BREAKEVEN_COLOR = "#9CA3AF"
-_LABEL_FONT_SIZE = 8.5
+_LABEL_FONT_SIZE = 10
 
 
 def _coerce_svg_float(value: object) -> Optional[float]:
@@ -724,6 +781,31 @@ def _xml_escape(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("'", "&apos;")
 
 
+def _nice_ticks(lo: float, hi: float, target_count: int = 5) -> List[float]:
+    """Generate round-number tick values between lo and hi."""
+    span = hi - lo
+    if span <= 0:
+        return [lo]
+    raw_step = span / target_count
+    magnitude = 10 ** int(math.floor(math.log10(raw_step)))
+    residual = raw_step / magnitude
+    if residual <= 1.5:
+        nice_step = 1 * magnitude
+    elif residual <= 3.5:
+        nice_step = 2.5 * magnitude
+    elif residual <= 7.5:
+        nice_step = 5 * magnitude
+    else:
+        nice_step = 10 * magnitude
+    first = math.ceil(lo / nice_step) * nice_step
+    ticks: List[float] = []
+    v = first
+    while v <= hi:
+        ticks.append(v)
+        v += nice_step
+    return ticks
+
+
 def build_payoff_svg_data_uri(model: Mapping[str, object]) -> str:
     """Build a complete payoff SVG as a data URI, with strike and breakeven annotations.
 
@@ -767,16 +849,33 @@ def build_payoff_svg_data_uri(model: Mapping[str, object]) -> str:
     options = options_values[:min_len]
     combined = combined_values[:min_len]
 
-    # Compute axis ranges, ensuring strikes and breakevens fit within x range
-    all_x_points = list(x)
-    all_x_points.extend(strikes)
-    all_x_points.extend(breakevens)
-    min_x = min(all_x_points)
-    max_x = max(all_x_points)
-    # Add 5% padding so annotations at the edges have room
-    x_range = max_x - min_x if max_x > min_x else 2.0
-    min_x -= x_range * 0.03
-    max_x += x_range * 0.03
+    # Determine spot price — find where stock_pnl crosses zero
+    spot_price = x[len(x) // 2] if x else 100.0
+    # First try exact match
+    for i, sp in enumerate(stock):
+        if abs(sp) < 0.01:
+            spot_price = x[i]
+            break
+    else:
+        # Zero-crossing interpolation: find where stock_pnl changes sign
+        for i in range(len(stock) - 1):
+            if stock[i] <= 0 <= stock[i + 1] or stock[i] >= 0 >= stock[i + 1]:
+                denom = stock[i + 1] - stock[i]
+                if abs(denom) > 1e-10:
+                    t = -stock[i] / denom
+                    spot_price = x[i] + t * (x[i + 1] - x[i])
+                else:
+                    spot_price = x[i]
+                break
+
+    # Use ±30% around spot for x range, then expand for strikes/breakevens
+    min_x = spot_price * 0.70
+    max_x = spot_price * 1.30
+    for pt in strikes + breakevens:
+        if pt < min_x:
+            min_x = pt - (spot_price * 0.05)
+        if pt > max_x:
+            max_x = pt + (spot_price * 0.05)
 
     min_y = min(min(stock), min(options), min(combined), 0.0)
     max_y = max(max(stock), max(options), max(combined), 0.0)
@@ -806,33 +905,24 @@ def build_payoff_svg_data_uri(model: Mapping[str, object]) -> str:
             f"<polyline points='{pts}' fill='none' stroke='{stroke}' stroke-width='{width}'{dash_attr} />"
         )
 
-    # Grid lines (TASK 3d: more visible grid color)
-    grid_lines: List[str] = []
-    for step in (0.25, 0.5, 0.75):
-        gy = pad_top + plot_h * step
-        grid_lines.append(
-            f"<line x1='{pad_left:.2f}' y1='{gy:.2f}' x2='{pad_left + plot_w:.2f}' "
-            f"y2='{gy:.2f}' stroke='#E5E7EB' stroke-width='1' />"
-        )
-
-    # Zero axis (TASK 3b: dashed, more visible)
+    # Zero axis (dashed, more visible)
     axis_y = sy(0.0)
     axis_y = max(pad_top, min(axis_y, pad_top + plot_h))
     axis_line = (
         f"<line x1='{pad_left:.2f}' y1='{axis_y:.2f}' x2='{pad_left + plot_w:.2f}' "
         f"y2='{axis_y:.2f}' stroke='#9CA3AF' stroke-width='1' stroke-dasharray='6,4' />"
     )
-    # TASK 3c: $0 label on zero axis
-    zero_label = (
-        f"<text x='{pad_left - 4:.2f}' y='{axis_y + 3:.2f}' text-anchor='end' "
-        f"fill='#9CA3AF' font-size='7.5' font-family='Arial,Helvetica,sans-serif'>$0</text>"
-    )
+    # Left y-axis line
     axis_x = (
         f"<line x1='{pad_left:.2f}' y1='{pad_top:.2f}' x2='{pad_left:.2f}' "
         f"y2='{pad_top + plot_h:.2f}' stroke='#e5e7eb' stroke-width='1' />"
     )
+    # Bottom x-axis line
+    x_axis_line = (
+        f"<line x1='{pad_left:.2f}' y1='{pad_top + plot_h:.2f}' "
+        f"x2='{pad_left + plot_w:.2f}' y2='{pad_top + plot_h:.2f}' stroke='#D1D5DB' stroke-width='1' />"
+    )
 
-    # TASK 3e: Y-axis tick labels for min and max
     def _fmt_currency(v: float) -> str:
         if abs(v) >= 1_000_000:
             return f"${v / 1_000_000:,.1f}M"
@@ -840,29 +930,59 @@ def build_payoff_svg_data_uri(model: Mapping[str, object]) -> str:
             return f"${v / 1_000:,.1f}K"
         return f"${v:,.0f}"
 
-    y_max_label = (
-        f"<text x='{pad_left - 4:.2f}' y='{pad_top + 4:.2f}' text-anchor='end' "
-        f"fill='#9CA3AF' font-size='7' font-family='Arial,Helvetica,sans-serif'>"
-        f"{_xml_escape(_fmt_currency(max_y))}</text>"
-    )
-    y_min_label = (
-        f"<text x='{pad_left - 4:.2f}' y='{pad_top + plot_h:.2f}' text-anchor='end' "
-        f"fill='#9CA3AF' font-size='7' font-family='Arial,Helvetica,sans-serif'>"
-        f"{_xml_escape(_fmt_currency(min_y))}</text>"
-    )
+    # Y-axis ticks (replaces old hardcoded grid lines and min/max labels)
+    y_ticks = _nice_ticks(min_y, max_y, target_count=5)
+    y_tick_parts: List[str] = []
+    for tick_val in y_ticks:
+        ty = sy(tick_val)
+        if ty < pad_top or ty > pad_top + plot_h:
+            continue
+        # Horizontal grid line (light)
+        y_tick_parts.append(
+            f"<line x1='{pad_left:.2f}' y1='{ty:.2f}' x2='{pad_left + plot_w:.2f}' "
+            f"y2='{ty:.2f}' stroke='#E5E7EB' stroke-width='0.5' />"
+        )
+        # Tick mark
+        y_tick_parts.append(
+            f"<line x1='{pad_left - 4:.2f}' y1='{ty:.2f}' x2='{pad_left:.2f}' "
+            f"y2='{ty:.2f}' stroke='#9CA3AF' stroke-width='1' />"
+        )
+        # Label
+        y_tick_parts.append(
+            f"<text x='{pad_left - 6:.2f}' y='{ty + 3:.2f}' text-anchor='end' "
+            f"fill='#9CA3AF' font-size='9' font-family='Arial,Helvetica,sans-serif'>"
+            f"{_xml_escape(_fmt_currency(tick_val))}</text>"
+        )
 
-    # TASK 2: Collect all labels, sort by x, stagger when close
-    all_labels: List[tuple] = []  # (x_pixel, label_text, color)
+    # X-axis ticks (stock price labels along the bottom)
+    x_ticks = _nice_ticks(min_x, max_x, target_count=6)
+    x_tick_parts: List[str] = []
+    for tick_val in x_ticks:
+        tx = sx(tick_val)
+        # Short tick mark
+        x_tick_parts.append(
+            f"<line x1='{tx:.2f}' y1='{pad_top + plot_h:.2f}' x2='{tx:.2f}' "
+            f"y2='{pad_top + plot_h + 4:.2f}' stroke='#9CA3AF' stroke-width='1' />"
+        )
+        # Label
+        x_tick_parts.append(
+            f"<text x='{tx:.2f}' y='{pad_top + plot_h + 14:.2f}' text-anchor='middle' "
+            f"fill='#9CA3AF' font-size='9' font-family='Arial,Helvetica,sans-serif'>"
+            f"${tick_val:,.0f}</text>"
+        )
+
+    # Collect all strike/breakeven labels with dollar values, sort by x, stagger when close
+    all_labels: List[tuple] = []  # (x_pixel, label_text, color, price)
     for idx, strike_price in enumerate(strikes):
         lx = sx(strike_price)
         if lx < pad_left or lx > pad_left + plot_w:
             continue
-        all_labels.append((lx, f"K{idx + 1}", "#6b7280"))
+        all_labels.append((lx, f"K{idx + 1} ${strike_price:,.0f}", "#6b7280", strike_price))
     for idx, be_price in enumerate(breakevens):
         lx = sx(be_price)
         if lx < pad_left or lx > pad_left + plot_w:
             continue
-        all_labels.append((lx, f"BE{idx + 1}", _BREAKEVEN_COLOR))
+        all_labels.append((lx, f"BE{idx + 1} ${be_price:,.0f}", _BREAKEVEN_COLOR, be_price))
     all_labels.sort(key=lambda t: t[0])
 
     # Assign staggered y positions
@@ -870,7 +990,7 @@ def build_payoff_svg_data_uri(model: Mapping[str, object]) -> str:
     annotation_parts: List[str] = []
     prev_x = -999.0
     prev_level = -1
-    for lx, label, color in all_labels:
+    for lx, label, color, _price in all_labels:
         # Determine vertical line color
         line_color = _STRIKE_COLOR if label.startswith("K") else _BREAKEVEN_COLOR
         annotation_parts.append(
@@ -878,18 +998,19 @@ def build_payoff_svg_data_uri(model: Mapping[str, object]) -> str:
             f"y2='{pad_top + plot_h:.2f}' stroke='{line_color}' "
             f"stroke-width='1' stroke-dasharray='4,3' />"
         )
-        # Stagger: if within 40px of previous label, bump level
-        if lx - prev_x < 40:
+        # Stagger: if within 60px of previous label, bump level
+        if lx - prev_x < 60:
             level = (prev_level + 1) % len(stagger_levels)
         else:
             level = 0
         ly = stagger_levels[level]
         prev_x = lx
         prev_level = level
-        # Background rect for readability
+        # Background rect for readability (width based on label length)
+        text_width = len(label) * 5.5
         annotation_parts.append(
-            f"<rect x='{lx - 12:.2f}' y='{ly - 9:.2f}' width='24' height='11' "
-            f"fill='white' fill-opacity='0.85' rx='2'/>"
+            f"<rect x='{lx - text_width / 2:.2f}' y='{ly - 9:.2f}' width='{text_width:.0f}' height='12' "
+            f"fill='white' fill-opacity='0.9' rx='2'/>"
         )
         annotation_parts.append(
             f"<text x='{lx:.2f}' y='{ly:.2f}' text-anchor='middle' "
@@ -898,18 +1019,17 @@ def build_payoff_svg_data_uri(model: Mapping[str, object]) -> str:
         )
 
     svg_parts = [
-        f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 {width:.0f} {height:.0f}'>",
+        f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 {width:.0f} {height:.0f}' width='100%' height='100%' preserveAspectRatio='xMidYMid meet'>",
         "<rect width='100%' height='100%' fill='white'/>",
-        *grid_lines,
-        axis_line,
-        zero_label,
         axis_x,
-        y_max_label,
-        y_min_label,
+        x_axis_line,
+        *y_tick_parts,
+        axis_line,
+        *x_tick_parts,
         *annotation_parts,
-        polyline(list(zip(x, stock)), "#93c5fd", width=1.8),
-        polyline(list(zip(x, options)), "#c4b5fd", width=1.8),
-        polyline(list(zip(x, combined)), "#4b5563", width=2, dash="4,3"),
+        polyline(list(zip(x, stock)), "#93c5fd", width=2.0),
+        polyline(list(zip(x, options)), "#c4b5fd", width=2.0),
+        polyline(list(zip(x, combined)), "#4b5563", width=2.5, dash="4,3"),
         "</svg>",
     ]
     svg = "".join(svg_parts)

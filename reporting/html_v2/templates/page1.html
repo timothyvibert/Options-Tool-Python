@@ -11,6 +11,7 @@
               {% endif %}
             </td>
             <td class="wm-header-right">
+              <!-- Date formatted by view_model as "Month Day, Year" -->
               <div class="wm-header-date">{{ report.header.date }}</div>
               <div class="wm-header-subtitle">{{ report.header.subtitle }}</div>
             </td>
@@ -165,8 +166,8 @@
         </colgroup>
         <tr>
           <td>
+            <div class="wm-subsection-title wm-no-border">Payoff Diagram</div>
             <div class="wm-payoff-card">
-              <div class="wm-subsection-title">Payoff Diagram</div>
               <img class="wm-payoff-img" src="{{ assets.payoff_chart_data_uri }}" alt="Payoff Diagram" />
               <div class="wm-legend">
                 <span class="wm-legend-item"><span class="wm-legend-line legend-stock"></span>Stock</span>
@@ -176,103 +177,135 @@
             </div>
           </td>
           <td>
-            <div class="wm-subsection-title">Option Strategy Key Metrics</div>
+            <div class="wm-subsection-title wm-no-border">Strategy Key Metrics</div>
             <div class="wm-metric-card">
               <div class="wm-metric-title">Risk &amp; Reward</div>
               <table class="wm-kv-table">
-                <tr>
-                  <td class="wm-metric-label">{{ report.metrics.max_profit.label }}</td>
-                  <td class="wm-metric-value {{ report.metrics.max_profit.class }}">
-                    {{ report.metrics.max_profit.display }}
-                    {% if report.metrics.max_profit.sub_display %}
-                    <span class="wm-metric-sub">({{ report.metrics.max_profit.sub_display }})</span>
+                {% if report.metrics_has_stock_component %}
+                <thead>
+                  <tr>
+                    <td class="wm-metric-label"></td>
+                    <td class="wm-metric-col-header">Options</td>
+                    <td class="wm-metric-col-header">Combined</td>
+                  </tr>
+                </thead>
+                {% endif %}
+                <tbody>
+                  <tr>
+                    <td class="wm-metric-label">{{ report.metrics.max_profit.label }}</td>
+                    <td class="wm-metric-value {{ report.metrics.max_profit.class }}">{{ report.metrics.max_profit.display }}</td>
+                    {% if report.metrics_has_stock_component %}
+                    <td class="wm-metric-value {{ report.metrics.max_profit.combined_class }}">{{ report.metrics.max_profit.combined_display }}</td>
                     {% endif %}
-                  </td>
-                </tr>
-                <tr>
-                  <td class="wm-metric-label">{{ report.metrics.max_loss.label }}</td>
-                  <td class="wm-metric-value {{ report.metrics.max_loss.class }}">
-                    {{ report.metrics.max_loss.display }}
-                    {% if report.metrics.max_loss.sub_display %}
-                    <span class="wm-metric-sub">({{ report.metrics.max_loss.sub_display }})</span>
+                  </tr>
+                  <tr>
+                    <td class="wm-metric-label">{{ report.metrics.max_loss.label }}</td>
+                    <td class="wm-metric-value {{ report.metrics.max_loss.class }}">{{ report.metrics.max_loss.display }}</td>
+                    {% if report.metrics_has_stock_component %}
+                    <td class="wm-metric-value {{ report.metrics.max_loss.combined_class }}">{{ report.metrics.max_loss.combined_display }}</td>
                     {% endif %}
-                  </td>
-                </tr>
-                <tr>
-                  <td class="wm-metric-label">{{ report.metrics.reward_risk.label }}</td>
-                  <td class="wm-metric-value {{ report.metrics.reward_risk.class }}">
-                    {{ report.metrics.reward_risk.display }}
-                    {% if report.metrics.reward_risk.sub_display %}
-                    <span class="wm-metric-sub">({{ report.metrics.reward_risk.sub_display }})</span>
+                  </tr>
+                  <tr>
+                    <td class="wm-metric-label">{{ report.metrics.reward_risk.label }}</td>
+                    <td class="wm-metric-value {{ report.metrics.reward_risk.class }}">{{ report.metrics.reward_risk.display }}</td>
+                    {% if report.metrics_has_stock_component %}
+                    <td class="wm-metric-value {{ report.metrics.reward_risk.combined_class }}">{{ report.metrics.reward_risk.combined_display }}</td>
                     {% endif %}
-                  </td>
-                </tr>
+                  </tr>
+                </tbody>
               </table>
             </div>
 
             <div class="wm-metric-card">
               <div class="wm-metric-title">Return Metrics</div>
               <table class="wm-kv-table">
-                <tr>
-                  <td class="wm-metric-label">{{ report.metrics.max_roi.label }}</td>
-                  <td class="wm-metric-value {{ report.metrics.max_roi.class }}">
-                    {{ report.metrics.max_roi.display }}
-                    {% if report.metrics.max_roi.sub_display %}
-                    <span class="wm-metric-sub">({{ report.metrics.max_roi.sub_display }})</span>
+                {% if report.metrics_has_stock_component %}
+                <thead>
+                  <tr>
+                    <td class="wm-metric-label"></td>
+                    <td class="wm-metric-col-header">Options</td>
+                    <td class="wm-metric-col-header">Combined</td>
+                  </tr>
+                </thead>
+                {% endif %}
+                <tbody>
+                  <tr>
+                    <td class="wm-metric-label">{{ report.metrics.max_roi.label }}</td>
+                    <td class="wm-metric-value {{ report.metrics.max_roi.class }}">{{ report.metrics.max_roi.display }}</td>
+                    {% if report.metrics_has_stock_component %}
+                    <td class="wm-metric-value {{ report.metrics.max_roi.combined_class }}">{{ report.metrics.max_roi.combined_display }}</td>
                     {% endif %}
-                  </td>
-                </tr>
-                <tr>
-                  <td class="wm-metric-label">{{ report.metrics.min_roi.label }}</td>
-                  <td class="wm-metric-value {{ report.metrics.min_roi.class }}">
-                    {{ report.metrics.min_roi.display }}
-                    {% if report.metrics.min_roi.sub_display %}
-                    <span class="wm-metric-sub">({{ report.metrics.min_roi.sub_display }})</span>
+                  </tr>
+                  <tr>
+                    <td class="wm-metric-label">{{ report.metrics.min_roi.label }}</td>
+                    <td class="wm-metric-value {{ report.metrics.min_roi.class }}">{{ report.metrics.min_roi.display }}</td>
+                    {% if report.metrics_has_stock_component %}
+                    <td class="wm-metric-value {{ report.metrics.min_roi.combined_class }}">{{ report.metrics.min_roi.combined_display }}</td>
                     {% endif %}
-                  </td>
-                </tr>
+                  </tr>
+                </tbody>
               </table>
             </div>
 
             <div class="wm-metric-card">
               <div class="wm-metric-title">Capital</div>
               <table class="wm-kv-table">
-                <tr>
-                  <td class="wm-metric-label">{{ report.metrics.capital_basis.label }}</td>
-                  <td class="wm-metric-value {{ report.metrics.capital_basis.class }}">
-                    {{ report.metrics.capital_basis.display }}
-                    {% if report.metrics.capital_basis.sub_display %}
-                    <span class="wm-metric-sub">({{ report.metrics.capital_basis.sub_display }})</span>
+                {% if report.metrics_has_stock_component %}
+                <thead>
+                  <tr>
+                    <td class="wm-metric-label"></td>
+                    <td class="wm-metric-col-header">Options</td>
+                    <td class="wm-metric-col-header">Combined</td>
+                  </tr>
+                </thead>
+                {% endif %}
+                <tbody>
+                  <tr>
+                    <td class="wm-metric-label">{{ report.metrics.capital_basis.label }}</td>
+                    <td class="wm-metric-value {{ report.metrics.capital_basis.class }}">{{ report.metrics.capital_basis.display }}</td>
+                    {% if report.metrics_has_stock_component %}
+                    <td class="wm-metric-value {{ report.metrics.capital_basis.combined_class }}">{{ report.metrics.capital_basis.combined_display }}</td>
                     {% endif %}
-                  </td>
-                </tr>
-                <tr>
-                  <td class="wm-metric-label">{{ report.metrics.cost_credit.label }}</td>
-                  <td class="wm-metric-value {{ report.metrics.cost_credit.class }}">
-                    {{ report.metrics.cost_credit.display }}
-                    {% if report.metrics.cost_credit.sub_display %}
-                    <span class="wm-metric-sub">({{ report.metrics.cost_credit.sub_display }})</span>
+                  </tr>
+                  <tr>
+                    <td class="wm-metric-label">{{ report.metrics.cost_credit.label }}</td>
+                    <td class="wm-metric-value {{ report.metrics.cost_credit.class }}">{{ report.metrics.cost_credit.display }}</td>
+                    {% if report.metrics_has_stock_component %}
+                    <td class="wm-metric-value {{ report.metrics.cost_credit.combined_class }}">{{ report.metrics.cost_credit.combined_display }}</td>
                     {% endif %}
-                  </td>
-                </tr>
+                  </tr>
+                </tbody>
               </table>
             </div>
 
             <div class="wm-metric-card">
               <div class="wm-metric-title">Premium</div>
               <table class="wm-kv-table">
-                <tr>
-                  <td class="wm-metric-label">{{ report.metrics.net_prem_per_share.label }}</td>
-                  <td class="wm-metric-value {{ report.metrics.net_prem_per_share.class }}">
-                    {{ report.metrics.net_prem_per_share.display }}
-                  </td>
-                </tr>
-                <tr>
-                  <td class="wm-metric-label">{{ report.metrics.net_prem_percent.label }}</td>
-                  <td class="wm-metric-value {{ report.metrics.net_prem_percent.class }}">
-                    {{ report.metrics.net_prem_percent.display }}
-                  </td>
-                </tr>
+                {% if report.metrics_has_stock_component %}
+                <thead>
+                  <tr>
+                    <td class="wm-metric-label"></td>
+                    <td class="wm-metric-col-header">Options</td>
+                    <td class="wm-metric-col-header">Combined</td>
+                  </tr>
+                </thead>
+                {% endif %}
+                <tbody>
+                  <tr>
+                    <td class="wm-metric-label">{{ report.metrics.net_prem_per_share.label }}</td>
+                    <td class="wm-metric-value {{ report.metrics.net_prem_per_share.class }}">{{ report.metrics.net_prem_per_share.display }}</td>
+                    {% if report.metrics_has_stock_component %}
+                    <td class="wm-metric-value">—</td>
+                    {% endif %}
+                  </tr>
+                  <tr>
+                    <td class="wm-metric-label">{{ report.metrics.net_prem_percent.label }}</td>
+                    <td class="wm-metric-value {{ report.metrics.net_prem_percent.class }}">{{ report.metrics.net_prem_percent.display }}</td>
+                    {% if report.metrics_has_stock_component %}
+                    <td class="wm-metric-value">—</td>
+                    {% endif %}
+                  </tr>
+                </tbody>
               </table>
             </div>
           </td>

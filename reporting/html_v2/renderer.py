@@ -7,7 +7,7 @@ from typing import Any, Dict, Mapping, Optional
 
 from reporting.contract_v1.adapter import build_report_contract_v1
 from reporting.contract_v1.validate import validate_report_contract_v1
-from reporting.html_v2.view_model import build_payoff_svg_data_uri, build_view_model
+from reporting.html_v2.view_model import build_payoff_chart_png_data_uri, build_view_model
 
 
 def _ensure_dict(report_model: object) -> Dict[str, Any]:
@@ -215,7 +215,7 @@ def build_report_pdf_html(report_model: Mapping[str, object], *, out_path: Optio
 
     repo_root = Path(__file__).resolve().parents[2]
     model = _ensure_dict(report_model)
-    payoff_svg = build_payoff_svg_data_uri(model)
+    payoff_svg = build_payoff_chart_png_data_uri(model)
     if _is_contract_v1(model):
         contract = model
     else:

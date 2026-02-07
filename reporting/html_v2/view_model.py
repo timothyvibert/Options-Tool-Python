@@ -531,19 +531,24 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
         client_block = None
 
     legs: List[Dict[str, object]] = []
+    net_premium_accum = 0.0
     for idx, leg in enumerate(data.get("legs", [])):
         if not isinstance(leg, Mapping):
             continue
-        premium_value = _field_value(leg.get("premium"))
-        premium_num = _to_number(premium_value) or 0
+        price_num = _to_number(_field_value(leg.get("price"))) or 0
+        qty_num = _to_number(_field_value(leg.get("quantity"))) or 1
+        # Total premium = quantity × per-contract price × 100 shares per contract
+        total_premium = qty_num * price_num * 100
         action_text = _field_text(leg.get("action"))
         # Premium color: Buy = debit (red), Sell = credit (green)
         if action_text == "Buy":
             premium_class = "value-negative"
+            net_premium_accum -= total_premium
         elif action_text == "Sell":
             premium_class = "value-positive"
+            net_premium_accum += total_premium
         else:
-            premium_class = _value_class(premium_value)
+            premium_class = _value_class(total_premium)
         legs.append(
             {
                 "leg": idx + 1,
@@ -555,8 +560,8 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
                 "price": _format_currency(_field_value(leg.get("price")), decimals=2),
                 "delta": _format_number(_field_value(leg.get("delta")), decimals=2),
                 "otm_percent": _format_percent(_field_value(leg.get("otm_percent")), decimals=2),
-                "premium": premium_num,
-                "premium_display": _format_currency(_field_value(leg.get("premium")), decimals=2),
+                "premium": total_premium,
+                "premium_display": _format_currency(total_premium, decimals=2),
                 "premium_class": premium_class,
             }
         )
@@ -623,8 +628,8 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
         "net_prem_percent": metric_entry("Yield %", metrics.get("yield_percent"), "percent"),
     }
 
-    net_premium_value = _field_value(metrics.get("net_premium_total"))
-    net_premium_display = _format_currency(net_premium_value, decimals=2)
+    # Net premium: use accumulated total from legs (sells positive, buys negative)
+    net_premium_display = _format_currency(net_premium_accum, decimals=2)
 
     key_levels_rows = (
         data.get("key_levels", {}).get("rows")
@@ -704,7 +709,7 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
         "option_legs": legs,
         "net_premium": {
             "display": net_premium_display,
-            "class": _value_class(net_premium_value),
+            "class": _value_class(net_premium_accum),
         },
         "metrics": metric_view,
         "metrics_has_stock_component": has_stock_component,
@@ -807,7 +812,9 @@ def _nice_ticks(lo: float, hi: float, target_count: int = 5) -> List[float]:
 
 
 def build_payoff_svg_data_uri(model: Mapping[str, object]) -> str:
-    """Build a complete payoff SVG as a data URI, with strike and breakeven annotations.
+    """DEPRECATED — use build_payoff_chart_png_data_uri() instead.
+
+    Build a complete payoff SVG as a data URI, with strike and breakeven annotations.
 
     This reads the ``payoff`` block from the raw report model (pre-contract),
     which contains ``price_grid``, ``stock_pnl``, ``options_pnl``, ``combined_pnl``,
@@ -1035,6 +1042,230 @@ def build_payoff_svg_data_uri(model: Mapping[str, object]) -> str:
     svg = "".join(svg_parts)
     encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
     return f"data:image/svg+xml;base64,{encoded}"
+
+
+# ---------------------------------------------------------------------------
+# Matplotlib payoff chart builder (replaces SVG)
+# ---------------------------------------------------------------------------
+
+
+def _find_spot_price(x: List[float], stock: List[float]) -> float:
+    """Find the spot price where stock_pnl crosses zero."""
+    # Exact match
+    for i, sp in enumerate(stock):
+        if abs(sp) < 0.01:
+            return x[i]
+    # Zero-crossing interpolation
+    for i in range(len(stock) - 1):
+        if stock[i] <= 0 <= stock[i + 1] or stock[i] >= 0 >= stock[i + 1]:
+            denom = stock[i + 1] - stock[i]
+            if abs(denom) > 1e-10:
+                t = -stock[i] / denom
+                return x[i] + t * (x[i + 1] - x[i])
+            return x[i]
+    return x[len(x) // 2] if x else 100.0
+
+
+def _dollar_tick_formatter(val: float, _pos: object = None) -> str:
+    """Format axis ticks as $-20K, $0, $20K etc."""
+    if abs(val) >= 1_000_000:
+        return f"${val / 1_000_000:,.1f}M"
+    if abs(val) >= 1_000:
+        sign = "-" if val < 0 else ""
+        return f"{sign}${abs(val) / 1_000:,.0f}K"
+    return f"${val:,.0f}"
+
+
+def build_payoff_chart_png_data_uri(model: Mapping[str, object]) -> str:
+    """Build a publication-quality payoff chart as a PNG data URI using matplotlib.
+
+    Reads the ``payoff`` block from the raw report model (pre-contract),
+    which contains ``price_grid``, ``stock_pnl``, ``options_pnl``, ``combined_pnl``,
+    ``strikes`` and ``breakevens``.
+    """
+    import io as _io
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import matplotlib.ticker as mticker
+
+    payoff = model.get("payoff") if isinstance(model.get("payoff"), Mapping) else None
+    x_values = _coerce_svg_series(payoff.get("price_grid")) if payoff else None
+    stock_values = _coerce_svg_series(payoff.get("stock_pnl")) if payoff else None
+    options_values = _coerce_svg_series(payoff.get("options_pnl")) if payoff else None
+    combined_values = _coerce_svg_series(payoff.get("combined_pnl")) if payoff else None
+
+    if not (x_values and stock_values and options_values and combined_values):
+        # Return a minimal placeholder PNG
+        fig, ax = plt.subplots(figsize=(7, 4.5), dpi=150)
+        ax.text(0.5, 0.5, "Payoff Diagram", ha="center", va="center",
+                fontsize=12, color="#6b7280", transform=ax.transAxes)
+        ax.set_axis_off()
+        buf = _io.BytesIO()
+        fig.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="white")
+        plt.close(fig)
+        buf.seek(0)
+        encoded = base64.b64encode(buf.read()).decode("ascii")
+        return f"data:image/png;base64,{encoded}"
+
+    # Extract strikes and breakevens
+    raw_strikes = payoff.get("strikes") if payoff else None
+    raw_breakevens = payoff.get("breakevens") if payoff else None
+    strikes: List[float] = []
+    breakevens: List[float] = []
+    if isinstance(raw_strikes, list):
+        for s in raw_strikes:
+            v = _coerce_svg_float(s)
+            if v is not None:
+                strikes.append(v)
+    if isinstance(raw_breakevens, list):
+        for b in raw_breakevens:
+            v = _coerce_svg_float(b)
+            if v is not None:
+                breakevens.append(v)
+    strikes = sorted(strikes)[:6]
+    breakevens = sorted(breakevens)[:4]
+
+    min_len = min(len(x_values), len(stock_values), len(options_values), len(combined_values))
+    x = x_values[:min_len]
+    stock = stock_values[:min_len]
+    options = options_values[:min_len]
+    combined = combined_values[:min_len]
+
+    spot_price = _find_spot_price(x, stock)
+
+    # X range: ±30% around spot, expanding for strikes/breakevens
+    min_x = spot_price * 0.70
+    max_x = spot_price * 1.30
+    for pt in strikes + breakevens:
+        if pt < min_x:
+            min_x = pt - (spot_price * 0.05)
+        if pt > max_x:
+            max_x = pt + (spot_price * 0.05)
+
+    # Filter data to visible range (with small padding)
+    pad_frac = 0.02 * (max_x - min_x)
+    vis_min = min_x - pad_frac
+    vis_max = max_x + pad_frac
+    vis_x, vis_stock, vis_options, vis_combined = [], [], [], []
+    for i in range(len(x)):
+        if vis_min <= x[i] <= vis_max:
+            vis_x.append(x[i])
+            vis_stock.append(stock[i])
+            vis_options.append(options[i])
+            vis_combined.append(combined[i])
+
+    if not vis_x:
+        vis_x, vis_stock, vis_options, vis_combined = x, stock, options, combined
+
+    # Y range: scale to combined + options PnL (not stock, which has extreme values)
+    # This ensures the meaningful payoff shapes are clearly visible
+    focus_y = vis_options + vis_combined + [0.0]
+    min_y = min(focus_y)
+    max_y = max(focus_y)
+    y_pad = (max_y - min_y) * 0.20 if max_y != min_y else 1.0
+    min_y -= y_pad
+    max_y += y_pad
+
+    # --- Create figure ---
+    fig, ax = plt.subplots(figsize=(7, 4.5), dpi=150)
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("white")
+
+    # Remove top and right spines
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#D1D5DB")
+    ax.spines["bottom"].set_color("#D1D5DB")
+
+    # Horizontal grid lines only
+    ax.yaxis.grid(True, color="#F3F4F6", linewidth=0.5)
+    ax.xaxis.grid(False)
+    ax.set_axisbelow(True)
+
+    # Zero line
+    ax.axhline(y=0, color="#9CA3AF", linewidth=0.8, linestyle="--", zorder=2)
+
+    # Current price vertical line
+    ax.axvline(x=spot_price, color="#93C5FD", linewidth=0.5, linestyle=":", zorder=2)
+
+    # Strike lines
+    for idx, strike_price in enumerate(strikes):
+        ax.axvline(x=strike_price, color="#D1D5DB", linewidth=1.0, linestyle="--", zorder=2)
+        ax.annotate(
+            f"K{idx + 1} ${strike_price:,.0f}",
+            xy=(strike_price, max_y),
+            xytext=(0, 2),
+            textcoords="offset points",
+            ha="center", va="bottom",
+            fontsize=8, color="#6b7280",
+            bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="none", alpha=0.9),
+            zorder=5,
+        )
+
+    # Breakeven lines
+    for idx, be_price in enumerate(breakevens):
+        ax.axvline(x=be_price, color="#9CA3AF", linewidth=1.0, linestyle=(0, (5, 3, 1, 3)), zorder=2)
+        ax.annotate(
+            f"BE{idx + 1} ${be_price:,.0f}",
+            xy=(be_price, max_y),
+            xytext=(0, 2),
+            textcoords="offset points",
+            ha="center", va="bottom",
+            fontsize=8, color="#9CA3AF",
+            bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="none", alpha=0.9),
+            zorder=5,
+        )
+
+    # Plot lines
+    ax.plot(vis_x, vis_stock, color="#2563EB", linewidth=2.0, label="Stock P&L", solid_capstyle="round")
+    ax.plot(vis_x, vis_options, color="#7C3AED", linewidth=2.0, label="Options P&L", solid_capstyle="round")
+    ax.plot(vis_x, vis_combined, color="#374151", linewidth=2.5, linestyle="--", label="Combined P&L",
+            dash_capstyle="round")
+
+    # Axis limits
+    ax.set_xlim(min_x, max_x)
+    ax.set_ylim(min_y, max_y)
+
+    # Axis labels
+    ax.set_xlabel("Stock Price at Expiry", fontsize=8, color="#6b7280")
+    ax.set_ylabel("Profit / Loss", fontsize=8, color="#6b7280")
+
+    # X-axis: dollar format, round ticks
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda v, p: f"${v:,.0f}"))
+    ax.tick_params(axis="x", labelsize=8, colors="#6b7280")
+    # Use nice tick spacing based on price range
+    x_span = max_x - min_x
+    if x_span > 500:
+        x_step = 100
+    elif x_span > 200:
+        x_step = 50
+    elif x_span > 100:
+        x_step = 25
+    elif x_span > 40:
+        x_step = 10
+    else:
+        x_step = 5
+    ax.xaxis.set_major_locator(mticker.MultipleLocator(x_step))
+
+    # Y-axis: dollar format with K suffix
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(_dollar_tick_formatter))
+    ax.tick_params(axis="y", labelsize=8, colors="#6b7280")
+
+    # Legend
+    ax.legend(loc="best", fontsize=8, frameon=True, facecolor="white", edgecolor="#E5E7EB",
+              framealpha=0.95)
+
+    fig.tight_layout(pad=0.3)
+
+    # Export to PNG buffer
+    buf = _io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    buf.seek(0)
+    encoded = base64.b64encode(buf.read()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
 
 
 def build_view_model(data: Mapping[str, object]) -> Dict[str, object]:

@@ -159,24 +159,14 @@
         </tfoot>
       </table>
 
-      <table class="wm-two-col">
-        <colgroup>
-          <col class="wm-col-payoff" />
-          <col class="wm-col-metrics" />
-        </colgroup>
-        <tr>
-          <td>
+      <div class="wm-two-col">
+          <div class="wm-two-col-left">
             <div class="wm-subsection-title wm-no-border">Payoff Diagram</div>
             <div class="wm-payoff-card">
               <img class="wm-payoff-img" src="{{ assets.payoff_chart_data_uri }}" alt="Payoff Diagram" />
-              <div class="wm-legend">
-                <span class="wm-legend-item"><span class="wm-legend-line legend-stock"></span>Stock</span>
-                <span class="wm-legend-item"><span class="wm-legend-line legend-options"></span>Options</span>
-                <span class="wm-legend-item"><span class="wm-legend-line legend-combined"></span>Combined</span>
-              </div>
             </div>
-          </td>
-          <td>
+          </div>
+          <div class="wm-two-col-right">
             <div class="wm-subsection-title wm-no-border">Strategy Key Metrics</div>
             <div class="wm-metric-card">
               <div class="wm-metric-title">Risk &amp; Reward</div>
@@ -308,9 +298,8 @@
                 </tbody>
               </table>
             </div>
-          </td>
-        </tr>
-      </table>
+          </div>
+      </div>
     </div>
   </div>
 </div>

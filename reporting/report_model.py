@@ -541,6 +541,12 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
     chg_pct_ytd = _get_from_snapshot(profile_source, ["chg_pct_ytd", "CHG_PCT_YTD"])
     week_52_range = _fmt_range(week_52_low, week_52_high)
 
+    strategy_name_text = (
+        pack_strategy.get("name")
+        or state.get("analysis_strategy_name")
+        or state.get("strategy_name")
+    )
+
     header = {
         "report_time": _fmt_text(
             (analysis_pack or {}).get("as_of")
@@ -557,11 +563,7 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
             pack_underlying.get("spot")
             or (state.get("spot_value") if "spot_value" in state else state.get("spot"))
         ),
-        "strategy_name": _fmt_text(
-            pack_strategy.get("name")
-            or state.get("analysis_strategy_name")
-            or state.get("strategy_name")
-        ),
+        "strategy_name": _fmt_text(strategy_name_text),
         "expiry": _fmt_date(
             pack_strategy.get("expiry")
             or (state.get("chain_expiry") if "chain_expiry" in state else state.get("expiry"))
@@ -582,6 +584,11 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         "policies": _fmt_text(policy_value),
         "title": _fmt_text(state.get("title")),
     }
+
+    strategy_description = None
+    if strategy_name_text and not _is_missing(strategy_name_text):
+        from core.strategy_map import get_strategy_description
+        strategy_description = get_strategy_description(str(strategy_name_text))
 
     expiry_text = header["expiry"]
     structure_legs: List[Dict[str, str]] = []
@@ -998,4 +1005,5 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         "commentary_blocks": commentary_blocks,
         "warnings": warnings,
         "disclaimers": disclaimer_list,
+        "strategy_description": strategy_description,
     }

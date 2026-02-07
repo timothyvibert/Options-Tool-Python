@@ -165,15 +165,6 @@ def _extract_strategy_description(legacy: Mapping[str, object]) -> Optional[str]
     direct = legacy.get("strategy_description")
     if isinstance(direct, str) and direct.strip():
         return direct.strip()
-    commentary = legacy.get("commentary_blocks")
-    if isinstance(commentary, Mapping):
-        blocks = commentary.get("blocks")
-        if isinstance(blocks, list):
-            for block in blocks:
-                if isinstance(block, Mapping):
-                    text = block.get("text")
-                    if isinstance(text, str) and text.strip():
-                        return text.strip()
     return None
 
 
@@ -231,6 +222,7 @@ def build_report_contract_v1(legacy_report_model: Dict[str, object]) -> Dict[str
     analyst_target = _field(
         _parse_value(_pick(header, ["ubs_grp_target", "target", "ubs_target"]))
     )
+    # CIO Rating: user-input field, not from Bloomberg. Dashboard input TBD.
     analyst_cio = _field(_pick(header, ["cio_rating", "ubs_cio_rating"]))
 
     shares_value = _parse_shares_value(

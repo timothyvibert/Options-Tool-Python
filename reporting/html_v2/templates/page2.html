@@ -16,7 +16,6 @@
           </td>
         </tr>
       </table>
-      <div class="wm-title">{{ report.header.title }}</div>
     </div>
     {% if report.sections.scenario_analysis.visible %}
     <div class="wm-section-title">Scenario Analysis</div>
@@ -39,10 +38,6 @@
         </tr>
       </table>
     </div>
-    {% endif %}
-
-    {% if report.sections.scenario_analysis.visible and report.sections.key_levels.visible %}
-    <div class="wm-divider"></div>
     {% endif %}
 
     {% if report.sections.key_levels.visible %}

@@ -51,3 +51,18 @@ def list_strategies(group: str, subgroup: str) -> pd.DataFrame:
 def get_strategy(strategy_id: int) -> pd.DataFrame:
     strategy_map = load_strategy_map()
     return strategy_map.loc[strategy_map["strategy_id"] == int(strategy_id)].copy()
+
+
+def get_strategy_description(strategy_name: str) -> Optional[str]:
+    strategy_map = load_strategy_map()
+    if "description" not in strategy_map.columns:
+        return None
+    mask = _casefold_series(strategy_map["strategy_name"]) == strategy_name.strip().casefold()
+    matches = strategy_map.loc[mask, "description"]
+    if matches.empty:
+        return None
+    value = matches.iloc[0]
+    if pd.isna(value):
+        return None
+    text = str(value).strip()
+    return text if text else None

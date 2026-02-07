@@ -534,28 +534,23 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
     )
 
     def metric_entry(label: str, field: object, kind: str, options_field: object = None) -> Dict[str, str]:
-        raw = _field_value(field)
+        # Prefer options value; fall back to combined
+        raw = None
+        if options_field is not None:
+            raw = _field_value(options_field)
+        if raw is None:
+            raw = _field_value(field)
         if kind == "percent":
             display = _format_percent(raw, decimals=2)
         elif kind == "ratio":
             display = _format_number(raw, decimals=2)
         else:
             display = _format_currency(raw, decimals=0)
-        sub_display = ""
-        if options_field is not None:
-            options_raw = _field_value(options_field)
-            if options_raw is not None:
-                if kind == "percent":
-                    sub_display = _format_percent(options_raw, decimals=2)
-                elif kind == "ratio":
-                    sub_display = _format_number(options_raw, decimals=2)
-                else:
-                    sub_display = _format_currency(options_raw, decimals=0)
         return {
             "label": label,
             "display": display,
             "class": _value_class(raw),
-            "sub_display": sub_display,
+            "sub_display": "",
         }
 
     metric_view = {
@@ -668,15 +663,15 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
 # SVG payoff chart builder with strike / breakeven annotations
 # ---------------------------------------------------------------------------
 
-_SVG_WIDTH = 640.0
-_SVG_HEIGHT = 320.0
-_SVG_PAD_LEFT = 48.0
-_SVG_PAD_RIGHT = 32.0
-_SVG_PAD_TOP = 24.0
-_SVG_PAD_BOTTOM = 32.0
+_SVG_WIDTH = 700.0
+_SVG_HEIGHT = 400.0
+_SVG_PAD_LEFT = 52.0
+_SVG_PAD_RIGHT = 36.0
+_SVG_PAD_TOP = 32.0
+_SVG_PAD_BOTTOM = 36.0
 _STRIKE_COLOR = "#E5E7EB"
 _BREAKEVEN_COLOR = "#9CA3AF"
-_LABEL_FONT_SIZE = 9
+_LABEL_FONT_SIZE = 8.5
 
 
 def _coerce_svg_float(value: object) -> Optional[float]:
@@ -711,6 +706,8 @@ def _coerce_svg_series(values: object) -> Optional[List[float]]:
 
 
 def _svg_placeholder() -> str:
+    cx = _SVG_WIDTH / 2
+    cy = _SVG_HEIGHT / 2
     return (
         f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 {int(_SVG_WIDTH)} {int(_SVG_HEIGHT)}'>"
         "<rect width='100%' height='100%' fill='white'/>"
@@ -718,7 +715,7 @@ def _svg_placeholder() -> str:
         f"x2='{_SVG_PAD_LEFT:.0f}' y2='{_SVG_HEIGHT - _SVG_PAD_BOTTOM:.0f}' stroke='#e5e7eb' stroke-width='1'/>"
         f"<line x1='{_SVG_PAD_LEFT:.0f}' y1='{_SVG_HEIGHT - _SVG_PAD_BOTTOM:.0f}' "
         f"x2='{_SVG_WIDTH - _SVG_PAD_RIGHT:.0f}' y2='{_SVG_HEIGHT - _SVG_PAD_BOTTOM:.0f}' stroke='#e5e7eb' stroke-width='1'/>"
-        "<text x='320' y='170' text-anchor='middle' fill='#6b7280' font-size='12'>Payoff Diagram</text>"
+        f"<text x='{cx:.0f}' y='{cy:.0f}' text-anchor='middle' fill='#6b7280' font-size='12'>Payoff Diagram</text>"
         "</svg>"
     )
 
@@ -802,69 +799,101 @@ def build_payoff_svg_data_uri(model: Mapping[str, object]) -> str:
     def sy(value: float) -> float:
         return pad_top + (max_y - value) / (max_y - min_y) * plot_h
 
-    def polyline(points: List[tuple], stroke: str, dash: Optional[str] = None) -> str:
+    def polyline(points: List[tuple], stroke: str, width: float = 1.8, dash: Optional[str] = None) -> str:
         pts = " ".join(f"{sx(px):.2f},{sy(py):.2f}" for px, py in points)
         dash_attr = f" stroke-dasharray='{dash}'" if dash else ""
         return (
-            f"<polyline points='{pts}' fill='none' stroke='{stroke}' stroke-width='2'{dash_attr} />"
+            f"<polyline points='{pts}' fill='none' stroke='{stroke}' stroke-width='{width}'{dash_attr} />"
         )
 
-    # Grid lines
+    # Grid lines (TASK 3d: more visible grid color)
     grid_lines: List[str] = []
     for step in (0.25, 0.5, 0.75):
         gy = pad_top + plot_h * step
         grid_lines.append(
             f"<line x1='{pad_left:.2f}' y1='{gy:.2f}' x2='{pad_left + plot_w:.2f}' "
-            f"y2='{gy:.2f}' stroke='#f3f4f6' stroke-width='1' />"
+            f"y2='{gy:.2f}' stroke='#E5E7EB' stroke-width='1' />"
         )
 
-    # Zero axis
+    # Zero axis (TASK 3b: dashed, more visible)
     axis_y = sy(0.0)
     axis_y = max(pad_top, min(axis_y, pad_top + plot_h))
     axis_line = (
         f"<line x1='{pad_left:.2f}' y1='{axis_y:.2f}' x2='{pad_left + plot_w:.2f}' "
-        f"y2='{axis_y:.2f}' stroke='#e5e7eb' stroke-width='1' />"
+        f"y2='{axis_y:.2f}' stroke='#9CA3AF' stroke-width='1' stroke-dasharray='6,4' />"
+    )
+    # TASK 3c: $0 label on zero axis
+    zero_label = (
+        f"<text x='{pad_left - 4:.2f}' y='{axis_y + 3:.2f}' text-anchor='end' "
+        f"fill='#9CA3AF' font-size='7.5' font-family='Arial,Helvetica,sans-serif'>$0</text>"
     )
     axis_x = (
         f"<line x1='{pad_left:.2f}' y1='{pad_top:.2f}' x2='{pad_left:.2f}' "
         f"y2='{pad_top + plot_h:.2f}' stroke='#e5e7eb' stroke-width='1' />"
     )
 
-    # Annotation lines for strikes (K1, K2, ...) and breakevens (BE1, BE2, ...)
-    annotation_parts: List[str] = []
+    # TASK 3e: Y-axis tick labels for min and max
+    def _fmt_currency(v: float) -> str:
+        if abs(v) >= 1_000_000:
+            return f"${v / 1_000_000:,.1f}M"
+        if abs(v) >= 1_000:
+            return f"${v / 1_000:,.1f}K"
+        return f"${v:,.0f}"
 
-    label_top_y = pad_top + 4  # Y position for label text (near top of chart)
+    y_max_label = (
+        f"<text x='{pad_left - 4:.2f}' y='{pad_top + 4:.2f}' text-anchor='end' "
+        f"fill='#9CA3AF' font-size='7' font-family='Arial,Helvetica,sans-serif'>"
+        f"{_xml_escape(_fmt_currency(max_y))}</text>"
+    )
+    y_min_label = (
+        f"<text x='{pad_left - 4:.2f}' y='{pad_top + plot_h:.2f}' text-anchor='end' "
+        f"fill='#9CA3AF' font-size='7' font-family='Arial,Helvetica,sans-serif'>"
+        f"{_xml_escape(_fmt_currency(min_y))}</text>"
+    )
 
+    # TASK 2: Collect all labels, sort by x, stagger when close
+    all_labels: List[tuple] = []  # (x_pixel, label_text, color)
     for idx, strike_price in enumerate(strikes):
-        label = f"K{idx + 1}"
         lx = sx(strike_price)
-        # Clamp to plot area
         if lx < pad_left or lx > pad_left + plot_w:
             continue
-        annotation_parts.append(
-            f"<line x1='{lx:.2f}' y1='{pad_top:.2f}' x2='{lx:.2f}' "
-            f"y2='{pad_top + plot_h:.2f}' stroke='{_STRIKE_COLOR}' "
-            f"stroke-width='1' stroke-dasharray='4,3' />"
-        )
-        annotation_parts.append(
-            f"<text x='{lx:.2f}' y='{label_top_y:.2f}' text-anchor='middle' "
-            f"fill='#6b7280' font-size='{_LABEL_FONT_SIZE}' "
-            f"font-family='Arial,Helvetica,sans-serif'>{_xml_escape(label)}</text>"
-        )
-
+        all_labels.append((lx, f"K{idx + 1}", "#6b7280"))
     for idx, be_price in enumerate(breakevens):
-        label = f"BE{idx + 1}"
         lx = sx(be_price)
         if lx < pad_left or lx > pad_left + plot_w:
             continue
+        all_labels.append((lx, f"BE{idx + 1}", _BREAKEVEN_COLOR))
+    all_labels.sort(key=lambda t: t[0])
+
+    # Assign staggered y positions
+    stagger_levels = [pad_top + 4, pad_top + 16, pad_top + 28]
+    annotation_parts: List[str] = []
+    prev_x = -999.0
+    prev_level = -1
+    for lx, label, color in all_labels:
+        # Determine vertical line color
+        line_color = _STRIKE_COLOR if label.startswith("K") else _BREAKEVEN_COLOR
         annotation_parts.append(
             f"<line x1='{lx:.2f}' y1='{pad_top:.2f}' x2='{lx:.2f}' "
-            f"y2='{pad_top + plot_h:.2f}' stroke='{_BREAKEVEN_COLOR}' "
+            f"y2='{pad_top + plot_h:.2f}' stroke='{line_color}' "
             f"stroke-width='1' stroke-dasharray='4,3' />"
         )
+        # Stagger: if within 40px of previous label, bump level
+        if lx - prev_x < 40:
+            level = (prev_level + 1) % len(stagger_levels)
+        else:
+            level = 0
+        ly = stagger_levels[level]
+        prev_x = lx
+        prev_level = level
+        # Background rect for readability
         annotation_parts.append(
-            f"<text x='{lx:.2f}' y='{label_top_y:.2f}' text-anchor='middle' "
-            f"fill='{_BREAKEVEN_COLOR}' font-size='{_LABEL_FONT_SIZE}' "
+            f"<rect x='{lx - 12:.2f}' y='{ly - 9:.2f}' width='24' height='11' "
+            f"fill='white' fill-opacity='0.85' rx='2'/>"
+        )
+        annotation_parts.append(
+            f"<text x='{lx:.2f}' y='{ly:.2f}' text-anchor='middle' "
+            f"fill='{color}' font-size='{_LABEL_FONT_SIZE}' "
             f"font-family='Arial,Helvetica,sans-serif'>{_xml_escape(label)}</text>"
         )
 
@@ -873,11 +902,14 @@ def build_payoff_svg_data_uri(model: Mapping[str, object]) -> str:
         "<rect width='100%' height='100%' fill='white'/>",
         *grid_lines,
         axis_line,
+        zero_label,
         axis_x,
+        y_max_label,
+        y_min_label,
         *annotation_parts,
-        polyline(list(zip(x, stock)), "#93c5fd"),
-        polyline(list(zip(x, options)), "#c4b5fd"),
-        polyline(list(zip(x, combined)), "#4b5563", dash="4,3"),
+        polyline(list(zip(x, stock)), "#93c5fd", width=1.8),
+        polyline(list(zip(x, options)), "#c4b5fd", width=1.8),
+        polyline(list(zip(x, combined)), "#4b5563", width=2, dash="4,3"),
         "</svg>",
     ]
     svg = "".join(svg_parts)

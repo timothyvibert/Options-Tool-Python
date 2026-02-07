@@ -18,7 +18,8 @@ def _load_pdf_reader():
     return PdfReader
 
 
-def test_html_v2_header_text():
+def _build_pdf_and_reader():
+    """Shared helper: build PDF from sample contract, return (reader, report_model)."""
     pytest.importorskip("weasyprint")
     pytest.importorskip("jinja2")
 
@@ -39,6 +40,11 @@ def test_html_v2_header_text():
         raise
 
     reader = pdf_reader_cls(io.BytesIO(pdf_bytes))
+    return reader, report_model
+
+
+def test_html_v2_header_text():
+    reader, report_model = _build_pdf_and_reader()
     text = "\n".join(page.extract_text() or "" for page in reader.pages)
 
     assert "Wealth Management Option Strategy" in text
@@ -48,3 +54,35 @@ def test_html_v2_header_text():
     strategy = report_model.get("header", {}).get("strategy_name")
     if isinstance(strategy, str) and strategy.strip():
         assert text.count(strategy.strip()) >= 2
+
+
+def test_html_v2_pdf_has_two_pages():
+    reader, _ = _build_pdf_and_reader()
+    assert len(reader.pages) == 2, f"Expected 2 pages, got {len(reader.pages)}"
+
+
+def test_html_v2_page1_contains_strategy_title():
+    reader, report_model = _build_pdf_and_reader()
+    page1_text = reader.pages[0].extract_text() or ""
+    strategy = report_model.get("header", {}).get("strategy_name", "")
+    if isinstance(strategy, str) and strategy.strip():
+        assert strategy.strip() in page1_text, (
+            f"Strategy title '{strategy}' not found on page 1"
+        )
+    assert "Wealth Management Option Strategy" in page1_text
+
+
+def test_html_v2_page2_contains_disclosures():
+    reader, _ = _build_pdf_and_reader()
+    page2_text = reader.pages[1].extract_text() or ""
+    assert "Important Risk Disclosures" in page2_text or "Disclosures" in page2_text, (
+        "Page 2 should contain disclosure text"
+    )
+
+
+def test_html_v2_page1_contains_short_disclaimer():
+    reader, _ = _build_pdf_and_reader()
+    page1_text = reader.pages[0].extract_text() or ""
+    assert "illustration" in page1_text.lower() or "informational" in page1_text.lower() or "Options" in page1_text, (
+        "Page 1 should contain the short header disclaimer"
+    )

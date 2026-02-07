@@ -4,13 +4,13 @@
   @bottom-left {
     content: "UBS FINANCIAL SERVICES INC.";
     font-family: Aptos, Arial, "DejaVu Sans", sans-serif;
-    font-size: 7.5pt;
+    font-size: 9pt;
     color: #7b7b7b;
   }
   @bottom-right {
     content: "PAGE " counter(page) " OF " counter(pages);
     font-family: Aptos, Arial, "DejaVu Sans", sans-serif;
-    font-size: 7.5pt;
+    font-size: 9pt;
     color: #7b7b7b;
   }
 }
@@ -95,7 +95,7 @@ svg {
 }
 
 .wm-title {
-  font-size: 16pt;
+  font-size: 18pt;
   font-weight: 700;
   color: #e60000;
   margin: 6pt 0 4pt;
@@ -112,22 +112,27 @@ svg {
   border-radius: 6pt;
   padding: 6pt 4pt;
   margin-bottom: 10pt;
+  break-inside: avoid;
 }
 
 .wm-col-stock-4 {
-  width: 34%;
+  width: 32%;
 }
 
 .wm-col-card-4 {
-  width: 22%;
+  width: 21%;
+}
+
+.wm-col-pos-4 {
+  width: 26%;
 }
 
 .wm-col-stock-3 {
-  width: 40%;
+  width: 43%;
 }
 
 .wm-col-card-3 {
-  width: 30%;
+  width: 28.5%;
 }
 
 .wm-banner-table {
@@ -251,6 +256,7 @@ svg {
   width: 100%;
   border-collapse: collapse;
   font-size: 8pt;
+  break-inside: avoid;
 }
 
 .wm-table thead th {
@@ -284,7 +290,7 @@ svg {
 }
 
 .wm-row-highlight td {
-  background: #fff7d6;
+  background: #FEF9C3;
 }
 
 .wm-two-col {
@@ -310,6 +316,7 @@ svg {
   border-radius: 6pt;
   padding: 6pt;
   height: 2.6in;
+  break-inside: avoid;
 }
 
 .wm-payoff-img {
@@ -358,6 +365,7 @@ svg {
   padding: 6pt;
   background: #f9fafb;
   margin-bottom: 6pt;
+  break-inside: avoid;
 }
 
 .wm-metric-title {
@@ -395,27 +403,29 @@ svg {
   border: 1px solid #d9dde3;
   border-radius: 8pt;
   background: #fafafa;
-  padding: 8pt;
+  padding: 10pt;
   margin-bottom: 10pt;
 }
 
 .wm-scenario-table {
   table-layout: fixed;
-  border-spacing: 6pt;
+  border-spacing: 8pt;
   border-collapse: separate;
 }
 
 .wm-scenario-card {
   border: 1px solid #e5e7eb;
   border-radius: 6pt;
-  padding: 6pt;
+  padding: 9pt;
   background: #ffffff;
+  break-inside: avoid;
 }
 
 .wm-scenario-title {
   font-size: 8pt;
   font-weight: 700;
   color: #111827;
+  margin-bottom: 4pt;
 }
 
 .wm-scenario-body {
@@ -496,4 +506,8 @@ svg {
 
 .wm-hidden {
   display: none;
+}
+
+.break-inside-avoid {
+  break-inside: avoid;
 }

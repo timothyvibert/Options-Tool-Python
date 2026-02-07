@@ -308,6 +308,13 @@ def build_report_contract_v1(legacy_report_model: Dict[str, object]) -> Dict[str
         "net_premium_total": _field(_parse_value(structure.get("net_premium_total"))),
         "net_premium_per_share": _field(_parse_value(structure.get("net_premium_per_share"))),
         "yield_percent": _field(None),
+        "max_profit_options": _field(None),
+        "max_loss_options": _field(None),
+        "reward_risk_options": _field(None),
+        "max_roi_options": _field(None),
+        "min_roi_options": _field(None),
+        "capital_basis_options": _field(None),
+        "net_cost_options": _field(None),
     }
 
     label_map = {
@@ -325,6 +332,11 @@ def build_report_contract_v1(legacy_report_model: Dict[str, object]) -> Dict[str
         "netprempercent": "yield_percent",
     }
 
+    options_keys = {
+        "max_profit", "max_loss", "reward_risk", "max_roi", "min_roi",
+        "capital_basis", "net_cost",
+    }
+
     for row in metrics_rows:
         label = row.get("metric")
         if not isinstance(label, str):
@@ -338,6 +350,9 @@ def build_report_contract_v1(legacy_report_model: Dict[str, object]) -> Dict[str
             raw_value = row.get("options")
         parsed = _parse_value(raw_value)
         metrics[target_key] = _field(parsed)
+        if target_key in options_keys:
+            options_raw = row.get("options")
+            metrics[f"{target_key}_options"] = _field(_parse_value(options_raw))
 
     scenarios: List[Dict[str, object]] = []
     for card in _as_list(legacy.get("scenario_analysis_cards")):

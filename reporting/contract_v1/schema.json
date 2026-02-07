@@ -163,7 +163,14 @@
         "net_cost": { "$ref": "#/definitions/FieldNumber" },
         "net_premium_total": { "$ref": "#/definitions/FieldNumber" },
         "net_premium_per_share": { "$ref": "#/definitions/FieldNumber" },
-        "yield_percent": { "$ref": "#/definitions/FieldNumber" }
+        "yield_percent": { "$ref": "#/definitions/FieldNumber" },
+        "max_profit_options": { "$ref": "#/definitions/FieldNumber" },
+        "max_loss_options": { "$ref": "#/definitions/FieldNumber" },
+        "reward_risk_options": { "$ref": "#/definitions/FieldNumber" },
+        "max_roi_options": { "$ref": "#/definitions/FieldNumber" },
+        "min_roi_options": { "$ref": "#/definitions/FieldNumber" },
+        "capital_basis_options": { "$ref": "#/definitions/FieldNumber" },
+        "net_cost_options": { "$ref": "#/definitions/FieldNumber" }
       }
     },
     "scenarios": {

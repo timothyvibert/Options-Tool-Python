@@ -591,6 +591,7 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
             pack_underlying.get("ubs_target")
             or _get_from_snapshot(profile_source, ["ubs_target", "BEST_TARGET_PRICE"])
         ),
+        "cio_rating": _fmt_text(state.get("cio_rating")),
     }
 
     strategy_description = None

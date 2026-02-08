@@ -812,6 +812,7 @@ def register_v2_callbacks(
                 "vol_mode": inputs_store.get("vol_mode") or ui_store.get("vol_mode"),
                 "expiry": inputs_store.get("expiry") or ui_store.get("expiry"),
                 "legs": inputs_store.get("legs") or [],
+                "cio_rating": inputs_store.get("cio_rating") or ui_store.get("cio_rating"),
             }
 
             report_model = build_report_model(state)

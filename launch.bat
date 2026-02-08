@@ -31,4 +31,6 @@ echo Opening browser...
 start "" http://127.0.0.1:8051/v2
 echo Starting server...
 python -m frontend_dash.run_vnext
+echo.
+echo Server stopped. You can close this window.
 pause

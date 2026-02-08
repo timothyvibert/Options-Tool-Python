@@ -28,6 +28,7 @@ def layout_v2():
             theme=THEME,
             children=[
                 _stores(),
+                _shutdown_modal(),
                 dmc.AppShell(
                     header={"height": 60},
                     padding="md",
@@ -59,6 +60,25 @@ def _stores():
             dcc.Download(id=ID.DL_ACTIVITY_CSV),
         ],
         style={"display": "none"},
+    )
+
+
+def _shutdown_modal():
+    return dmc.Modal(
+        id=ID.SHUTDOWN_CONFIRM,
+        title="Shutdown Server",
+        centered=True,
+        children=[
+            dmc.Text("This will stop the Options Builder server. You will need to relaunch to use it again."),
+            dmc.Group(
+                justify="flex-end",
+                mt="md",
+                children=[
+                    dmc.Button("Cancel", id=ID.SHUTDOWN_CANCEL, variant="outline"),
+                    dmc.Button("Shutdown", id=ID.SHUTDOWN_YES, color="red"),
+                ],
+            ),
+        ],
     )
 
 
@@ -102,6 +122,11 @@ def _header():
                         size="sm",
                     ),
                     dmc.Text("09:41 ET", size="sm", c="dimmed"),
+                    dmc.Button(
+                        "\u23FB", id=ID.BTN_SHUTDOWN,
+                        variant="subtle", color="red", size="compact-sm",
+                        title="Shutdown server",
+                    ),
                 ],
             ),
         ],

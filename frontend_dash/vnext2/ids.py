@@ -87,6 +87,12 @@ BBG_DEBUG_TOGGLE = "v2-bbg-debug-toggle"
 # ─── Report tab ─────────────────────────────────────────
 REPORT_PREVIEW = "v2-report-preview"
 
+# ─── Shutdown ──────────────────────────────────────────────
+BTN_SHUTDOWN      = "v2-btn-shutdown"
+SHUTDOWN_CONFIRM  = "v2-shutdown-confirm"
+SHUTDOWN_YES      = "v2-shutdown-yes"
+SHUTDOWN_CANCEL   = "v2-shutdown-cancel"
+
 # ─── Activity Log tab ─────────────────────────────────────
 LOG_TABLE         = "v2-log-table"
 LOG_STORE         = "v2-log-store"

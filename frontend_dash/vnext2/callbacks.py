@@ -1958,3 +1958,38 @@ def register_v2_callbacks(
             clear_log()
             return False
         raise PreventUpdate
+
+    # ── Shutdown callbacks ─────────────────────────────────────
+
+    @app.callback(
+        Output(ID.SHUTDOWN_CONFIRM, "opened"),
+        Input(ID.BTN_SHUTDOWN, "n_clicks"),
+        Input(ID.SHUTDOWN_CANCEL, "n_clicks"),
+        State(ID.SHUTDOWN_CONFIRM, "opened"),
+        prevent_initial_call=True,
+    )
+    def _v2_shutdown_modal(shutdown_click, cancel_click, is_open):
+        trigger_id = ctx.triggered_id
+        if trigger_id == ID.BTN_SHUTDOWN:
+            return True
+        return False
+
+    @app.callback(
+        Output(ID.SHUTDOWN_YES, "disabled"),
+        Input(ID.SHUTDOWN_YES, "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def _v2_shutdown_server(n_clicks):
+        if not n_clicks:
+            raise PreventUpdate
+        import threading
+        import os
+        import signal
+
+        def _kill():
+            import time
+            time.sleep(0.5)
+            os.kill(os.getpid(), signal.SIGTERM)
+
+        threading.Thread(target=_kill, daemon=True).start()
+        return True  # disable button to show it was clicked

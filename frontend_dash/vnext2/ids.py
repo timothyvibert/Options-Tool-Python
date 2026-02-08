@@ -86,3 +86,14 @@ BBG_DEBUG_TOGGLE = "v2-bbg-debug-toggle"
 
 # ─── Report tab ─────────────────────────────────────────
 REPORT_PREVIEW = "v2-report-preview"
+
+# ─── Activity Log tab ─────────────────────────────────────
+LOG_TABLE         = "v2-log-table"
+LOG_STORE         = "v2-log-store"
+BTN_DOWNLOAD_CSV  = "v2-btn-download-csv"
+BTN_CLEAR_LOG     = "v2-btn-clear-log"
+DL_ACTIVITY_CSV   = "v2-dl-activity-csv"
+CLEAR_LOG_CONFIRM = "v2-clear-log-confirm"
+LOG_SUMMARY       = "v2-log-summary"
+CLEAR_LOG_CANCEL  = "v2-clear-log-cancel"
+CLEAR_LOG_YES     = "v2-clear-log-yes"

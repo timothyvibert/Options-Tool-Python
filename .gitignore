@@ -6,3 +6,5 @@ __pycache__/
 tests/artifacts/
 Design/out/
 Design/figma_report_v2/public/report_contract.json
+# Client data — never commit
+activity_log.csv

@@ -26,6 +26,7 @@ from frontend_dash.analysis_adapter import (
 )
 from frontend_dash.smart_strikes import compute_default_strike, is_number_like
 from frontend_dash.vnext2 import ids as ID
+from frontend_dash.vnext2.activity_log import append_entry, read_all, clear_log, get_csv_path
 
 
 # ═══════════════════════════════════════════════════════════
@@ -944,24 +945,28 @@ def register_v2_callbacks(
     @app.callback(
         Output(ID.DL_REPORT_PDF, "data"),
         Output(ID.REPORT_STATUS, "children"),
+        Output(ID.LOG_STORE, "data"),
         Input(ID.BTN_PDF, "n_clicks"),
         State(ID.STORE_UI, "data"),
         State(ID.STORE_INPUTS, "data"),
         State(ID.STORE_MARKET, "data"),
         State(ID.STORE_ANALYSIS_KEY, "data"),
+        State(ID.FA_NAME_INPUT, "value"),
+        State(ID.ACCT_NUMBER_INPUT, "value"),
         prevent_initial_call=True,
     )
     def _v2_download_report_pdf(
-        n_clicks_report, ui_state, inputs_state, market_data, key_payload
+        n_clicks_report, ui_state, inputs_state, market_data, key_payload,
+        fa_name_val, acct_number_val,
     ):
         if not n_clicks_report:
-            return no_update, no_update
+            return no_update, no_update, no_update
         if not isinstance(key_payload, dict) or key_payload.get("error"):
-            return no_update, "Run Analysis first to generate a report."
+            return no_update, "Run Analysis first to generate a report.", no_update
         key = key_payload.get("key")
         pack = cache_get(key) if key else None
         if not pack:
-            return no_update, "Run Analysis first to generate a report."
+            return no_update, "Run Analysis first to generate a report.", no_update
         try:
             from reporting.report_model import build_report_model
             from reporting.report_pdf import build_client_report_pdf
@@ -998,15 +1003,51 @@ def register_v2_callbacks(
                 payload = build_client_report_pdf(report_model, prefer_html=True)
             except Exception as exc:
                 traceback.print_exc()
-                return no_update, f"PDF export error: {type(exc).__name__}: {exc}"
+                return no_update, f"PDF export error: {type(exc).__name__}: {exc}", no_update
 
+            # Log activity entry
+            try:
+                _log_summary = pack.get("summary") or {}
+                _log_rows = _log_summary.get("rows") or []
+                _max_profit = _log_rows[0].get("options", "--") if len(_log_rows) > 0 else "--"
+                _max_loss = _log_rows[1].get("options", "--") if len(_log_rows) > 1 else "--"
+                _net_premium = _log_summary.get("net_premium_total", "--")
+
+                _log_legs = inputs_store.get("legs") or []
+                _contracts = sum(
+                    abs(float(lg.get("position", 0))) for lg in _log_legs if isinstance(lg, dict)
+                )
+
+                _strategy_name = ""
+                _pack_strategy = pack.get("strategy") or {}
+                if isinstance(_pack_strategy, dict):
+                    _strategy_name = _pack_strategy.get("name") or _pack_strategy.get("strategy_name") or ""
+                if not _strategy_name:
+                    _strategy_name = inputs_store.get("strategy_id") or ""
+
+                append_entry({
+                    "fa_name": fa_name_val or "",
+                    "acct_number": acct_number_val or "",
+                    "ticker": inputs_store.get("resolved_ticker") or inputs_store.get("ticker") or "",
+                    "strategy": _strategy_name,
+                    "expiry": inputs_store.get("expiry") or "",
+                    "contracts": str(int(_contracts)) if _contracts else "",
+                    "net_premium": str(_net_premium),
+                    "max_profit": str(_max_profit),
+                    "max_loss": str(_max_loss),
+                })
+            except Exception:
+                pass  # never fail PDF delivery due to logging
+
+            _log_trigger = {"ts": _utc_now_str()}
             return (
                 dcc.send_bytes(payload, filename=filename),
                 "PDF generated.",
+                _log_trigger,
             )
         except Exception as exc:
             traceback.print_exc()
-            return no_update, f"PDF export error: {type(exc).__name__}: {exc}"
+            return no_update, f"PDF export error: {type(exc).__name__}: {exc}", no_update
 
     # ── #16 Run analysis ─────────────────────────────────────
     @app.callback(
@@ -1872,3 +1913,48 @@ def register_v2_callbacks(
                 ]
             )
         return _dmc_table_simple(["Account Type", "Eligible"], rows)
+
+    # ── Activity Log callbacks ─────────────────────────────────
+
+    @app.callback(
+        Output(ID.LOG_TABLE, "data"),
+        Output(ID.LOG_SUMMARY, "children"),
+        Input(ID.LOG_STORE, "data"),
+        Input(ID.TABS, "value"),
+        Input(ID.CLEAR_LOG_YES, "n_clicks"),
+        prevent_initial_call=False,
+    )
+    def _v2_load_activity_log(log_trigger, active_tab, clear_clicks):
+        entries = read_all()
+        entries = list(reversed(entries))
+        summary = f"{len(entries)} illustration{'s' if len(entries) != 1 else ''} logged"
+        return entries, summary
+
+    @app.callback(
+        Output(ID.DL_ACTIVITY_CSV, "data"),
+        Input(ID.BTN_DOWNLOAD_CSV, "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def _v2_download_activity_csv(n_clicks):
+        if not n_clicks:
+            raise PreventUpdate
+        return dcc.send_file(get_csv_path(), filename="activity_log.csv")
+
+    @app.callback(
+        Output(ID.CLEAR_LOG_CONFIRM, "opened"),
+        Input(ID.BTN_CLEAR_LOG, "n_clicks"),
+        Input(ID.CLEAR_LOG_CANCEL, "n_clicks"),
+        Input(ID.CLEAR_LOG_YES, "n_clicks"),
+        State(ID.CLEAR_LOG_CONFIRM, "opened"),
+        prevent_initial_call=True,
+    )
+    def _v2_clear_log_modal(clear_click, cancel_click, yes_click, is_open):
+        trigger_id = ctx.triggered_id
+        if trigger_id == ID.BTN_CLEAR_LOG:
+            return True
+        if trigger_id == ID.CLEAR_LOG_CANCEL:
+            return False
+        if trigger_id == ID.CLEAR_LOG_YES:
+            clear_log()
+            return False
+        raise PreventUpdate

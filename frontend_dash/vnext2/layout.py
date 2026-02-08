@@ -55,6 +55,8 @@ def _stores():
             dcc.Store(id=ID.STORE_INPUTS),
             dcc.Download(id=ID.DL_REPORT_PDF),
             dcc.Download(id=ID.DL_MARKET_JSON),
+            dcc.Store(id=ID.LOG_STORE, storage_type="memory"),
+            dcc.Download(id=ID.DL_ACTIVITY_CSV),
         ],
         style={"display": "none"},
     )
@@ -123,9 +125,9 @@ def _tabs():
                 ],
                 mb="md",
             ),
-            dmc.TabsPanel(value="dashboard", children=[_dashboard_tab()]),
-            dmc.TabsPanel(value="bloomberg", children=[_bloomberg_tab()]),
-            dmc.TabsPanel(value="report", children=[_report_tab()]),
+            dmc.TabsPanel(value="dashboard", children=[_dashboard_tab()], keepMounted=True),
+            dmc.TabsPanel(value="bloomberg", children=[_bloomberg_tab()], keepMounted=True),
+            dmc.TabsPanel(value="report", children=[_report_tab()], keepMounted=True),
         ],
     )
 
@@ -819,19 +821,79 @@ def _report_tab():
         gap="md",
         mt="md",
         children=[
-            dmc.Card(
-                withBorder=True, shadow="sm", p="lg",
+            # Header row with title and action buttons
+            dmc.Group(
+                justify="space-between",
                 children=[
-                    dmc.Text("Activity Log", size="lg", fw=700, mb="sm"),
-                    dmc.Text("Illustration tracking will appear here.", c="dimmed", mb="md"),
+                    dmc.Text("ACTIVITY LOG", fw=700, size="lg"),
                     dmc.Group(
+                        gap="sm",
                         children=[
-                            dmc.Button("Download CSV", variant="outline", disabled=True),
-                            dmc.Button("Clear Log", color="red", variant="outline", disabled=True),
+                            dmc.Button(
+                                "Download CSV",
+                                id=ID.BTN_DOWNLOAD_CSV,
+                                variant="outline",
+                                size="sm",
+                            ),
+                            dmc.Button(
+                                "Clear Log",
+                                id=ID.BTN_CLEAR_LOG,
+                                color="red",
+                                variant="outline",
+                                size="sm",
+                            ),
                         ],
                     ),
                 ],
             ),
+
+            # Summary stats
+            dmc.Text(id=ID.LOG_SUMMARY, size="sm", c="dimmed"),
+
+            # The log table
+            dash_table.DataTable(
+                id=ID.LOG_TABLE,
+                columns=[
+                    {"name": "Date", "id": "timestamp"},
+                    {"name": "FA Name", "id": "fa_name"},
+                    {"name": "Account #", "id": "acct_number"},
+                    {"name": "Ticker", "id": "ticker"},
+                    {"name": "Strategy", "id": "strategy"},
+                    {"name": "Expiry", "id": "expiry"},
+                    {"name": "Contracts", "id": "contracts"},
+                    {"name": "Net Premium", "id": "net_premium"},
+                    {"name": "Max Profit", "id": "max_profit"},
+                    {"name": "Max Loss", "id": "max_loss"},
+                ],
+                data=[],
+                sort_action="native",
+                filter_action="native",
+                page_size=20,
+                style_table={"overflowX": "auto"},
+                style_header={"fontWeight": "bold", "backgroundColor": "transparent"},
+                style_cell={"textAlign": "center", "padding": "8px", "backgroundColor": "transparent"},
+                style_data={"backgroundColor": "transparent"},
+                style_filter={"backgroundColor": "transparent"},
+            ),
+
+            # Confirmation modal for clear
+            dmc.Modal(
+                id=ID.CLEAR_LOG_CONFIRM,
+                title="Clear Activity Log",
+                centered=True,
+                children=[
+                    dmc.Text("Are you sure you want to clear all log entries? This cannot be undone."),
+                    dmc.Group(
+                        justify="flex-end",
+                        mt="md",
+                        children=[
+                            dmc.Button("Cancel", id=ID.CLEAR_LOG_CANCEL, variant="outline"),
+                            dmc.Button("Clear All", id=ID.CLEAR_LOG_YES, color="red"),
+                        ],
+                    ),
+                ],
+            ),
+
             # Keep report preview area for PDF output
             html.Div(
                 id=ID.REPORT_PREVIEW,

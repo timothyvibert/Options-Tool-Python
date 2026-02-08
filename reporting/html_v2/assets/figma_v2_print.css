@@ -99,13 +99,14 @@ svg {
   font-size: 18pt;
   font-weight: 700;
   color: #e60000;
-  margin: 6pt 0 4pt;
+  margin: 14pt 0 4pt;
 }
 
 .wm-disclaimer {
   font-size: 7.5pt;
   color: #6b7280;
   line-height: 1.35;
+  margin-top: 4pt;
 }
 
 .wm-banner {
@@ -158,7 +159,11 @@ svg {
   font-size: 12pt;
   font-weight: 700;
   color: #111827;
-  margin-bottom: 2pt;
+  margin-bottom: 4pt;
+}
+
+.wm-stock-price-row {
+  margin-bottom: 3pt;
 }
 
 .wm-stock-price {
@@ -184,9 +189,17 @@ svg {
 }
 
 .wm-stock-meta {
-  margin-top: 6pt;
+  margin-top: 3pt;
   font-size: 8pt;
   color: #6b7280;
+}
+
+.wm-stock-meta div {
+  margin-bottom: 2pt;
+}
+
+.wm-stock-meta div:last-child {
+  margin-bottom: 0;
 }
 
 .wm-card {
@@ -194,6 +207,7 @@ svg {
   border-radius: 6pt;
   padding: 6pt;
   background: #fafafa;
+  min-height: 90pt;
 }
 
 .wm-card-title {
@@ -305,7 +319,7 @@ svg {
 .wm-two-col {
   display: flex;
   align-items: stretch;
-  gap: 0;
+  gap: 8pt;
   margin-top: 8pt;
   break-inside: avoid;
 }
@@ -318,6 +332,8 @@ svg {
 
 .wm-two-col-right {
   width: 38%;
+  display: flex;
+  flex-direction: column;
 }
 
 .wm-payoff-card {
@@ -539,7 +555,7 @@ svg {
 .page-2 .wm-page-body {
   display: flex;
   flex-direction: column;
-  min-height: 9.5in;
+  min-height: 10in;
 }
 
 .wm-spacer {

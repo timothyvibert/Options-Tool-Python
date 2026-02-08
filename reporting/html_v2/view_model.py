@@ -498,7 +498,7 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
         "ticker": _field_text(underlying.get("ticker")),
         "name": _field_text(underlying.get("name")),
         "sector": _field_text(underlying.get("sector")),
-        "ubs_rating": _field_text(analyst.get("ubs_rating")),
+        "ubs_rating": _field_text(analyst.get("ubs_rating")).title() if _field_text(analyst.get("ubs_rating")) != MISSING else MISSING,
         "ubs_target": _format_currency(_field_value(analyst.get("price_target")), decimals=2),
         "cio_rating": _field_text(analyst.get("cio_view")),
         "last_price": _format_currency(_field_value(underlying.get("spot")), decimals=2),
@@ -1169,7 +1169,7 @@ def build_payoff_chart_png_data_uri(model: Mapping[str, object]) -> str:
     max_y += y_pad
 
     # --- Create figure ---
-    fig, ax = plt.subplots(figsize=(7, 4.5), dpi=150)
+    fig, ax = plt.subplots(figsize=(7, 4), dpi=150)
     fig.patch.set_facecolor("white")
     ax.set_facecolor("white")
 
@@ -1194,7 +1194,7 @@ def build_payoff_chart_png_data_uri(model: Mapping[str, object]) -> str:
     for idx, strike_price in enumerate(strikes):
         ax.axvline(x=strike_price, color="#D1D5DB", linewidth=1.0, linestyle="--", zorder=2)
         ax.annotate(
-            f"K{idx + 1} ${strike_price:,.0f}",
+            f"Strike {idx + 1} ${strike_price:,.0f}",
             xy=(strike_price, max_y),
             xytext=(0, 2),
             textcoords="offset points",
@@ -1208,7 +1208,7 @@ def build_payoff_chart_png_data_uri(model: Mapping[str, object]) -> str:
     for idx, be_price in enumerate(breakevens):
         ax.axvline(x=be_price, color="#9CA3AF", linewidth=1.0, linestyle=(0, (5, 3, 1, 3)), zorder=2)
         ax.annotate(
-            f"BE{idx + 1} ${be_price:,.0f}",
+            f"Breakeven {idx + 1} ${be_price:,.0f}",
             xy=(be_price, max_y),
             xytext=(0, 2),
             textcoords="offset points",
@@ -1219,22 +1219,22 @@ def build_payoff_chart_png_data_uri(model: Mapping[str, object]) -> str:
         )
 
     # Plot lines
-    ax.plot(vis_x, vis_stock, color="#2563EB", linewidth=2.0, label="Stock P&L", solid_capstyle="round")
-    ax.plot(vis_x, vis_options, color="#7C3AED", linewidth=2.0, label="Options P&L", solid_capstyle="round")
-    ax.plot(vis_x, vis_combined, color="#374151", linewidth=2.5, linestyle="--", label="Combined P&L",
-            dash_capstyle="round")
+    ax.plot(vis_x, vis_stock, color="#D1D5DB", linewidth=1.5, label="Stock P&L", solid_capstyle="round")
+    ax.plot(vis_x, vis_options, color="#2563EB", linewidth=2.0, label="Options P&L", solid_capstyle="round")
+    ax.plot(vis_x, vis_combined, color="#7C3AED", linewidth=2.5, label="Combined P&L",
+            solid_capstyle="round")
 
     # Axis limits
     ax.set_xlim(min_x, max_x)
     ax.set_ylim(min_y, max_y)
 
     # Axis labels
-    ax.set_xlabel("Stock Price at Expiry", fontsize=8, color="#6b7280")
-    ax.set_ylabel("Profit / Loss", fontsize=8, color="#6b7280")
+    ax.set_xlabel("Stock Price at Expiry", fontsize=8, color="#1F2937")
+    ax.set_ylabel("Profit / Loss", fontsize=8, color="#1F2937")
 
     # X-axis: dollar format, round ticks
     ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda v, p: f"${v:,.0f}"))
-    ax.tick_params(axis="x", labelsize=8, colors="#6b7280")
+    ax.tick_params(axis="x", labelsize=8, colors="#1F2937")
     # Use nice tick spacing based on price range
     x_span = max_x - min_x
     if x_span > 500:
@@ -1251,12 +1251,20 @@ def build_payoff_chart_png_data_uri(model: Mapping[str, object]) -> str:
 
     # Y-axis: dollar format with K suffix
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(_dollar_tick_formatter))
-    ax.tick_params(axis="y", labelsize=8, colors="#6b7280")
+    ax.tick_params(axis="y", labelsize=8, colors="#1F2937")
 
-    # Legend
-    ax.legend(loc="best", fontsize=8, frameon=True, facecolor="white", edgecolor="#E5E7EB",
-              framealpha=0.95)
+    # Spot price label in top-right corner
+    ax.text(0.98, 0.97, f"Spot: ${spot_price:,.2f}",
+            transform=ax.transAxes, ha="right", va="top",
+            fontsize=9, color="#374151",
+            bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="#E5E7EB", alpha=0.95),
+            zorder=6)
 
+    # Legend at bottom, centered
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=3,
+              fontsize=8, frameon=False)
+
+    fig.subplots_adjust(bottom=0.18)
     fig.tight_layout(pad=0.3)
 
     # Export to PNG buffer

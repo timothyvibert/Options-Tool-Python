@@ -125,7 +125,6 @@ def _header():
                     dmc.Button(
                         "\u23FB", id=ID.BTN_SHUTDOWN,
                         variant="subtle", color="red", size="compact-sm",
-                        title="Shutdown server",
                     ),
                 ],
             ),

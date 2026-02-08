@@ -737,8 +737,6 @@ def register_v2_callbacks(
         return to_jsonable(market_snapshot), status
 
     # ── #13 Render Bloomberg tab ─────────────────────────────
-    # Stubbed — returns placeholder content for all 5 outputs.
-    # Full implementation will be wired once the core dashboard flow is stable.
     @app.callback(
         Output(ID.BBG_REQUEST_SUMMARY, "children"),
         Output(ID.BBG_UNDERLYING_SUMMARY, "children"),
@@ -747,15 +745,193 @@ def register_v2_callbacks(
         Output(ID.BBG_ERRORS, "children"),
         Input(ID.STORE_MARKET, "data"),
         Input(ID.STORE_INPUTS, "data"),
+        Input(ID.STORE_ANALYSIS_KEY, "data"),
+        prevent_initial_call=True,
     )
-    def _v2_render_bbg_tab(market_data, inputs_data):
-        placeholder = dmc.Text("Bloomberg data will appear here after market refresh.", size="sm", c="dimmed")
+    def _v2_render_bbg_tab(market_data, inputs_data, analysis_key):
+        market = market_data if isinstance(market_data, dict) else {}
+        inputs = inputs_data if isinstance(inputs_data, dict) else {}
+
+        if not market and not inputs:
+            placeholder = dmc.Text(
+                "Click REFRESH DATA on the Dashboard tab to load Bloomberg data.",
+                size="sm", c="dimmed",
+            )
+            return placeholder, placeholder, "No data yet", [], placeholder
+
+        # ── REQUEST SUMMARY ──────────────────────────────────
+        def _kv_row(label, value):
+            """Return a pair of Text elements for a key-value row."""
+            display = str(value) if value not in (None, "", "--") else "--"
+            return [
+                dmc.Text(label, fw=600, size="sm", style={"minWidth": "140px"}),
+                dmc.Text(display, size="sm"),
+            ]
+
+        ticker_val = inputs.get("resolved_ticker") or inputs.get("ticker") or market.get("resolved_underlying")
+        expiry_val = inputs.get("expiry")
+        strategy_val = inputs.get("strategy_name")
+        pricing_val = inputs.get("pricing_mode")
+        refresh_ts = market.get("refreshed_at")
+        analysis_ts = inputs.get("timestamp")
+
+        summary_children = dmc.SimpleGrid(
+            cols=2, spacing="xs", verticalSpacing=4,
+            children=(
+                _kv_row("Ticker", ticker_val)
+                + _kv_row("Expiry", expiry_val)
+                + _kv_row("Strategy", strategy_val)
+                + _kv_row("Pricing Mode", pricing_val)
+                + _kv_row("Market Refresh", refresh_ts)
+                + _kv_row("Analysis Run", analysis_ts)
+            ),
+        )
+
+        # ── UNDERLYING DATA ──────────────────────────────────
+        underlying_profile = market.get("underlying_profile")
+        if not isinstance(underlying_profile, dict):
+            underlying_profile = {}
+
+        # Normalize keys to uppercase for consistent lookup
+        norm = {str(k).upper(): v for k, v in underlying_profile.items()}
+
+        def _pick(keys):
+            for k in keys:
+                val = underlying_profile.get(k)
+                if val not in (None, ""):
+                    return val
+                upper = k.upper()
+                if upper in norm and norm[upper] not in (None, ""):
+                    return norm[upper]
+            return None
+
+        spot_val = market.get("market_spot") or inputs.get("spot")
+
+        underlying_fields = [
+            ("Spot Price", spot_val),
+            ("Name", _pick(["name", "NAME", "SECURITY_NAME", "SECURITY_DES"])),
+            ("Sector", _pick(["sector", "SECTOR", "GICS_SECTOR_NAME"])),
+            ("Dividend Yield", _pick(["DIVIDEND_YIELD", "DVD_YLD", "dividend_yield"])),
+            ("Ex-Div Date", _pick(["DVD_EX_DT", "EX_DVD_DT", "ex_div_date"])),
+            ("52W High", _pick(["HIGH_52WEEK", "WEEK_52_HIGH", "PX_52W_HIGH"])),
+            ("52W Low", _pick(["LOW_52WEEK", "WEEK_52_LOW", "PX_52W_LOW"])),
+            ("UBS Rating", _pick(["ubs_rating", "BEST_ANALYST_REC", "UBS_RATING"])),
+            ("UBS Target", _pick(["ubs_target", "BEST_TARGET_PRICE", "UBS_TARGET"])),
+            ("Risk-Free Rate", _pick(["risk_free_rate", "RISK_FREE_RATE"])),
+        ]
+
+        # Build as a dmc.Table with two columns
+        underlying_rows = []
+        for label, value in underlying_fields:
+            display = str(value) if value not in (None, "", "--") else "--"
+            underlying_rows.append(
+                dmc.TableTr([
+                    dmc.TableTd(dmc.Text(label, fw=600, size="sm")),
+                    dmc.TableTd(dmc.Text(display, size="sm")),
+                ])
+            )
+        if underlying_rows:
+            underlying_output = dmc.Table(
+                [dmc.TableTbody(underlying_rows)],
+                striped=True, highlightOnHover=True,
+                style={"maxWidth": "400px"},
+            )
+        else:
+            underlying_output = dmc.Text("No underlying data.", size="sm", c="dimmed")
+
+        # ── LEG QUOTES ───────────────────────────────────────
+        leg_quotes = market.get("leg_quotes")
+        if not isinstance(leg_quotes, list):
+            leg_quotes = []
+        leg_tickers = market.get("leg_tickers")
+        if not isinstance(leg_tickers, list):
+            leg_tickers = []
+        input_legs = inputs.get("legs")
+        if not isinstance(input_legs, list):
+            input_legs = []
+
+        def _fmt_num(val, decimals=2):
+            if val is None:
+                return "--"
+            try:
+                return f"{float(val):.{decimals}f}"
+            except (TypeError, ValueError):
+                return str(val)
+
+        def _fmt_pct(val):
+            if val is None:
+                return "--"
+            try:
+                return f"{float(val):.1f}%"
+            except (TypeError, ValueError):
+                return str(val)
+
+        def _quote_field(quote, keys):
+            for k in keys:
+                if k in quote and quote[k] is not None:
+                    return quote[k]
+            return None
+
+        row_count = max(len(leg_quotes), len(leg_tickers), len(input_legs))
+        quote_rows = []
+        for idx in range(row_count):
+            quote = leg_quotes[idx] if idx < len(leg_quotes) and isinstance(leg_quotes[idx], dict) else {}
+            ticker = leg_tickers[idx] if idx < len(leg_tickers) else None
+            input_leg = input_legs[idx] if idx < len(input_legs) and isinstance(input_legs[idx], dict) else {}
+
+            # Get type and strike from input legs
+            leg_type = input_leg.get("type") or input_leg.get("kind") or "--"
+            strike = input_leg.get("strike")
+
+            # Compute OTM% if we have spot and strike
+            otm_pct = None
+            if strike is not None and spot_val is not None:
+                try:
+                    s = float(spot_val)
+                    k = float(strike)
+                    if s > 0:
+                        otm_pct = abs(k - s) / s * 100
+                except (TypeError, ValueError):
+                    pass
+
+            row = {
+                "leg": f"Leg {idx + 1}",
+                "type": str(leg_type).capitalize() if leg_type != "--" else "--",
+                "strike": _fmt_num(strike),
+                "bid": _fmt_num(_quote_field(quote, ["bid", "BID", "PX_BID"])),
+                "ask": _fmt_num(_quote_field(quote, ["ask", "ASK", "PX_ASK"])),
+                "mid": _fmt_num(_quote_field(quote, ["mid", "MID", "PX_MID"])),
+                "iv": _fmt_pct(_quote_field(quote, ["iv", "IVOL_MID", "IV_MID", "iv_mid"])),
+                "delta": _fmt_num(_quote_field(quote, ["delta", "DELTA_MID_RT", "delta_mid"]), 4),
+                "otm_pct": _fmt_pct(otm_pct),
+                "bbg_ticker": ticker or "--",
+            }
+            quote_rows.append(row)
+
+        # ── ERRORS ───────────────────────────────────────────
+        errors = market.get("errors")
+        if not isinstance(errors, list):
+            errors = []
+        if errors:
+            error_items = [dmc.ListItem(dmc.Text(str(e), size="sm")) for e in errors]
+            errors_output = dmc.List(error_items, type="unordered", size="sm",
+                                     styles={"item": {"color": "var(--mantine-color-red-6)"}})
+        else:
+            errors_output = dmc.Text("No errors", c="green", size="sm")
+
+        # ── RAW JSON ─────────────────────────────────────────
+        raw = {
+            "market_data": market,
+            "inputs_snapshot": inputs,
+        }
+        raw_json_text = json.dumps(raw, indent=2, default=str)
+
         return (
-            placeholder,     # BBG_REQUEST_SUMMARY
-            placeholder,     # BBG_UNDERLYING_SUMMARY
-            "--",            # BBG_UNDERLYING_JSON
-            [],              # BBG_LEG_QUOTES (empty DataTable rows)
-            placeholder,     # BBG_ERRORS
+            summary_children,      # BBG_REQUEST_SUMMARY
+            underlying_output,     # BBG_UNDERLYING_SUMMARY
+            raw_json_text,         # BBG_UNDERLYING_JSON
+            quote_rows,            # BBG_LEG_QUOTES
+            errors_output,         # BBG_ERRORS
         )
 
     # ── #14 Download market JSON ─────────────────────────────

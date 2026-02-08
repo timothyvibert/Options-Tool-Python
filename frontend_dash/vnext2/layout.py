@@ -715,78 +715,97 @@ def _placeholder_card(title, text):
 
 
 def _bloomberg_tab():
+    request_summary_card = dmc.Card(
+        withBorder=True, shadow="sm", p="md",
+        children=[
+            dmc.Text("REQUEST SUMMARY", fw=700, size="sm"),
+            html.Div(id=ID.BBG_REQUEST_SUMMARY, children=dmc.Text(
+                "Click REFRESH DATA on the Dashboard tab to load Bloomberg data.",
+                size="sm", c="dimmed",
+            )),
+        ],
+    )
+
+    underlying_card = dmc.Card(
+        withBorder=True, shadow="sm", p="md",
+        children=[
+            dmc.Text("UNDERLYING DATA", fw=700, size="sm"),
+            html.Div(id=ID.BBG_UNDERLYING_SUMMARY, children=dmc.Text(
+                "No data yet.", size="sm", c="dimmed",
+            )),
+        ],
+    )
+
+    errors_card = dmc.Card(
+        withBorder=True, shadow="sm", p="md",
+        children=[
+            dmc.Text("ERRORS & WARNINGS", fw=700, size="sm"),
+            html.Div(id=ID.BBG_ERRORS, children=dmc.Text(
+                "No errors.", size="sm", c="dimmed",
+            )),
+        ],
+    )
+
+    leg_quotes_card = dmc.Card(
+        withBorder=True, shadow="sm", p="md",
+        children=[
+            dmc.Text("LEG QUOTES", fw=700, size="sm"),
+            dash_table.DataTable(
+                id=ID.BBG_LEG_QUOTES,
+                columns=[
+                    {"name": "Leg", "id": "leg"},
+                    {"name": "Type", "id": "type"},
+                    {"name": "Strike", "id": "strike"},
+                    {"name": "Bid", "id": "bid"},
+                    {"name": "Ask", "id": "ask"},
+                    {"name": "Mid", "id": "mid"},
+                    {"name": "IV", "id": "iv"},
+                    {"name": "Delta", "id": "delta"},
+                    {"name": "OTM%", "id": "otm_pct"},
+                    {"name": "BBG Ticker", "id": "bbg_ticker"},
+                ],
+                data=[],
+                style_table={"overflowX": "auto"},
+                style_header=_LEGS_DARK_HEADER,
+                style_cell=_LEGS_DARK_CELL,
+            ),
+        ],
+    )
+
+    raw_data_accordion = dmc.Accordion(
+        children=[
+            dmc.AccordionItem(
+                value="raw-data",
+                children=[
+                    dmc.AccordionControl("Raw Bloomberg Data (JSON)"),
+                    dmc.AccordionPanel(
+                        html.Pre(
+                            id=ID.BBG_UNDERLYING_JSON,
+                            style={
+                                "maxHeight": "400px",
+                                "overflow": "auto",
+                                "fontSize": "12px",
+                                "whiteSpace": "pre-wrap",
+                            },
+                        )
+                    ),
+                ],
+            )
+        ],
+        value=None,  # collapsed by default
+    )
+
     return dmc.Stack(
         gap="md",
         mt="md",
         children=[
-            dmc.Switch(id=ID.BBG_DEBUG_TOGGLE, label="Debug Mode", size="sm"),
-            dmc.Card(
-                withBorder=True,
-                children=[
-                    _section_title("REQUEST SUMMARY"),
-                    html.Div(
-                        id=ID.BBG_REQUEST_SUMMARY,
-                        children=dmc.Text(
-                            "Run analysis to see request data.",
-                            size="sm",
-                            c="dimmed",
-                        ),
-                    ),
-                ],
-            ),
-            dmc.Card(
-                withBorder=True,
-                children=[
-                    _section_title("UNDERLYING SNAPSHOT"),
-                    html.Div(
-                        id=ID.BBG_UNDERLYING_SUMMARY,
-                        children=dmc.Text(
-                            "Run analysis to see underlying data.",
-                            size="sm",
-                            c="dimmed",
-                        ),
-                    ),
-                    dmc.Divider(my="sm"),
-                    _section_title("RAW JSON"),
-                    html.Pre(
-                        id=ID.BBG_UNDERLYING_JSON,
-                        children="--",
-                        style={"fontSize": "11px", "maxHeight": "200px", "overflow": "auto"},
-                    ),
-                ],
-            ),
-            dmc.Card(
-                withBorder=True,
-                children=[
-                    _section_title("LEG QUOTES"),
-                    dash_table.DataTable(
-                        id=ID.BBG_LEG_QUOTES,
-                        columns=[
-                            {"name": "Leg", "id": "leg"},
-                            {"name": "Ticker", "id": "option_ticker"},
-                            {"name": "Bid", "id": "bid"},
-                            {"name": "Ask", "id": "ask"},
-                            {"name": "Mid", "id": "mid"},
-                            {"name": "Last", "id": "last"},
-                            {"name": "IV", "id": "iv"},
-                        ],
-                        data=[],
-                        style_table={"overflowX": "auto"},
-                        style_header=_LEGS_DARK_HEADER,
-                        style_cell=_LEGS_DARK_CELL,
-                    ),
-                ],
-            ),
-            dmc.Card(
-                withBorder=True,
-                children=[
-                    _section_title("ERRORS"),
-                    html.Div(
-                        id=ID.BBG_ERRORS,
-                        children=dmc.Text("No errors.", size="sm", c="dimmed"),
-                    ),
-                ],
-            ),
+            request_summary_card,
+            dmc.Grid([
+                dmc.GridCol(underlying_card, span=6),
+                dmc.GridCol(errors_card, span=6),
+            ], gutter="md"),
+            leg_quotes_card,
+            raw_data_accordion,
         ],
     )
 

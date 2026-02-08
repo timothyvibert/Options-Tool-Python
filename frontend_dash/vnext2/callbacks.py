@@ -1247,7 +1247,6 @@ def register_v2_callbacks(
         Input(ID.PRICING_MODE, "value"),
         Input(ID.PREMIUM_MODE, "value"),
         Input(ID.SCENARIO_MODE, "value"),
-        Input(ID.SCENARIO_SELECT, "value"),
         Input(ID.DOWNSIDE_TARGET, "value"),
         Input(ID.UPSIDE_TARGET, "value"),
         Input(ID.LEGS_TABLE, "data"),
@@ -1268,7 +1267,6 @@ def register_v2_callbacks(
         pricing_mode,
         premium_mode,
         scenario_mode,
-        scenario_select,
         downside_pct,
         upside_pct,
         legs_data,
@@ -1303,7 +1301,6 @@ def register_v2_callbacks(
             ID.PRICING_MODE: ("pricing_mode", pricing_mode),
             ID.PREMIUM_MODE: ("roi_policy", premium_mode),
             ID.SCENARIO_MODE: ("scenario_mode", scenario_mode),
-            ID.SCENARIO_SELECT: ("scenario_select", scenario_select),
             ID.DOWNSIDE_TARGET: ("downside_pct", downside_pct),
             ID.UPSIDE_TARGET: ("upside_pct", upside_pct),
             ID.CIO_RATING_INPUT: ("cio_rating", cio_rating),
@@ -1332,7 +1329,6 @@ def register_v2_callbacks(
         Output(ID.PRICING_MODE, "value"),
         Output(ID.PREMIUM_MODE, "value"),
         Output(ID.SCENARIO_MODE, "value"),
-        Output(ID.SCENARIO_SELECT, "value"),
         Output(ID.DOWNSIDE_TARGET, "value"),
         Output(ID.UPSIDE_TARGET, "value"),
         Output(ID.CIO_RATING_INPUT, "value"),
@@ -1340,7 +1336,7 @@ def register_v2_callbacks(
         State(ID.STORE_UI, "data"),
     )
     def _v2_hydrate_ui(tab_value, ui_state):
-        hydrate_count = 12
+        hydrate_count = 11
         if tab_value != "dashboard":
             return (no_update,) * hydrate_count
         state = ui_state if isinstance(ui_state, dict) else {}
@@ -1359,7 +1355,6 @@ def register_v2_callbacks(
             _value("pricing_mode", "mid"),
             _value("roi_policy", "premium"),
             _value("scenario_mode", "targets"),
-            _value("scenario_select", None),
             _value("downside_pct", -10.0),
             _value("upside_pct", 10.0),
             _value("cio_rating", ""),
@@ -1486,41 +1481,39 @@ def register_v2_callbacks(
 
         return metrics_children, margin_children, dividend_children
 
-    # ── #21 Render risk banner ───────────────────────────────
+    # ── #21 Render risk banner (badge inside payoff card) ────
     @app.callback(
         Output(ID.RISK_BANNER, "children"),
-        Output(ID.RISK_BANNER, "title"),
         Output(ID.RISK_BANNER, "color"),
         Input(ID.STORE_ANALYSIS_KEY, "data"),
     )
     def _v2_render_risk_banner(key_payload):
-        default_msg = "No active risk events. Run analysis to check for ex-dividend dates and earnings."
         if not isinstance(key_payload, dict) or key_payload.get("error"):
-            return default_msg, "Risk Events", "yellow"
+            return "No risk events", "green"
         pack = cache_get(key_payload.get("key"))
         if not pack or not isinstance(pack, dict):
-            return default_msg, "Risk Events", "yellow"
+            return "No risk events", "green"
         underlying = pack.get("underlying", {})
         if not isinstance(underlying, dict):
-            return "No risk events detected.", "Risk Events", "green"
+            return "No risk events", "green"
         earnings_risk = underlying.get("earnings_risk", {}) or {}
         dividend_risk = underlying.get("dividend_risk", {}) or {}
         messages = []
         if isinstance(earnings_risk, dict) and earnings_risk.get("before_expiry") is True:
             days = earnings_risk.get("days_to_earnings")
             if days is not None:
-                messages.append(f"Earnings in {days} days (before expiry)")
+                messages.append(f"Earnings in {days}d")
             else:
                 messages.append("Earnings before expiry")
         if isinstance(dividend_risk, dict) and dividend_risk.get("before_expiry") is True:
             days = dividend_risk.get("days_to_dividend")
             if days is not None:
-                messages.append(f"Ex-dividend in {days} days (before expiry)")
+                messages.append(f"Ex-div in {days}d")
             else:
-                messages.append("Ex-dividend date before expiry")
+                messages.append("Ex-div before expiry")
         if not messages:
-            return "No risk events detected.", "Risk Events", "green"
-        return " | ".join(messages), "Risk Events", "red"
+            return "No risk events", "green"
+        return " | ".join(messages), "red"
 
     # ── #22 Render scenario cards ────────────────────────────
     @app.callback(

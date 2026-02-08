@@ -22,6 +22,10 @@ STRATEGY_CLEAR = "v2-strategy-clear"
 SHARES_INPUT = "v2-shares-input"
 AVG_COST_INPUT = "v2-avg-cost-input"
 
+# ─── Output & Tracking ─────────────────────────────────────
+FA_NAME_INPUT = "v2-fa-name-input"
+ACCT_NUMBER_INPUT = "v2-acct-number-input"
+
 # ─── Action buttons ───────────────────────────────────────
 BTN_REFRESH = "v2-btn-refresh"
 BTN_ANALYZE = "v2-btn-analyze"

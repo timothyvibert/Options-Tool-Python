@@ -119,7 +119,7 @@ def _tabs():
                 children=[
                     dmc.TabsTab("DASHBOARD", value="dashboard"),
                     dmc.TabsTab("BLOOMBERG DATA", value="bloomberg"),
-                    dmc.TabsTab("CLIENT REPORT", value="report"),
+                    dmc.TabsTab("ACTIVITY LOG", value="report"),
                 ],
                 mb="md",
             ),
@@ -137,89 +137,26 @@ def _tabs():
 def _dashboard_tab():
     return dmc.Stack(
         gap="md",
-        mt="md",
         children=[
-            # ROW 1 — Input Controls (3 cards)
-            dmc.Grid(
-                gutter="md",
+            # ROW 1 — Four input cards (equal width)
+            dmc.SimpleGrid(
+                cols={"base": 1, "sm": 2, "md": 4},
+                spacing="md",
                 children=[
-                    dmc.GridCol(
-                        span={"base": 12, "md": 4},
-                        children=[_card_market()],
-                    ),
-                    dmc.GridCol(
-                        span={"base": 12, "md": 4},
-                        children=[_card_strategy()],
-                    ),
-                    dmc.GridCol(
-                        span={"base": 12, "md": 4},
-                        children=[_card_actions()],
-                    ),
+                    _card_market(),
+                    _card_strategy(),
+                    _card_actions(),
+                    _card_tracking(),
                 ],
             ),
-            # ROW 2 — Legs + Settings
-            dmc.Grid(
-                gutter="md",
-                children=[
-                    dmc.GridCol(
-                        span={"base": 12, "md": 7},
-                        children=[_card_legs()],
-                    ),
-                    dmc.GridCol(
-                        span={"base": 12, "md": 5},
-                        children=[
-                            dmc.Stack(
-                                gap="md",
-                                children=[_card_pricing(), _card_scenario()],
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            # ROW 3 — Risk Banner
-            _risk_banner(),
-            # ROW 4 — Payoff + Metrics
-            dmc.Grid(
-                gutter="md",
-                children=[
-                    dmc.GridCol(
-                        span={"base": 12, "md": 7},
-                        children=[_card_payoff()],
-                    ),
-                    dmc.GridCol(
-                        span={"base": 12, "md": 5},
-                        children=[_card_metrics()],
-                    ),
-                ],
-            ),
-            # ROW 5 — Commentary + Dividend
-            dmc.Grid(
-                gutter="md",
-                children=[
-                    dmc.GridCol(
-                        span={"base": 12, "md": 8},
-                        children=[_card_commentary()],
-                    ),
-                    dmc.GridCol(
-                        span={"base": 12, "md": 4},
-                        children=[_card_dividend()],
-                    ),
-                ],
-            ),
-            # ROW 6 — Key Levels + Margin
-            dmc.Grid(
-                gutter="md",
-                children=[
-                    dmc.GridCol(
-                        span={"base": 12, "md": 8},
-                        children=[_card_key_levels()],
-                    ),
-                    dmc.GridCol(
-                        span={"base": 12, "md": 4},
-                        children=[_card_margin()],
-                    ),
-                ],
-            ),
+            # ROW 1b — Collapsible advanced settings
+            _settings_panel(),
+            # ROW 2 — Legs table + Payoff chart side by side
+            _row2_legs_chart(),
+            # ROW 3a — Metrics + Scenario commentary
+            _row3a_metrics_scenarios(),
+            # ROW 3b — Key levels + Margin/Dividend sidebar
+            _row3b_levels_sidebar(),
         ],
     )
 
@@ -288,76 +225,28 @@ def _legend_line(color, label, dashed=False):
 
 def _card_market():
     return dmc.Card(
-        withBorder=True,
+        withBorder=True, shadow="sm",
         children=[
             _section_title("MARKET"),
-            dmc.TextInput(
-                id=ID.TICKER_INPUT,
-                label="Ticker",
-                placeholder="e.g. AAPL US Equity",
-                size="sm",
-                mb="sm",
-            ),
-            dmc.Text(
-                id=ID.SPOT_DISPLAY,
-                children="Spot: — (enter ticker and refresh)",
-                size="sm",
-                c="dimmed",
-                mb="xs",
-            ),
-            dmc.Text(
-                id=ID.SPOT_STATUS,
-                size="xs",
-                c="dimmed",
-                mb="sm",
-            ),
-            dmc.DatePickerInput(
-                id=ID.EXPIRY_SELECT,
-                label="Expiration",
-                placeholder="Select expiry",
-                valueFormat="YYYY-MM-DD",
-                clearable=True,
-                w="100%",
-                size="sm",
-            ),
+            dmc.TextInput(id=ID.TICKER_INPUT, label="Ticker", placeholder="e.g. AAPL US Equity", size="sm", mb="xs"),
+            dmc.Text(id=ID.SPOT_DISPLAY, children="Spot: —", size="sm", c="dimmed", mb="xs"),
+            dmc.Text(id=ID.SPOT_STATUS, size="xs", c="dimmed", mb="xs"),
+            dmc.DatePickerInput(id=ID.EXPIRY_SELECT, label="Expiration", placeholder="Select expiry", valueFormat="YYYY-MM-DD", clearable=True, w="100%", size="sm"),
         ],
     )
 
 
 def _card_strategy():
     return dmc.Card(
-        withBorder=True,
+        withBorder=True, shadow="sm",
         children=[
             _section_title("STRATEGY"),
-            dmc.Select(
-                id=ID.GROUP_SELECT,
-                label="Strategy Group",
-                placeholder="Select group",
-                data=list_groups(),
-                size="sm",
-                mb="sm",
-            ),
+            dmc.Select(id=ID.GROUP_SELECT, label="Strategy Group", placeholder="Select group", data=list_groups(), searchable=True, size="sm", mb="xs"),
             dmc.Group(
-                gap="xs",
-                align="end",
+                gap="xs", align="end",
                 children=[
-                    dmc.Select(
-                        id=ID.STRATEGY_SELECT,
-                        label="Strategy",
-                        placeholder="Select strategy",
-                        data=["Collar", "Bull Call Spread", "Iron Condor"],
-                        clearable=True,
-                        searchable=True,
-                        size="sm",
-                        style={"flex": 1},
-                    ),
-                    dmc.ActionIcon(
-                        dmc.Text("X", size="xs"),
-                        id=ID.STRATEGY_CLEAR,
-                        variant="subtle",
-                        color="gray",
-                        size="lg",
-                    ),
+                    dmc.Select(id=ID.STRATEGY_SELECT, label="Strategy", placeholder="Select strategy", data=[], clearable=True, searchable=True, size="sm", style={"flex": 1}),
+                    dmc.ActionIcon(dmc.Text("X", size="xs"), id=ID.STRATEGY_CLEAR, variant="subtle", color="gray", size="lg"),
                 ],
             ),
         ],
@@ -366,61 +255,32 @@ def _card_strategy():
 
 def _card_actions():
     return dmc.Card(
-        withBorder=True,
+        withBorder=True, shadow="sm",
         children=[
             _section_title("STOCK OVERLAY & ACTIONS"),
-            dmc.NumberInput(
-                id=ID.SHARES_INPUT,
-                label="Shares",
-                placeholder="0",
-                size="sm",
-                mb="sm",
-            ),
-            dmc.NumberInput(
-                id=ID.AVG_COST_INPUT,
-                label="Avg Cost",
-                placeholder="0.00",
-                decimalScale=2,
-                size="sm",
-                mb="md",
-            ),
-            dmc.Divider(mb="md"),
+            dmc.NumberInput(id=ID.SHARES_INPUT, label="Shares", placeholder="0", size="sm", mb="xs"),
+            dmc.NumberInput(id=ID.AVG_COST_INPUT, label="Avg Cost", placeholder="0.00", decimalScale=2, size="sm", mb="sm"),
             dmc.Group(
-                grow=True,
-                mb="sm",
+                grow=True, mb="xs",
                 children=[
-                    dmc.Button(
-                        "REFRESH DATA",
-                        id=ID.BTN_REFRESH,
-                        variant="outline",
-                        color="cyan",
-                        size="sm",
-                    ),
-                    dmc.Button(
-                        "RUN ANALYSIS",
-                        id=ID.BTN_ANALYZE,
-                        variant="filled",
-                        color="cyan",
-                        size="sm",
-                    ),
+                    dmc.Button("REFRESH DATA", id=ID.BTN_REFRESH, variant="outline", color="cyan", size="sm"),
+                    dmc.Button("RUN ANALYSIS", id=ID.BTN_ANALYZE, variant="filled", color="cyan", size="sm"),
                 ],
             ),
-            dmc.Button(
-                "GENERATE PDF REPORT",
-                id=ID.BTN_PDF,
-                variant="light",
-                color="green",
-                fullWidth=True,
-                size="sm",
-                mb="xs",
-            ),
-            dmc.Text(
-                id=ID.REFRESH_STATUS,
-                children="Market refreshed at —",
-                size="xs",
-                c="dimmed",
-                mt="xs",
-            ),
+            dmc.Text(id=ID.REFRESH_STATUS, children="", size="xs", c="dimmed"),
+        ],
+    )
+
+
+def _card_tracking():
+    return dmc.Card(
+        withBorder=True, shadow="sm",
+        children=[
+            _section_title("OUTPUT & TRACKING"),
+            dmc.TextInput(id=ID.FA_NAME_INPUT, label="FA Name", placeholder="e.g. John Smith", size="sm", mb="xs"),
+            dmc.TextInput(id=ID.ACCT_NUMBER_INPUT, label="Account Number", placeholder="e.g. AB-123456", size="sm", mb="sm"),
+            dmc.Button("GENERATE PDF REPORT", id=ID.BTN_PDF, variant="light", color="green", fullWidth=True, size="sm", mb="xs"),
+            dmc.Text(id=ID.REPORT_STATUS, children="", size="xs", c="dimmed"),
         ],
     )
 
@@ -511,94 +371,46 @@ def _card_legs():
     )
 
 
-def _card_pricing():
-    return dmc.Card(
-        withBorder=True,
+def _settings_panel():
+    """Collapsible advanced settings — collapsed by default."""
+    return dmc.Accordion(
         children=[
-            _section_title("PRICING & ROI"),
-            dmc.Select(
-                id=ID.PRICING_MODE,
-                label="Pricing Mode",
-                data=[
-                    {"value": "mid", "label": "Mid"},
-                    {"value": "bid_ask", "label": "Bid/Ask"},
+            dmc.AccordionItem(
+                value="settings",
+                children=[
+                    dmc.AccordionControl("Advanced Settings"),
+                    dmc.AccordionPanel(
+                        dmc.Grid(
+                            gutter="md",
+                            children=[
+                                dmc.GridCol(span=2, children=[
+                                    dmc.Select(id=ID.PRICING_MODE, label="Pricing Mode", data=[{"value": "mid", "label": "Mid"}, {"value": "bid_ask", "label": "Bid/Ask"}], value="mid", size="sm"),
+                                ]),
+                                dmc.GridCol(span=2, children=[
+                                    dmc.Select(id=ID.PREMIUM_MODE, label="Capital Basis", data=[{"value": "premium", "label": "Premium"}, {"value": "max_loss", "label": "Max Loss"}, {"value": "cash_secured", "label": "Cash Secured"}, {"value": "margin", "label": "Margin Proxy"}], value="premium", size="sm"),
+                                ]),
+                                dmc.GridCol(span=2, children=[
+                                    dmc.Select(id=ID.SCENARIO_MODE, label="Scenario Mode", data=[{"value": "targets", "label": "Targets"}, {"value": "infinity", "label": "Infinity"}], value="targets", size="sm"),
+                                ]),
+                                dmc.GridCol(span=2, children=[
+                                    dmc.NumberInput(id=ID.DOWNSIDE_TARGET, label="Downside (%)", value=-10.0, step=1, size="sm"),
+                                ]),
+                                dmc.GridCol(span=2, children=[
+                                    dmc.NumberInput(id=ID.UPSIDE_TARGET, label="Upside (%)", value=10.0, step=1, size="sm"),
+                                ]),
+                                dmc.GridCol(span=2, children=[
+                                    dmc.Select(id=ID.CIO_RATING_INPUT, label="CIO Rating", data=["Most Preferred", "Bellwether", "Least Preferred", "Not Covered"], placeholder="Select rating", clearable=True, size="sm"),
+                                ]),
+                            ],
+                        )
+                    ),
                 ],
-                value="mid",
-                size="sm",
-                mb="sm",
-            ),
-            dmc.Select(
-                id=ID.PREMIUM_MODE,
-                label="Capital Basis",
-                data=[
-                    {"value": "premium", "label": "Premium"},
-                    {"value": "max_loss", "label": "Max Loss"},
-                    {"value": "cash_secured", "label": "Cash Secured"},
-                    {"value": "margin", "label": "Margin Proxy"},
-                ],
-                value="premium",
-                size="sm",
-            ),
+            )
         ],
+        value=None,
+        variant="separated",
     )
 
-
-def _card_scenario():
-    return dmc.Card(
-        withBorder=True,
-        children=[
-            _section_title("SCENARIO & ACTIONS"),
-            dmc.Select(
-                id=ID.SCENARIO_MODE,
-                label="Scenario Mode",
-                data=[
-                    {"value": "targets", "label": "Targets"},
-                    {"value": "infinity", "label": "Infinity"},
-                ],
-                value="targets",
-                size="sm",
-                mb="sm",
-            ),
-            dmc.Select(
-                id=ID.SCENARIO_SELECT,
-                label="Scenario",
-                placeholder="Select scenario",
-                data=["Custom", "Bearish", "Base", "Bullish"],
-                size="sm",
-                mb="sm",
-            ),
-            dmc.NumberInput(
-                id=ID.DOWNSIDE_TARGET,
-                label="Downside Target (%)",
-                value=-10.0,
-                step=1,
-                size="sm",
-                mb="sm",
-            ),
-            dmc.NumberInput(
-                id=ID.UPSIDE_TARGET,
-                label="Upside Target (%)",
-                value=10.0,
-                step=1,
-                size="sm",
-            ),
-        ],
-    )
-
-
-# ───────────────────────────────────────────────────────────
-# ROW 3 — Risk Banner
-# ───────────────────────────────────────────────────────────
-
-def _risk_banner():
-    return dmc.Alert(
-        id=ID.RISK_BANNER,
-        title="Risk Events",
-        children="No active risk events. Run analysis to check for ex-dividend dates and earnings.",
-        color="yellow",
-        variant="light",
-        radius="md",
-    )
 
 
 # ───────────────────────────────────────────────────────────
@@ -623,7 +435,7 @@ def _card_payoff():
             "zerolinecolor": "#3D4559",
         },
         margin={"l": 50, "r": 20, "t": 30, "b": 60},
-        height=400,
+        height=500,
         showlegend=False,
     )
     fig.add_annotation(
@@ -638,11 +450,24 @@ def _card_payoff():
     return dmc.Card(
         withBorder=True,
         children=[
-            _section_title("PAYOFF AT EXPIRY"),
+            dmc.Group(
+                justify="space-between",
+                mb="sm",
+                children=[
+                    _section_title("PAYOFF AT EXPIRY"),
+                    dmc.Badge(
+                        id=ID.RISK_BANNER,
+                        children="No risk events",
+                        color="green",
+                        variant="light",
+                        size="sm",
+                    ),
+                ],
+            ),
             dcc.Graph(
                 id=ID.PAYOFF_CHART,
                 figure=fig,
-                config={"displayModeBar": False},
+                config={"responsive": True, "displayModeBar": False},
             ),
             dmc.Group(
                 mt="sm",
@@ -655,6 +480,17 @@ def _card_payoff():
                     _legend_line("#22D3EE", "BREAKEVENS", dashed=True),
                 ],
             ),
+        ],
+    )
+
+
+def _row2_legs_chart():
+    """Row 2: Option legs table (left) + payoff chart (right)."""
+    return dmc.Grid(
+        gutter="md",
+        children=[
+            dmc.GridCol(span=5, children=[_card_legs()]),
+            dmc.GridCol(span=7, children=[_card_payoff()]),
         ],
     )
 
@@ -695,62 +531,13 @@ def _card_metrics():
 # ROW 5 — Commentary + Dividend
 # ───────────────────────────────────────────────────────────
 
-def _scenario_card(title, subtitle, color):
-    return dmc.Card(
-        withBorder=True,
-        padding="md",
-        children=[
-            dmc.Group(
-                gap="xs",
-                mb="xs",
-                children=[
-                    dmc.Badge(
-                        title.split()[0],
-                        color=color,
-                        size="sm",
-                        variant="light",
-                    ),
-                    dmc.Text(title, fw=600, size="sm"),
-                ],
-            ),
-            dmc.Text(subtitle, size="xs", c="dimmed", mb="sm"),
-            dmc.Divider(mb="sm"),
-            dmc.Text(
-                "Run analysis to see scenario commentary.",
-                size="sm",
-                c="dimmed",
-            ),
-        ],
-    )
-
-
 def _card_commentary():
     return dmc.Card(
         withBorder=True,
         id=ID.SCENARIO_CARDS,
         children=[
             _section_title("SCENARIO COMMENTARY"),
-            dmc.SimpleGrid(
-                cols={"base": 1, "sm": 3},
-                spacing="md",
-                children=[
-                    _scenario_card(
-                        "Bearish Case",
-                        "Stock drops significantly",
-                        "red",
-                    ),
-                    _scenario_card(
-                        "Stagnant Case",
-                        "Stock stays near current levels",
-                        "gray",
-                    ),
-                    _scenario_card(
-                        "Bullish Case",
-                        "Stock rises significantly",
-                        "green",
-                    ),
-                ],
-            ),
+            dmc.Text("Run analysis to see scenario commentary.", size="sm", c="dimmed"),
         ],
     )
 
@@ -876,6 +663,43 @@ def _card_margin():
     )
 
 
+# ───────────────────────────────────────────────────────────
+# Row 3 Output Panel Helpers
+# ───────────────────────────────────────────────────────────
+
+def _row3a_metrics_scenarios():
+    """Row 3a: Metrics (left) + Scenario commentary (right)."""
+    return dmc.Grid(
+        gutter="md",
+        children=[
+            dmc.GridCol(span=5, children=[_card_metrics()]),
+            dmc.GridCol(span=7, children=[_card_commentary()]),
+        ],
+    )
+
+
+def _row3b_levels_sidebar():
+    """Row 3b: Key levels (left) + Margin/Dividend/Eligibility stack (right)."""
+    return dmc.Grid(
+        gutter="md",
+        children=[
+            dmc.GridCol(span=8, children=[_card_key_levels()]),
+            dmc.GridCol(
+                span=4,
+                children=[
+                    dmc.Stack(
+                        gap="md",
+                        children=[
+                            _card_margin(),
+                            _card_dividend(),
+                        ],
+                    )
+                ],
+            ),
+        ],
+    )
+
+
 # ═══════════════════════════════════════════════════════════
 # BLOOMBERG DATA TAB
 # ═══════════════════════════════════════════════════════════
@@ -968,7 +792,7 @@ def _bloomberg_tab():
 
 
 # ═══════════════════════════════════════════════════════════
-# CLIENT REPORT TAB
+# ACTIVITY LOG TAB
 # ═══════════════════════════════════════════════════════════
 
 def _report_tab():
@@ -977,42 +801,25 @@ def _report_tab():
         mt="md",
         children=[
             dmc.Card(
-                withBorder=True,
+                withBorder=True, shadow="sm", p="lg",
                 children=[
-                    _section_title("CLIENT REPORT"),
-                    dmc.TextInput(
-                        id=ID.CIO_RATING_INPUT,
-                        label="CIO Rating",
-                        placeholder="e.g. Buy, Neutral, Sell",
-                        size="sm",
-                        mb="md",
-                    ),
-                    dmc.Text(
-                        id=ID.REPORT_STATUS,
-                        size="sm",
-                        c="dimmed",
-                        mb="md",
-                    ),
-                    html.Div(
-                        id=ID.REPORT_PREVIEW,
-                        children=dmc.Paper(
-                            withBorder=True,
-                            p="xl",
-                            h=400,
-                            children=[
-                                dmc.Center(
-                                    h="100%",
-                                    children=[
-                                        dmc.Text(
-                                            "PDF preview will appear here after generation.",
-                                            c="dimmed",
-                                        ),
-                                    ],
-                                ),
-                            ],
-                        ),
+                    dmc.Text("Activity Log", size="lg", fw=700, mb="sm"),
+                    dmc.Text("Illustration tracking will appear here.", c="dimmed", mb="md"),
+                    dmc.Group(
+                        children=[
+                            dmc.Button("Download CSV", variant="outline", disabled=True),
+                            dmc.Button("Clear Log", color="red", variant="outline", disabled=True),
+                        ],
                     ),
                 ],
+            ),
+            # Keep report preview area for PDF output
+            html.Div(
+                id=ID.REPORT_PREVIEW,
+                children=dmc.Paper(
+                    withBorder=True, p="xl", h=300,
+                    children=dmc.Center(h="100%", children=dmc.Text("PDF preview will appear here after generation.", c="dimmed")),
+                ),
             ),
         ],
     )

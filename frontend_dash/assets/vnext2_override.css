@@ -1,0 +1,9 @@
+/* v2 DMC layout: scope Mantine overrides under .v2-root so they
+   never leak into the old vnext dashboard at /.
+   MantineProvider sets --mantine-color-body etc. via CSS variables;
+   these rules only apply inside the v2 layout wrapper. */
+.v2-root {
+  background-color: var(--mantine-color-body);
+  color: var(--mantine-color-text);
+  font-family: var(--mantine-font-family);
+}

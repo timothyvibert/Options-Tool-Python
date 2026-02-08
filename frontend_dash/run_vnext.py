@@ -2,6 +2,10 @@
 
 Run:
   python -m frontend_dash.run_vnext
+
+Routes:
+  /     — current vnext dashboard
+  /v2   — DMC v2 dashboard shell (visual skeleton)
 """
 
 from __future__ import annotations
@@ -19,19 +23,27 @@ except Exception:
     BLOOMBERG_AVAILABLE = False
 
 try:
-    from dash import Dash, html
+    from dash import Dash, html, dcc, Input, Output
     DASH_AVAILABLE = True
 except ModuleNotFoundError:
     DASH_AVAILABLE = False
     Dash = None
     html = None
+    dcc = None
 
 from frontend_dash.vnext.callbacks import register_callbacks
 from frontend_dash.vnext.layout import (
-    get_validation_layout,
     layout_control_plane_stores,
     layout_shell,
 )
+
+# DMC v2 layout (optional — gracefully degrades if unavailable)
+try:
+    from frontend_dash.vnext2.layout import layout_v2 as _layout_v2_fn
+    _V2_AVAILABLE = True
+except Exception:
+    _layout_v2_fn = None
+    _V2_AVAILABLE = False
 
 
 class _DashStub:
@@ -45,11 +57,11 @@ class _DashStub:
 
         return _wrapper
 
-    def run_server(self, *args, **kwargs) -> None:
+    def run(self, *args, **kwargs) -> None:
         raise RuntimeError("Dash is not installed. Install 'dash' to run the app.")
 
 
-app = Dash(__name__) if DASH_AVAILABLE else _DashStub()
+app = Dash(__name__, suppress_callback_exceptions=True) if DASH_AVAILABLE else _DashStub()
 
 
 _ANALYSIS_CACHE: dict[str, dict] = {}
@@ -92,17 +104,28 @@ def _cache_get(key: str | None) -> dict | None:
 
 
 if DASH_AVAILABLE:
-    _base_layout = html.Div(
+    _vnext_shell = layout_shell(bloomberg_available=BLOOMBERG_AVAILABLE)
+
+    # ── Layout: dcc.Location for client-side routing ─────────────────────
+    # Stores live outside _page-content so they persist across route changes.
+    # The routing callback swaps _page-content children based on URL path.
+    app.layout = html.Div(
         children=[
+            dcc.Location(id="_url", refresh=False),
             layout_control_plane_stores(),
-            layout_shell(bloomberg_available=BLOOMBERG_AVAILABLE),
+            html.Div(id="_page-content"),
         ]
     )
-    app.layout = _base_layout
-    app.validation_layout = get_validation_layout(
-        base_layout=_base_layout,
-        bloomberg_available=BLOOMBERG_AVAILABLE,
+
+    @app.callback(
+        Output("_page-content", "children"),
+        Input("_url", "pathname"),
     )
+    def _route_page(pathname):
+        if _V2_AVAILABLE and pathname and pathname.startswith("/v2"):
+            return _layout_v2_fn()
+        return _vnext_shell
+
     register_callbacks(
         app,
         _cache_get,
@@ -111,9 +134,19 @@ if DASH_AVAILABLE:
         _bbg_resolve_security,
         _bbg_fetch_spot,
     )
+
+    # ── v2 theme toggle callback ─────────────────────────────────────────
+    if _V2_AVAILABLE:
+        @app.callback(
+            Output("v2-mantine-provider", "forceColorScheme"),
+            Input("v2-theme-toggle", "checked"),
+            prevent_initial_call=True,
+        )
+        def _v2_toggle_theme(checked):
+            return "light" if checked else "dark"
 else:
     app.layout = None
 
 
 if __name__ == "__main__":
-    app.run_server(debug=True, port=8051)
+    app.run(debug=True, port=8051)

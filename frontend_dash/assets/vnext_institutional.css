@@ -48,6 +48,14 @@ body {
   color: var(--ae-text);
 }
 
+/* Reset Dash 4.0 default button styles for dark theme */
+.ae-shell button {
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
 .ae-sidebar {
   width: var(--ae-sidebar-width);
   border-right: 1px solid var(--ae-border);

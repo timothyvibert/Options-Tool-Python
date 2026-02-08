@@ -38,13 +38,13 @@ def list_subgroups(group: str) -> List[str]:
     return subgroups.drop_duplicates().tolist()
 
 
-def list_strategies(group: str, subgroup: str) -> pd.DataFrame:
+def list_strategies(group: str, subgroup: Optional[str] = None) -> pd.DataFrame:
     strategy_map = load_strategy_map()
     group_key = group.strip().casefold()
-    subgroup_key = subgroup.strip().casefold()
-    mask = (_casefold_series(strategy_map["group"]) == group_key) & (
-        _casefold_series(strategy_map["subgroup"]) == subgroup_key
-    )
+    mask = _casefold_series(strategy_map["group"]) == group_key
+    if subgroup is not None:
+        subgroup_key = subgroup.strip().casefold()
+        mask = mask & (_casefold_series(strategy_map["subgroup"]) == subgroup_key)
     return strategy_map.loc[mask].copy()
 
 

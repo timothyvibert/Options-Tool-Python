@@ -37,12 +37,14 @@ from frontend_dash.vnext.layout import (
     layout_shell,
 )
 
-# DMC v2 layout (optional — gracefully degrades if unavailable)
+# DMC v2 layout + callbacks (optional — gracefully degrades if unavailable)
 try:
     from frontend_dash.vnext2.layout import layout_v2 as _layout_v2_fn
+    from frontend_dash.vnext2.callbacks import register_v2_callbacks
     _V2_AVAILABLE = True
 except Exception:
     _layout_v2_fn = None
+    register_v2_callbacks = None
     _V2_AVAILABLE = False
 
 
@@ -135,15 +137,16 @@ if DASH_AVAILABLE:
         _bbg_fetch_spot,
     )
 
-    # ── v2 theme toggle callback ─────────────────────────────────────────
-    if _V2_AVAILABLE:
-        @app.callback(
-            Output("v2-mantine-provider", "forceColorScheme"),
-            Input("v2-theme-toggle", "checked"),
-            prevent_initial_call=True,
+    # ── v2 callbacks ─────────────────────────────────────────────────────
+    if _V2_AVAILABLE and register_v2_callbacks is not None:
+        register_v2_callbacks(
+            app,
+            _cache_get,
+            _cache_put,
+            BLOOMBERG_AVAILABLE,
+            _bbg_resolve_security,
+            _bbg_fetch_spot,
         )
-        def _v2_toggle_theme(checked):
-            return "light" if checked else "dark"
 else:
     app.layout = None
 

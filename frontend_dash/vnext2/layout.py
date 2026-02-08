@@ -10,6 +10,7 @@ import dash_mantine_components as dmc
 from dash import dcc, html, dash_table
 import plotly.graph_objects as go
 
+from core.strategy_map import list_groups
 from frontend_dash.vnext2 import ids as ID
 from frontend_dash.vnext2.theme import THEME
 
@@ -51,6 +52,9 @@ def _stores():
             dcc.Store(id=ID.STORE_MARKET),
             dcc.Store(id=ID.STORE_ANALYSIS_KEY, storage_type="session"),
             dcc.Store(id=ID.STORE_UI, storage_type="session"),
+            dcc.Store(id=ID.STORE_INPUTS),
+            dcc.Download(id=ID.DL_REPORT_PDF),
+            dcc.Download(id=ID.DL_MARKET_JSON),
         ],
         style={"display": "none"},
     )
@@ -299,13 +303,21 @@ def _card_market():
                 children="Spot: — (enter ticker and refresh)",
                 size="sm",
                 c="dimmed",
+                mb="xs",
+            ),
+            dmc.Text(
+                id=ID.SPOT_STATUS,
+                size="xs",
+                c="dimmed",
                 mb="sm",
             ),
-            dmc.Select(
+            dmc.DatePickerInput(
                 id=ID.EXPIRY_SELECT,
                 label="Expiration",
                 placeholder="Select expiry",
-                data=[],
+                valueFormat="YYYY-MM-DD",
+                clearable=True,
+                w="100%",
                 size="sm",
             ),
         ],
@@ -321,15 +333,7 @@ def _card_strategy():
                 id=ID.GROUP_SELECT,
                 label="Strategy Group",
                 placeholder="Select group",
-                data=["Basics", "Income", "Hedging", "Spreads", "Custom"],
-                size="sm",
-                mb="sm",
-            ),
-            dmc.Select(
-                id=ID.SUBGROUP_SELECT,
-                label="Strategy Subgroup",
-                placeholder="Select subgroup",
-                data=["Bullish", "Bearish", "Neutral"],
+                data=list_groups(),
                 size="sm",
                 mb="sm",
             ),
@@ -343,6 +347,7 @@ def _card_strategy():
                         placeholder="Select strategy",
                         data=["Collar", "Bull Call Spread", "Iron Condor"],
                         clearable=True,
+                        searchable=True,
                         size="sm",
                         style={"flex": 1},
                     ),
@@ -410,7 +415,8 @@ def _card_actions():
                 mb="xs",
             ),
             dmc.Text(
-                "Market refreshed at —",
+                id=ID.REFRESH_STATUS,
+                children="Market refreshed at —",
                 size="xs",
                 c="dimmed",
                 mt="xs",
@@ -522,18 +528,8 @@ def _card_pricing():
                 mb="sm",
             ),
             dmc.Select(
-                id=ID.PAY_COLLECT,
-                label="Pay/Collect",
-                data=[
-                    {"value": "pay", "label": "Pay"},
-                    {"value": "collect", "label": "Collect"},
-                ],
-                size="sm",
-                mb="sm",
-            ),
-            dmc.Select(
                 id=ID.PREMIUM_MODE,
-                label="Net Premium",
+                label="Capital Basis",
                 data=[
                     {"value": "premium", "label": "Premium"},
                     {"value": "max_loss", "label": "Max Loss"},
@@ -541,26 +537,6 @@ def _card_pricing():
                     {"value": "margin", "label": "Margin Proxy"},
                 ],
                 value="premium",
-                size="sm",
-                mb="sm",
-            ),
-            dmc.Select(
-                id=ID.VOL_MODE,
-                label="Vol Mode",
-                data=[
-                    {"value": "atm", "label": "ATM"},
-                    {"value": "per_leg", "label": "Per Leg"},
-                ],
-                value="atm",
-                size="sm",
-                mb="sm",
-            ),
-            dmc.NumberInput(
-                id=ID.VOL_INPUT,
-                label="ATM IV",
-                value=0.20,
-                decimalScale=4,
-                step=0.01,
                 size="sm",
             ),
         ],
@@ -689,13 +665,6 @@ def _card_metrics():
         id=ID.METRICS_TABLE,
         children=[
             _section_title("PAYOFF & METRICS"),
-            dmc.TextInput(
-                id=ID.CIO_RATING_INPUT,
-                label="CIO Rating",
-                placeholder="e.g. Most Preferred",
-                size="sm",
-                mb="md",
-            ),
             dmc.Table(
                 data={
                     "head": ["Metric", "Options", "Combined"],
@@ -926,22 +895,73 @@ def _bloomberg_tab():
         gap="md",
         mt="md",
         children=[
-            dmc.Switch(label="Debug Mode", size="sm"),
-            _placeholder_card(
-                "REQUEST SUMMARY",
-                "Run analysis to see request data.",
+            dmc.Switch(id=ID.BBG_DEBUG_TOGGLE, label="Debug Mode", size="sm"),
+            dmc.Card(
+                withBorder=True,
+                children=[
+                    _section_title("REQUEST SUMMARY"),
+                    html.Div(
+                        id=ID.BBG_REQUEST_SUMMARY,
+                        children=dmc.Text(
+                            "Run analysis to see request data.",
+                            size="sm",
+                            c="dimmed",
+                        ),
+                    ),
+                ],
             ),
-            _placeholder_card(
-                "UNDERLYING SNAPSHOT",
-                "Run analysis to see underlying data.",
+            dmc.Card(
+                withBorder=True,
+                children=[
+                    _section_title("UNDERLYING SNAPSHOT"),
+                    html.Div(
+                        id=ID.BBG_UNDERLYING_SUMMARY,
+                        children=dmc.Text(
+                            "Run analysis to see underlying data.",
+                            size="sm",
+                            c="dimmed",
+                        ),
+                    ),
+                    dmc.Divider(my="sm"),
+                    _section_title("RAW JSON"),
+                    html.Pre(
+                        id=ID.BBG_UNDERLYING_JSON,
+                        children="--",
+                        style={"fontSize": "11px", "maxHeight": "200px", "overflow": "auto"},
+                    ),
+                ],
             ),
-            _placeholder_card(
-                "LEG QUOTES",
-                "Run analysis to see leg quote data.",
+            dmc.Card(
+                withBorder=True,
+                children=[
+                    _section_title("LEG QUOTES"),
+                    dash_table.DataTable(
+                        id=ID.BBG_LEG_QUOTES,
+                        columns=[
+                            {"name": "Leg", "id": "leg"},
+                            {"name": "Ticker", "id": "option_ticker"},
+                            {"name": "Bid", "id": "bid"},
+                            {"name": "Ask", "id": "ask"},
+                            {"name": "Mid", "id": "mid"},
+                            {"name": "Last", "id": "last"},
+                            {"name": "IV", "id": "iv"},
+                        ],
+                        data=[],
+                        style_table={"overflowX": "auto"},
+                        style_header=_LEGS_DARK_HEADER,
+                        style_cell=_LEGS_DARK_CELL,
+                    ),
+                ],
             ),
-            _placeholder_card(
-                "ERRORS",
-                "No errors.",
+            dmc.Card(
+                withBorder=True,
+                children=[
+                    _section_title("ERRORS"),
+                    html.Div(
+                        id=ID.BBG_ERRORS,
+                        children=dmc.Text("No errors.", size="sm", c="dimmed"),
+                    ),
+                ],
             ),
         ],
     )
@@ -960,35 +980,37 @@ def _report_tab():
                 withBorder=True,
                 children=[
                     _section_title("CLIENT REPORT"),
-                    dmc.Button(
-                        "GENERATE PDF REPORT",
-                        variant="filled",
-                        color="red",
-                        fullWidth=True,
-                        size="md",
+                    dmc.TextInput(
+                        id=ID.CIO_RATING_INPUT,
+                        label="CIO Rating",
+                        placeholder="e.g. Buy, Neutral, Sell",
+                        size="sm",
                         mb="md",
                     ),
-                    dmc.Paper(
-                        withBorder=True,
-                        p="xl",
-                        h=400,
-                        children=[
-                            dmc.Center(
-                                h="100%",
-                                children=[
-                                    dmc.Text(
-                                        "PDF preview will appear here after generation.",
-                                        c="dimmed",
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
                     dmc.Text(
-                        "Download link will appear here.",
+                        id=ID.REPORT_STATUS,
                         size="sm",
                         c="dimmed",
-                        mt="sm",
+                        mb="md",
+                    ),
+                    html.Div(
+                        id=ID.REPORT_PREVIEW,
+                        children=dmc.Paper(
+                            withBorder=True,
+                            p="xl",
+                            h=400,
+                            children=[
+                                dmc.Center(
+                                    h="100%",
+                                    children=[
+                                        dmc.Text(
+                                            "PDF preview will appear here after generation.",
+                                            c="dimmed",
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
                     ),
                 ],
             ),

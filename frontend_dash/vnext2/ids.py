@@ -5,6 +5,7 @@ STORE_REF = "v2-store-ref"
 STORE_MARKET = "v2-store-market"
 STORE_ANALYSIS_KEY = "v2-store-analysis-key"
 STORE_UI = "v2-store-ui"
+STORE_INPUTS = "v2-store-inputs"
 
 # ─── Market inputs ────────────────────────────────────────
 TICKER_INPUT = "v2-ticker-input"
@@ -61,3 +62,23 @@ TABS = "v2-tabs"
 
 # ─── CIO ──────────────────────────────────────────────────
 CIO_RATING_INPUT = "v2-cio-rating-input"
+
+# ─── Downloads ───────────────────────────────────────────
+DL_REPORT_PDF = "v2-dl-report-pdf"
+DL_MARKET_JSON = "v2-dl-market-json"
+
+# ─── Status displays ────────────────────────────────────
+SPOT_STATUS = "v2-spot-status"
+REFRESH_STATUS = "v2-refresh-status"
+REPORT_STATUS = "v2-report-status"
+
+# ─── Bloomberg tab ──────────────────────────────────────
+BBG_REQUEST_SUMMARY = "v2-bbg-request-summary"
+BBG_UNDERLYING_SUMMARY = "v2-bbg-underlying-summary"
+BBG_UNDERLYING_JSON = "v2-bbg-underlying-json"
+BBG_LEG_QUOTES = "v2-bbg-leg-quotes"
+BBG_ERRORS = "v2-bbg-errors"
+BBG_DEBUG_TOGGLE = "v2-bbg-debug-toggle"
+
+# ─── Report tab ─────────────────────────────────────────
+REPORT_PREVIEW = "v2-report-preview"

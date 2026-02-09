@@ -118,3 +118,12 @@ CLEAR_LOG_CONFIRM = "v2-clear-log-confirm"
 LOG_SUMMARY       = "v2-log-summary"
 CLEAR_LOG_CANCEL  = "v2-clear-log-cancel"
 CLEAR_LOG_YES     = "v2-clear-log-yes"
+
+# ─── Probability bar ─────────────────────────────────────
+PROBABILITY_PANEL  = "v2-probability-panel"
+PROB_POP           = "v2-prob-pop"
+PROB_ASSIGN        = "v2-prob-assign"
+PROB_25            = "v2-prob-25"
+PROB_50            = "v2-prob-50"
+PROB_100           = "v2-prob-100"
+PROB_IV            = "v2-prob-iv"

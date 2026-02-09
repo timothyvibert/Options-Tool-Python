@@ -1685,6 +1685,49 @@ def register_v2_callbacks(
 
         return metrics_children, dividend_children
 
+    # ── #20a Render probability bar ──────────────────────────
+    @app.callback(
+        Output(ID.PROB_POP, "children"),
+        Output(ID.PROB_ASSIGN, "children"),
+        Output(ID.PROB_25, "children"),
+        Output(ID.PROB_50, "children"),
+        Output(ID.PROB_100, "children"),
+        Output(ID.PROB_IV, "children"),
+        Input(ID.STORE_ANALYSIS_KEY, "data"),
+        prevent_initial_call=True,
+    )
+    def _v2_render_probabilities(analysis_key):
+        """Render probability metrics bar."""
+        if not isinstance(analysis_key, dict) or analysis_key.get("error"):
+            raise PreventUpdate
+
+        pack = cache_get(analysis_key.get("key"))
+        if not pack:
+            raise PreventUpdate
+
+        probs = pack.get("probabilities", {})
+        if not probs:
+            return "--", "--", "--", "--", "--", "--"
+
+        def colored_prob(value, pct_str, good_high=True):
+            """Return dmc.Text with color based on value."""
+            if value is None:
+                return dmc.Text("--", size="sm", fw=600, ta="center")
+            if good_high:
+                color = "green" if value > 0.6 else ("yellow" if value > 0.4 else "red")
+            else:
+                color = "red" if value > 0.5 else ("yellow" if value > 0.3 else "green")
+            return dmc.Text(pct_str, size="sm", fw=600, ta="center", c=color)
+
+        pop = colored_prob(probs.get("pop"), probs.get("pop_pct", "--"), good_high=True)
+        assign = colored_prob(probs.get("assignment_prob"), probs.get("assignment_prob_pct", "--"), good_high=False)
+        p25 = colored_prob(probs.get("prob_25_profit"), probs.get("prob_25_pct", "--"), good_high=True)
+        p50 = colored_prob(probs.get("prob_50_profit"), probs.get("prob_50_pct", "--"), good_high=True)
+        p100 = colored_prob(probs.get("prob_100_profit"), probs.get("prob_100_pct", "--"), good_high=True)
+        iv_text = dmc.Text(probs.get("iv_used_pct", "--"), size="sm", fw=600, ta="center")
+
+        return pop, assign, p25, p50, p100, iv_text
+
     # ── #20b Render margin panel (CBOE/House toggle) ─────────
     @app.callback(
         Output(ID.MARGIN_FULL_TABLE, "children"),

@@ -12,7 +12,7 @@ from core.margin import classify_strategy, compute_margin_proxy, compute_margin_
 from core.models import StrategyInput
 from core.narrative import build_narrative_scenarios
 from core.payoff import _compute_pnl_for_price, compute_payoff
-from core.probability import strategy_pop
+from core.probability import strategy_pop, compute_all_probabilities
 from core.roi import capital_basis, combined_capital_basis, compute_net_premium
 from core.scenarios import build_scenario_points, compute_scenario_table
 
@@ -389,6 +389,50 @@ def build_analysis_pack(
 
     pop_text = f"{pop * 100:.1f}%"
 
+    # Build leg dicts with IV for probability metrics
+    legs_with_iv = []
+    for idx, leg in enumerate(strategy_input.legs):
+        leg_iv = per_leg_iv[idx] if idx < len(per_leg_iv) else None
+        legs_with_iv.append({
+            "qty": leg.position,
+            "type": leg.kind.upper(),
+            "strike": leg.strike,
+            "premium": leg.premium,
+            "iv": leg_iv or 0.0,
+        })
+
+    # Compute all probability metrics
+    try:
+        from core.probability import effective_sigma
+        eff_sigma = effective_sigma(
+            strategy_input, per_leg_iv, vol_mode, risk_free_rate, 0.0, t,
+            atm_iv=atm_iv,
+        )
+    except Exception:
+        eff_sigma = 0.2
+
+    max_profit_val = max(options_pnl) if options_pnl else None
+    # Target probs use options-only payoff so thresholds are meaningful
+    # even when a stock overlay inflates combined PnL.  PoP uses the
+    # combined payoff (already computed above) for the true position.
+    try:
+        prob_results = compute_all_probabilities(
+            input_obj=option_only,
+            payoff_fn=_compute_pnl_for_price,
+            legs=legs_with_iv,
+            spot=strategy_input.spot,
+            r=risk_free_rate,
+            q=0.0,
+            sigma=eff_sigma,
+            t=t,
+            max_profit=max_profit_val,
+        )
+    except Exception:
+        prob_results = {}
+    # Override PoP with the combined-payoff value (the true position)
+    prob_results["pop"] = pop
+    prob_results["pop_pct"] = f"{pop * 100:.1f}%"
+
     summary_rows = [
         {
             "metric": "Max Profit",
@@ -708,6 +752,7 @@ def build_analysis_pack(
             "margin_proxy": margin_proxy,
             "full": margin_full,
         },
+        "probabilities": prob_results,
         "scenario": {
             "df": scenario_df,
             "top10": scenario_df.head(10).copy(),

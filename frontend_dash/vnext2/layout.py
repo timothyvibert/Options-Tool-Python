@@ -177,7 +177,7 @@ def _dashboard_tab():
             ),
             # ROW 1b — Collapsible advanced settings
             _settings_panel(),
-            # ROW 2 + 3 — Tight group: Legs/Chart then Metrics/Scenarios
+            # ROW 2 + 3 — Tight group: Legs/Chart, Prob bar, Metrics/Scenarios
             dmc.Stack(
                 gap="xs",
                 children=[
@@ -516,12 +516,53 @@ def _card_payoff():
     )
 
 
+def _prob_stat(label, id_str):
+    """Single probability statistic display."""
+    return dmc.Stack([
+        dmc.Text(label, size="xs", c="dimmed", ta="center"),
+        dmc.Text("--", id=id_str, size="sm", fw=600, ta="center"),
+    ], gap=2, align="center", style={"minWidth": "80px"})
+
+
+def _probability_panel():
+    """Compact 2-row probability panel (5/12 width, under legs table)."""
+    return dmc.Card(
+        id=ID.PROBABILITY_PANEL,
+        children=[
+            # Row 1: PoP, Assignment, IV Used
+            dmc.Group([
+                _prob_stat("PoP", ID.PROB_POP),
+                dmc.Divider(orientation="vertical", size="sm"),
+                _prob_stat("Assignment", ID.PROB_ASSIGN),
+                dmc.Divider(orientation="vertical", size="sm"),
+                _prob_stat("IV Used", ID.PROB_IV),
+            ], justify="space-around", style={"width": "100%"}),
+
+            dmc.Divider(size="xs", mt=6, mb=6),
+
+            # Row 2: Target probs
+            dmc.Group([
+                _prob_stat("Prob 25%", ID.PROB_25),
+                dmc.Divider(orientation="vertical", size="sm"),
+                _prob_stat("Prob 50%", ID.PROB_50),
+                dmc.Divider(orientation="vertical", size="sm"),
+                _prob_stat("Prob 100%", ID.PROB_100),
+            ], justify="space-around", style={"width": "100%"}),
+        ],
+        withBorder=True, shadow="sm", p="sm",
+    )
+
+
+
 def _row2_legs_chart():
-    """Row 2: Option legs table (left) + payoff chart (right)."""
+    """Row 2: Option legs table + probability panel (left) + payoff chart (right)."""
     return dmc.Grid(
         gutter="md",
         children=[
-            dmc.GridCol(span=5, children=[_card_legs()]),
+            dmc.GridCol(
+                dmc.Stack([_card_legs(), _probability_panel()], gap="xs"),
+                span=5,
+            ),
             dmc.GridCol(span=7, children=[_card_payoff()]),
         ],
     )

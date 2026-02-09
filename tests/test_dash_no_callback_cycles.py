@@ -1,6 +1,6 @@
 import pytest
 
-from frontend_dash import app as dash_app
+from frontend_dash import app_vnext as dash_app
 
 
 def _parse_outputs(out_key: str) -> list[str]:

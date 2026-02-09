@@ -28,7 +28,7 @@ from frontend_dash.vnext.layout import (
     layout_report,
 )
 from reporting.report_model import _pick_first_df, build_report_model
-from reporting.report_pdf import build_client_report_pdf
+from reporting.html_v2.renderer import build_report_pdf_html
 
 
 def _utc_now_str() -> str:
@@ -956,7 +956,7 @@ def register_callbacks(
             filename = _report_filename(key_payload, pack)
 
             try:
-                payload = build_client_report_pdf(report_model, prefer_html=True)
+                payload = build_report_pdf_html(report_model)
             except Exception as exc:
                 traceback.print_exc()
                 return no_update, f"PDF export error: {type(exc).__name__}: {exc}"

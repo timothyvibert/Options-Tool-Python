@@ -969,7 +969,7 @@ def register_v2_callbacks(
             return no_update, "Run Analysis first to generate a report.", no_update
         try:
             from reporting.report_model import build_report_model
-            from reporting.report_pdf import build_client_report_pdf
+            from reporting.html_v2.renderer import build_report_pdf_html
 
             inputs_store = inputs_state if isinstance(inputs_state, dict) else {}
             ui_store = ui_state if isinstance(ui_state, dict) else {}
@@ -1000,7 +1000,7 @@ def register_v2_callbacks(
             filename = _report_filename(key_payload, pack)
 
             try:
-                payload = build_client_report_pdf(report_model, prefer_html=True)
+                payload = build_report_pdf_html(report_model)
             except Exception as exc:
                 traceback.print_exc()
                 return no_update, f"PDF export error: {type(exc).__name__}: {exc}", no_update

@@ -6,5 +6,23 @@ __pycache__/
 tests/artifacts/
 Design/out/
 Design/figma_report_v2/public/report_contract.json
+
+# Build artifacts
+out/
+dist/
+build/
+*.egg-info/
+
+# Node (Figma prototype remnants)
+node_modules/
+
+# Environment
+.env
+.venv/
+venv/
+
 # Client data — never commit
 activity_log.csv
+
+# Excel lock files
+~$*.xls*

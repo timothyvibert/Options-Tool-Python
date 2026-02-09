@@ -1578,10 +1578,9 @@ def register_v2_callbacks(
             _value("cio_rating", ""),
         )
 
-    # ── #20 Render metrics/margin/dividend panels ────────────
+    # ── #20 Render metrics/dividend panels ───────────────────
     @app.callback(
         Output(ID.METRICS_TABLE, "children"),
-        Output(ID.MARGIN_CARD, "children"),
         Output(ID.DIVIDEND_CARD, "children"),
         Input(ID.STORE_ANALYSIS_KEY, "data"),
         Input(ID.TABS, "value"),
@@ -1623,7 +1622,6 @@ def register_v2_callbacks(
             msg = dmc.Text("Run Analysis to view results.", size="sm", c="dimmed")
             return (
                 [_section_title("PAYOFF & METRICS"), msg],
-                [_section_title("MARGIN & CAPITAL"), msg],
                 [_section_title("DIVIDEND"), msg],
             )
 
@@ -1632,7 +1630,6 @@ def register_v2_callbacks(
             msg = dmc.Text("Analysis expired; rerun.", size="sm", c="dimmed")
             return (
                 [_section_title("PAYOFF & METRICS"), msg],
-                [_section_title("MARGIN & CAPITAL"), msg],
                 [_section_title("DIVIDEND"), msg],
             )
 
@@ -1671,17 +1668,6 @@ def register_v2_callbacks(
         else:
             metrics_children.append(dmc.Text("--", size="sm", c="dimmed"))
 
-        # Margin table
-        margin = store_pack.get("margin", {}) if isinstance(store_pack, dict) else {}
-        margin_rows = [
-            ["Classification", margin.get("classification", "--")],
-            ["Margin Proxy", margin.get("margin_proxy", "--")],
-        ]
-        margin_children = [
-            _section_title("MARGIN & CAPITAL"),
-            _dmc_table_simple(["Field", "Value"], margin_rows),
-        ]
-
         # Dividend table
         dividend = {}
         underlying = store_pack.get("underlying", {}) if isinstance(store_pack, dict) else {}
@@ -1697,7 +1683,151 @@ def register_v2_callbacks(
             _dmc_table_simple(["Field", "Value"], div_rows),
         ]
 
-        return metrics_children, margin_children, dividend_children
+        return metrics_children, dividend_children
+
+    # ── #20b Render margin panel (CBOE/House toggle) ─────────
+    @app.callback(
+        Output(ID.MARGIN_FULL_TABLE, "children"),
+        Output(ID.MARGIN_CLASSIFICATION, "children"),
+        Output(ID.HOUSE_INTRADAY_SECTION, "style"),
+        Input(ID.STORE_ANALYSIS_KEY, "data"),
+        Input(ID.MARGIN_MODE_SELECT, "value"),
+        prevent_initial_call=True,
+    )
+    def _v2_render_margin(key_payload, margin_mode):
+        if not isinstance(key_payload, dict) or key_payload.get("error"):
+            return (
+                dmc.Text("Run Analysis to view margin.", size="sm", c="dimmed"),
+                "--",
+                {"display": "none"},
+            )
+
+        pack = cache_get(key_payload.get("key"))
+        if not pack:
+            return (
+                dmc.Text("No analysis data.", size="sm", c="dimmed"),
+                "--",
+                {"display": "none"},
+            )
+
+        margin_data = pack.get("margin", {}).get("full")
+        if not margin_data:
+            # Fallback to old format
+            margin_old = pack.get("margin", {})
+            old_rows = [
+                ["Classification", margin_old.get("classification", "--")],
+                ["Margin Proxy", _fmt_money(margin_old.get("margin_proxy"))],
+            ]
+            return (
+                _dmc_table_simple(["Field", "Value"], old_rows),
+                margin_old.get("classification", "--"),
+                {"display": "none"},
+            )
+
+        refined_code = margin_data.get("classification_refined", "")
+
+        def _margin_row(rule_set, account, stage, data):
+            amount = data.get("amount")
+            if amount is not None and data.get("allowed", True):
+                amt_str = f"${amount:,.2f}"
+            else:
+                amt_str = "N/A"
+            req_text = data.get("requirement_text") or data.get("notes", "")
+            if len(req_text) > 80:
+                req_text = req_text[:77] + "..."
+            return [rule_set, account, stage, amt_str, req_text]
+
+        if margin_mode == "House":
+            rows = [
+                _margin_row("CBOE", "Cash", "Initial", margin_data["cboe"]["cash_initial"]),
+                _margin_row("House", "Margin", "Initial", margin_data["house"]["margin_initial"]),
+                _margin_row("House", "Margin", "Maintenance", margin_data["house"]["margin_maintenance"]),
+            ]
+            show_house = {"display": "block"}
+        else:
+            rows = [
+                _margin_row("CBOE", "Cash", "Initial", margin_data["cboe"]["cash_initial"]),
+                _margin_row("CBOE", "Margin", "Initial", margin_data["cboe"]["margin_initial"]),
+                _margin_row("CBOE", "Margin", "Maintenance", margin_data["cboe"]["margin_maintenance"]),
+            ]
+            show_house = {"display": "none"}
+
+        table = _dmc_table(
+            ["Rule Set", "Account", "Stage", "Req ($)", "Requirement"],
+            rows,
+        )
+        return table, refined_code, show_house
+
+    # ── #20c House Intraday Check ─────────────────────────────
+    @app.callback(
+        Output(ID.HOUSE_INTRADAY_TABLE, "children"),
+        Input(ID.STORE_ANALYSIS_KEY, "data"),
+        Input(ID.HOUSE_HOUSECALL, "value"),
+        Input(ID.HOUSE_SMA, "value"),
+        Input(ID.HOUSE_TODAYS_CHANGE, "value"),
+        Input(ID.HOUSE_NEW_CASH, "value"),
+        Input(ID.MARGIN_MODE_SELECT, "value"),
+        prevent_initial_call=True,
+    )
+    def _v2_render_house_intraday(
+        analysis_key, housecall, sma, todays_change, new_cash, margin_mode,
+    ):
+        if margin_mode != "House":
+            raise PreventUpdate
+        if not isinstance(analysis_key, dict) or analysis_key.get("error"):
+            raise PreventUpdate
+
+        pack = cache_get(analysis_key.get("key"))
+        if not pack:
+            raise PreventUpdate
+
+        margin_data = pack.get("margin", {}).get("full")
+        if not margin_data:
+            raise PreventUpdate
+
+        house_init = margin_data.get("house", {}).get("margin_initial", {})
+        house_req = house_init.get("amount") or 0
+
+        from core.margin import compute_house_intraday
+
+        result = compute_house_intraday(
+            house_margin_req=house_req,
+            housecall_excess=housecall or 0,
+            sma=sma or 0,
+            todays_change=todays_change or 0,
+            new_intraday_cash=new_cash or 0,
+        )
+
+        ok_flag = result["ok_to_trade"]
+        flag_color = "green" if ok_flag else ("red" if ok_flag is False else "gray")
+        flag_text = "OK" if ok_flag else ("Failed" if ok_flag is False else "N/A")
+
+        rows = [
+            dmc.TableTr([
+                dmc.TableTd("House Margin Req"),
+                dmc.TableTd(
+                    f"${result['house_margin_req']:,.2f}" if result["house_margin_req"] else "N/A",
+                    style={"textAlign": "right"},
+                ),
+            ]),
+            dmc.TableTr([
+                dmc.TableTd("Intraday Available"),
+                dmc.TableTd(
+                    f"${result['intraday_available']:,.2f}",
+                    style={"textAlign": "right"},
+                ),
+            ]),
+            dmc.TableTr([
+                dmc.TableTd("OK to Trade"),
+                dmc.TableTd(dmc.Badge(flag_text, color=flag_color, size="sm")),
+            ]),
+        ]
+
+        return dmc.Table(
+            children=[dmc.TableTbody(rows)],
+            withTableBorder=True,
+            style={"fontSize": "13px"},
+        )
 
     # ── #21 Render risk banner (badge inside payoff card) ────
     @app.callback(

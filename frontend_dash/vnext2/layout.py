@@ -177,12 +177,18 @@ def _dashboard_tab():
             ),
             # ROW 1b — Collapsible advanced settings
             _settings_panel(),
-            # ROW 2 — Legs table + Payoff chart side by side
-            _row2_legs_chart(),
-            # ROW 3a — Metrics + Scenario commentary
-            _row3a_metrics_scenarios(),
-            # ROW 3b — Key levels + Margin/Dividend sidebar
-            _row3b_levels_sidebar(),
+            # ROW 2 + 3 — Tight group: Legs/Chart then Metrics/Scenarios
+            dmc.Stack(
+                gap="xs",
+                children=[
+                    _row2_legs_chart(),
+                    _row3a_metrics_scenarios(),
+                ],
+            ),
+            # ROW 4 — Key levels (full width)
+            _row4_key_levels(),
+            # ROW 5 — Margin (7/12) + Eligibility/Dividend stacked (5/12)
+            _row5_margin_sidebar(),
         ],
     )
 
@@ -525,6 +531,7 @@ def _card_metrics():
     return dmc.Card(
         withBorder=True,
         id=ID.METRICS_TABLE,
+        style={"height": "100%"},
         children=[
             _section_title("PAYOFF & METRICS"),
             dmc.Table(
@@ -561,6 +568,7 @@ def _card_commentary():
     return dmc.Card(
         withBorder=True,
         id=ID.SCENARIO_CARDS,
+        style={"height": "100%"},
         children=[
             _section_title("SCENARIO COMMENTARY"),
             dmc.Text("Run analysis to see scenario commentary.", size="sm", c="dimmed"),
@@ -662,29 +670,46 @@ def _card_margin():
         withBorder=True,
         id=ID.MARGIN_CARD,
         children=[
-            _section_title("MARGIN & CAPITAL"),
-            dmc.Table(
-                data={
-                    "head": ["Field", "Value"],
-                    "body": [
-                        ["Classification", "\u2014"],
-                        ["Margin Proxy", "\u2014"],
-                    ],
-                },
-                withTableBorder=True,
-                highlightOnHover=True,
-                verticalSpacing="xs",
-            ),
-            dmc.Divider(my="md"),
-            _section_title("ACCOUNT ELIGIBILITY"),
-            html.Div(
-                id=ID.ELIGIBILITY_TABLE,
-                children=dmc.Text(
-                    "Run analysis to see account eligibility.",
-                    size="sm",
-                    c="dimmed",
+            dmc.Group([
+                _section_title("MARGIN & CAPITAL"),
+                dmc.Select(
+                    id=ID.MARGIN_MODE_SELECT,
+                    data=["CBOE", "House"],
+                    value="CBOE",
+                    size="xs",
+                    w=100,
                 ),
+            ], justify="space-between"),
+
+            # Classification badge
+            dmc.Group([
+                dmc.Text("Classification:", size="sm", c="dimmed"),
+                dmc.Badge(id=ID.MARGIN_CLASSIFICATION, children="--", variant="light", size="sm"),
+            ], gap="xs", mt="xs"),
+
+            # Main requirement table (3 rows)
+            html.Div(
+                id=ID.MARGIN_FULL_TABLE,
+                children=dmc.Text("Run Analysis to view margin.", size="sm", c="dimmed"),
+                style={"marginTop": "8px"},
             ),
+
+            # House Intraday Check section (hidden by default)
+            html.Div(
+                id=ID.HOUSE_INTRADAY_SECTION,
+                children=[
+                    dmc.Divider(label="House Intraday Check", labelPosition="center", mt="md", mb="sm"),
+                    dmc.SimpleGrid(cols=2, spacing="xs", children=[
+                        dmc.NumberInput(id=ID.HOUSE_HOUSECALL, label="Housecall/Excess", size="xs", value=0, decimalScale=2, prefix="$", thousandSeparator=","),
+                        dmc.NumberInput(id=ID.HOUSE_SMA, label="SMA", size="xs", value=0, decimalScale=2, prefix="$", thousandSeparator=","),
+                        dmc.NumberInput(id=ID.HOUSE_TODAYS_CHANGE, label="Today's Change", size="xs", value=0, decimalScale=2, prefix="$", thousandSeparator=","),
+                        dmc.NumberInput(id=ID.HOUSE_NEW_CASH, label="New Intraday Cash", size="xs", value=0, decimalScale=2, prefix="$", thousandSeparator=","),
+                    ]),
+                    html.Div(id=ID.HOUSE_INTRADAY_TABLE, style={"marginTop": "8px"}),
+                ],
+                style={"display": "none"},
+            ),
+
         ],
     )
 
@@ -704,19 +729,46 @@ def _row3a_metrics_scenarios():
     )
 
 
-def _row3b_levels_sidebar():
-    """Row 3b: Key levels (left) + Margin/Dividend/Eligibility stack (right)."""
+def _card_eligibility():
+    return dmc.Card(
+        withBorder=True,
+        children=[
+            _section_title("ACCOUNT ELIGIBILITY"),
+            html.Div(
+                id=ID.ELIGIBILITY_TABLE,
+                children=dmc.Text(
+                    "Run analysis to see account eligibility.",
+                    size="sm",
+                    c="dimmed",
+                ),
+            ),
+        ],
+    )
+
+
+def _row4_key_levels():
+    """Row 4: Key levels full width."""
     return dmc.Grid(
         gutter="md",
         children=[
-            dmc.GridCol(span=8, children=[_card_key_levels()]),
+            dmc.GridCol(span=12, children=[_card_key_levels()]),
+        ],
+    )
+
+
+def _row5_margin_sidebar():
+    """Row 5: Margin (7/12) + Eligibility/Dividend stacked (5/12)."""
+    return dmc.Grid(
+        gutter="md",
+        children=[
+            dmc.GridCol(span=7, children=[_card_margin()]),
             dmc.GridCol(
-                span=4,
+                span=5,
                 children=[
                     dmc.Stack(
                         gap="md",
                         children=[
-                            _card_margin(),
+                            _card_eligibility(),
                             _card_dividend(),
                         ],
                     )

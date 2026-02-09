@@ -57,6 +57,21 @@ DIVIDEND_CARD = "v2-dividend-card"
 ELIGIBILITY_TABLE = "v2-eligibility-table"
 RISK_BANNER = "v2-risk-banner"
 
+# ── Margin Calculator ──────────────────────────────────────
+MARGIN_MODE_SELECT     = "v2-margin-mode-select"
+MARGIN_FULL_TABLE      = "v2-margin-full-table"
+MARGIN_CLASSIFICATION  = "v2-margin-classification"
+HOUSE_INTRADAY_SECTION = "v2-house-intraday-section"
+
+# House Intraday Check inputs
+HOUSE_HOUSECALL        = "v2-house-housecall"
+HOUSE_SMA              = "v2-house-sma"
+HOUSE_TODAYS_CHANGE    = "v2-house-todays-change"
+HOUSE_NEW_CASH         = "v2-house-new-cash"
+
+# House Intraday Check outputs
+HOUSE_INTRADAY_TABLE   = "v2-house-intraday-table"
+
 # ─── Theme ────────────────────────────────────────────────
 THEME_TOGGLE = "v2-theme-toggle"
 MANTINE_PROVIDER = "v2-mantine-provider"

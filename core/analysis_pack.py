@@ -8,7 +8,7 @@ import math
 import pandas as pd
 
 from core.eligibility import determine_strategy_code, get_account_eligibility
-from core.margin import classify_strategy, compute_margin_proxy
+from core.margin import classify_strategy, compute_margin_proxy, compute_margin_full
 from core.models import StrategyInput
 from core.narrative import build_narrative_scenarios
 from core.payoff import _compute_pnl_for_price, compute_payoff
@@ -319,6 +319,16 @@ def build_analysis_pack(
     option_basis = capital_basis(strategy_input, payoff_result, roi_policy)
     total_basis = combined_capital_basis(strategy_input, option_basis)
     margin_proxy = compute_margin_proxy(strategy_input, payoff_result)
+
+    dte_days = 0.0
+    if expiry_date is not None and as_of_date is not None:
+        dte_days = float(max((expiry_date - as_of_date).days, 0))
+
+    margin_full = compute_margin_full(
+        strategy_input,
+        payoff_result=payoff_result,
+        dte=dte_days,
+    )
 
     options_notional = sum(
         abs(leg.position) * leg.strike * leg.multiplier
@@ -696,6 +706,7 @@ def build_analysis_pack(
         "margin": {
             "classification": classify_strategy(strategy_input),
             "margin_proxy": margin_proxy,
+            "full": margin_full,
         },
         "scenario": {
             "df": scenario_df,

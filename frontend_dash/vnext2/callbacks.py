@@ -71,15 +71,27 @@ def _safe_json_dumps(payload: object) -> str:
 
 
 def _report_filename(key_payload: object, pack: object) -> str:
-    stamp = None
+    """Build PDF filename: '2026-02-09_MSFT US Equity_Covered Call.pdf'."""
+    as_of = ""
+    ticker = ""
+    strategy_name = ""
+
     if isinstance(pack, dict):
-        stamp = pack.get("as_of") or pack.get("asof")
-    if not stamp and isinstance(key_payload, dict):
-        stamp = key_payload.get("key")
-    if stamp:
-        safe_stamp = re.sub(r"[^0-9A-Za-z_-]+", "_", str(stamp)).strip("_")
-        if safe_stamp:
-            return f"alpha_engine_report_{safe_stamp}.pdf"
+        as_of = pack.get("as_of") or pack.get("asof") or ""
+        pack_strategy = pack.get("strategy") or {}
+        if isinstance(pack_strategy, dict):
+            strategy_name = pack_strategy.get("name") or pack_strategy.get("strategy_name") or ""
+
+    if isinstance(key_payload, dict):
+        if not as_of:
+            as_of = key_payload.get("key") or ""
+        ticker = key_payload.get("ticker") or ""
+
+    parts = [p for p in [as_of, ticker, strategy_name] if p]
+    if parts:
+        name = "_".join(parts)
+        name = re.sub(r'[<>:"/\\|?*]+', "", name)
+        return f"{name}.pdf"
     return "alpha_engine_report.pdf"
 
 
@@ -1016,7 +1028,18 @@ def register_v2_callbacks(
             }
 
             report_model = build_report_model(state)
-            filename = _report_filename(key_payload, pack)
+            _payload_with_ticker = dict(key_payload) if isinstance(key_payload, dict) else {}
+            _payload_with_ticker["ticker"] = (
+                inputs_store.get("resolved_ticker")
+                or inputs_store.get("ticker")
+                or ui_store.get("ticker")
+                or ""
+            )
+            # Add "Equity" if needed
+            _t = _payload_with_ticker["ticker"]
+            if _t and "equity" not in _t.lower():
+                _payload_with_ticker["ticker"] = f"{_t} Equity"
+            filename = _report_filename(_payload_with_ticker, pack)
 
             try:
                 payload = build_report_pdf_html(report_model)
@@ -1214,10 +1237,27 @@ def register_v2_callbacks(
                 return no_update, "PDF export failed — is Excel installed?"
 
             # ── Step 3: Return as download ──
-            ticker = meta["underlying_ticker"].replace(" ", "_")
-            template_name = template_key.replace("template_", "")
-            filename = f"{ticker}_{template_name}_{pack.get('as_of', 'report')}.pdf"
-            filename = re.sub(r"[^0-9A-Za-z_.-]+", "_", filename)
+            # Build filename: "2026-02-09_MSFT US Equity_Covered Call.pdf"
+            as_of = pack.get("as_of", "report")
+            ticker_raw = meta["underlying_ticker"]  # e.g. "MSFT US"
+            # Add "Equity" suffix if not present
+            if ticker_raw and "equity" not in ticker_raw.lower():
+                ticker_display = f"{ticker_raw} Equity"
+            else:
+                ticker_display = ticker_raw
+
+            # Get strategy display name from the pack
+            strategy_name = ""
+            pack_strategy = pack.get("strategy") or {}
+            if isinstance(pack_strategy, dict):
+                strategy_name = pack_strategy.get("name") or pack_strategy.get("strategy_name") or ""
+            if not strategy_name:
+                # Fall back to template key cleaned up
+                strategy_name = template_key.replace("template_", "").replace("_", " ").title()
+
+            filename = f"{as_of}_{ticker_display}_{strategy_name}.pdf"
+            # Clean any chars that aren't safe for filenames
+            filename = re.sub(r'[<>:"/\\|?*]+', "", filename)
 
             with open(pdf_path, "rb") as f:
                 pdf_bytes = f.read()

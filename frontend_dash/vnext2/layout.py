@@ -306,17 +306,6 @@ def _card_actions():
 
 
 def _card_tracking():
-    # Build template dropdown options
-    _templates = []
-    try:
-        for t in _list_excel_templates():
-            _templates.append({
-                "label": t["file"].replace(".xlsx", "").replace(".xlsm", ""),
-                "value": t["key"],
-            })
-    except Exception:
-        pass
-
     return dmc.Card(
         withBorder=True, shadow="sm",
         children=[
@@ -325,29 +314,6 @@ def _card_tracking():
             dmc.TextInput(id=ID.ACCT_NUMBER_INPUT, label="Account Number", placeholder="e.g. AB-123456", size="sm", mb="sm"),
             dmc.Button("GENERATE PDF REPORT", id=ID.BTN_PDF, variant="light", color="green", fullWidth=True, size="sm", mb="xs"),
             dmc.Text(id=ID.REPORT_STATUS, children="", size="xs", c="dimmed"),
-            # ── Excel Template Section ──
-            dmc.Divider(my="sm"),
-            dmc.Select(
-                id=ID.EXCEL_TEMPLATE_SELECT,
-                label="Excel Template",
-                data=_templates,
-                placeholder="Auto-select from strategy" if _templates else "No templates available",
-                size="sm",
-                mb="xs",
-                clearable=True,
-            ),
-            dmc.Button(
-                "GENERATE EXCEL PDF",
-                id=ID.BTN_EXCEL_PDF,
-                variant="light",
-                color="orange",
-                fullWidth=True,
-                size="sm",
-                mb="xs",
-                disabled=not bool(_templates),
-            ),
-            dcc.Download(id=ID.DL_EXCEL_PDF),
-            dmc.Text(id=ID.EXCEL_STATUS, children="", size="xs", c="dimmed"),
         ],
     )
 
@@ -440,6 +406,17 @@ def _card_legs():
 
 def _settings_panel():
     """Collapsible advanced settings — collapsed by default."""
+    # Build template dropdown options
+    _templates = []
+    try:
+        for t in _list_excel_templates():
+            _templates.append({
+                "label": t["file"].replace(".xlsx", "").replace(".xlsm", ""),
+                "value": t["key"],
+            })
+    except Exception:
+        pass
+
     return dmc.Accordion(
         children=[
             dmc.AccordionItem(
@@ -447,29 +424,64 @@ def _settings_panel():
                 children=[
                     dmc.AccordionControl("Advanced Settings"),
                     dmc.AccordionPanel(
-                        dmc.Grid(
-                            gutter="md",
-                            children=[
-                                dmc.GridCol(span=2, children=[
-                                    dmc.Select(id=ID.PRICING_MODE, label="Pricing Mode", data=[{"value": "mid", "label": "Mid"}, {"value": "bid_ask", "label": "Bid/Ask"}], value="mid", size="sm"),
-                                ]),
-                                dmc.GridCol(span=2, children=[
-                                    dmc.Select(id=ID.PREMIUM_MODE, label="Capital Basis", data=[{"value": "premium", "label": "Premium"}, {"value": "max_loss", "label": "Max Loss"}, {"value": "cash_secured", "label": "Cash Secured"}, {"value": "margin", "label": "Margin Proxy"}], value="premium", size="sm"),
-                                ]),
-                                dmc.GridCol(span=2, children=[
-                                    dmc.Select(id=ID.SCENARIO_MODE, label="Scenario Mode", data=[{"value": "targets", "label": "Targets"}, {"value": "infinity", "label": "Infinity"}], value="targets", size="sm"),
-                                ]),
-                                dmc.GridCol(span=2, children=[
-                                    dmc.NumberInput(id=ID.DOWNSIDE_TARGET, label="Downside (%)", value=-10.0, step=1, size="sm"),
-                                ]),
-                                dmc.GridCol(span=2, children=[
-                                    dmc.NumberInput(id=ID.UPSIDE_TARGET, label="Upside (%)", value=10.0, step=1, size="sm"),
-                                ]),
-                                dmc.GridCol(span=2, children=[
-                                    dmc.Select(id=ID.CIO_RATING_INPUT, label="CIO Rating", data=["Most Preferred", "Bellwether", "Least Preferred", "Not Covered"], placeholder="Select rating", clearable=True, size="sm"),
-                                ]),
-                            ],
-                        )
+                        children=[
+                            dmc.Grid(
+                                gutter="md",
+                                children=[
+                                    dmc.GridCol(span=2, children=[
+                                        dmc.Select(id=ID.PRICING_MODE, label="Pricing Mode", data=[{"value": "mid", "label": "Mid"}, {"value": "bid_ask", "label": "Bid/Ask"}], value="mid", size="sm"),
+                                    ]),
+                                    dmc.GridCol(span=2, children=[
+                                        dmc.Select(id=ID.PREMIUM_MODE, label="Capital Basis", data=[{"value": "premium", "label": "Premium"}, {"value": "max_loss", "label": "Max Loss"}, {"value": "cash_secured", "label": "Cash Secured"}, {"value": "margin", "label": "Margin Proxy"}], value="premium", size="sm"),
+                                    ]),
+                                    dmc.GridCol(span=2, children=[
+                                        dmc.Select(id=ID.SCENARIO_MODE, label="Scenario Mode", data=[{"value": "targets", "label": "Targets"}, {"value": "infinity", "label": "Infinity"}], value="targets", size="sm"),
+                                    ]),
+                                    dmc.GridCol(span=2, children=[
+                                        dmc.NumberInput(id=ID.DOWNSIDE_TARGET, label="Downside (%)", value=-10.0, step=1, size="sm"),
+                                    ]),
+                                    dmc.GridCol(span=2, children=[
+                                        dmc.NumberInput(id=ID.UPSIDE_TARGET, label="Upside (%)", value=10.0, step=1, size="sm"),
+                                    ]),
+                                    dmc.GridCol(span=2, children=[
+                                        dmc.Select(id=ID.CIO_RATING_INPUT, label="CIO Rating", data=["Most Preferred", "Bellwether", "Least Preferred", "Not Covered"], placeholder="Select rating", clearable=True, size="sm"),
+                                    ]),
+                                ],
+                            ),
+                            # ── Excel Template Export Row ──
+                            dmc.Divider(my="sm"),
+                            dmc.Grid(
+                                gutter="md",
+                                align="flex-end",
+                                children=[
+                                    dmc.GridCol(span=4, children=[
+                                        dmc.Select(
+                                            id=ID.EXCEL_TEMPLATE_SELECT,
+                                            label="Excel Template",
+                                            data=_templates,
+                                            placeholder="Auto-select from strategy" if _templates else "No templates available",
+                                            size="sm",
+                                            clearable=True,
+                                        ),
+                                    ]),
+                                    dmc.GridCol(span=3, children=[
+                                        dmc.Button(
+                                            "GENERATE EXCEL PDF",
+                                            id=ID.BTN_EXCEL_PDF,
+                                            variant="light",
+                                            color="orange",
+                                            fullWidth=True,
+                                            size="sm",
+                                            disabled=not bool(_templates),
+                                        ),
+                                    ]),
+                                    dmc.GridCol(span=5, children=[
+                                        dmc.Text(id=ID.EXCEL_STATUS, children="", size="xs", c="dimmed"),
+                                    ]),
+                                ],
+                            ),
+                            dcc.Download(id=ID.DL_EXCEL_PDF),
+                        ],
                     ),
                 ],
             )

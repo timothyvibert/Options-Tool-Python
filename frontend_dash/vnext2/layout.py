@@ -13,6 +13,7 @@ import plotly.graph_objects as go
 from core.strategy_map import list_groups
 from frontend_dash.vnext2 import ids as ID
 from frontend_dash.vnext2.theme import THEME
+from reporting.excel_templates.registry import list_templates as _list_excel_templates
 
 
 # ═══════════════════════════════════════════════════════════
@@ -305,6 +306,17 @@ def _card_actions():
 
 
 def _card_tracking():
+    # Build template dropdown options
+    _templates = []
+    try:
+        for t in _list_excel_templates():
+            _templates.append({
+                "label": t["file"].replace(".xlsx", "").replace(".xlsm", ""),
+                "value": t["key"],
+            })
+    except Exception:
+        pass
+
     return dmc.Card(
         withBorder=True, shadow="sm",
         children=[
@@ -313,6 +325,29 @@ def _card_tracking():
             dmc.TextInput(id=ID.ACCT_NUMBER_INPUT, label="Account Number", placeholder="e.g. AB-123456", size="sm", mb="sm"),
             dmc.Button("GENERATE PDF REPORT", id=ID.BTN_PDF, variant="light", color="green", fullWidth=True, size="sm", mb="xs"),
             dmc.Text(id=ID.REPORT_STATUS, children="", size="xs", c="dimmed"),
+            # ── Excel Template Section ──
+            dmc.Divider(my="sm"),
+            dmc.Select(
+                id=ID.EXCEL_TEMPLATE_SELECT,
+                label="Excel Template",
+                data=_templates,
+                placeholder="Auto-select from strategy" if _templates else "No templates available",
+                size="sm",
+                mb="xs",
+                clearable=True,
+            ),
+            dmc.Button(
+                "GENERATE EXCEL PDF",
+                id=ID.BTN_EXCEL_PDF,
+                variant="light",
+                color="orange",
+                fullWidth=True,
+                size="sm",
+                mb="xs",
+                disabled=not bool(_templates),
+            ),
+            dcc.Download(id=ID.DL_EXCEL_PDF),
+            dmc.Text(id=ID.EXCEL_STATUS, children="", size="xs", c="dimmed"),
         ],
     )
 

@@ -120,11 +120,33 @@ def fill_template(
             except (ValueError, TypeError):
                 pass
 
+    # Spot minus strike for Short Put (OTM amount display)
+    spot = analysis_pack.get("underlying", {}).get("spot") or 0
+    strike_0 = 0
+    if legs:
+        try:
+            strike_0 = float(legs[0].get("strike", 0))
+        except (ValueError, TypeError):
+            pass
+
+    # Bid-ask spread for leg 2 (multi-leg templates)
+    bid_ask_spread_1 = 0
+    if len(legs) > 1:
+        bid1 = legs[1].get("bid")
+        ask1 = legs[1].get("ask")
+        if bid1 is not None and ask1 is not None:
+            try:
+                bid_ask_spread_1 = float(ask1) - float(bid1)
+            except (ValueError, TypeError):
+                pass
+
     computed = {
         "dte": dte,
         "now": datetime.now(),
         "trade_cost": 0,
         "bid_ask_spread": bid_ask_spread,
+        "bid_ask_spread_1": bid_ask_spread_1,
+        "spot_minus_strike": spot - strike_0,
     }
 
     wb = load_workbook(output_path)

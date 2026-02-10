@@ -821,6 +821,7 @@ def register_v2_callbacks(
             ("6M ATM IV", _pick(["impvol_6m_atm", "6MTH_IMPVOL_100.0%MNY_DF"])),
             ("UBS Rating", _pick(["ubs_rating", "BEST_ANALYST_REC", "UBS_RATING"])),
             ("UBS Target", _pick(["ubs_target", "BEST_TARGET_PRICE", "UBS_TARGET"])),
+            ("200D MA", _pick(["mov_avg_200d", "MOV_AVG_200D"])),
             ("Risk-Free Rate", _pick(["risk_free_rate", "RISK_FREE_RATE"])),
         ]
 
@@ -1066,6 +1067,177 @@ def register_v2_callbacks(
         except Exception as exc:
             traceback.print_exc()
             return no_update, f"PDF export error: {type(exc).__name__}: {exc}", no_update
+
+    # ── #15b Auto-select Excel template from strategy ────────
+    @app.callback(
+        Output(ID.EXCEL_TEMPLATE_SELECT, "value"),
+        Input(ID.STORE_ANALYSIS_KEY, "data"),
+        State(ID.STORE_INPUTS, "data"),
+        prevent_initial_call=True,
+    )
+    def _v2_auto_select_excel_template(key_payload, inputs_state):
+        """When analysis completes, auto-select the matching Excel template."""
+        if not isinstance(inputs_state, dict):
+            return no_update
+        strategy_id = inputs_state.get("strategy_id")
+        if not strategy_id:
+            return no_update
+        try:
+            from reporting.excel_templates.registry import get_template_for_strategy
+            config = get_template_for_strategy(str(strategy_id))
+            if config:
+                return config["template_key"]
+        except Exception:
+            pass
+        return no_update
+
+    # ── #15c Generate Excel PDF ──────────────────────────────
+    def _build_option_ticker(underlying, expiry, kind, strike):
+        """Build Bloomberg-format option ticker: 'MSFT US 03/20/26 C420 Equity'."""
+        if not all([underlying, expiry, kind, strike]):
+            return ""
+        try:
+            from datetime import date as _date
+            d = _date.fromisoformat(str(expiry)[:10])
+            date_str = d.strftime("%m/%d/%y")
+        except (ValueError, TypeError):
+            date_str = str(expiry)
+        kind_letter = "C" if str(kind).upper().startswith("C") else "P"
+        try:
+            s = float(strike)
+            strike_str = str(int(s)) if s == int(s) else f"{s:.2f}"
+        except (ValueError, TypeError):
+            strike_str = str(strike)
+        base = str(underlying).replace(" Equity", "").replace(" equity", "")
+        return f"{base} {date_str} {kind_letter}{strike_str} Equity"
+
+    @app.callback(
+        Output(ID.DL_EXCEL_PDF, "data"),
+        Output(ID.EXCEL_STATUS, "children"),
+        Input(ID.BTN_EXCEL_PDF, "n_clicks"),
+        State(ID.EXCEL_TEMPLATE_SELECT, "value"),
+        State(ID.STORE_ANALYSIS_KEY, "data"),
+        State(ID.STORE_INPUTS, "data"),
+        State(ID.STORE_MARKET, "data"),
+        State(ID.STORE_UI, "data"),
+        prevent_initial_call=True,
+    )
+    def _v2_generate_excel_pdf(
+        n_clicks, template_key, key_payload, inputs_state, market_data, ui_state,
+    ):
+        import os
+
+        if not n_clicks:
+            return no_update, no_update
+
+        # ── Validate prerequisites ──
+        if not template_key:
+            return no_update, "Select an Excel template first."
+
+        if not isinstance(key_payload, dict) or key_payload.get("error"):
+            return no_update, "Run Analysis first."
+
+        key = key_payload.get("key")
+        pack = cache_get(key) if key else None
+        if not pack:
+            return no_update, "Run Analysis first."
+
+        inputs_store = inputs_state if isinstance(inputs_state, dict) else {}
+        ui_store = ui_state if isinstance(ui_state, dict) else {}
+
+        # ── Build meta dict (bridges dashboard inputs → template cells) ──
+        legs = inputs_store.get("legs") or []
+        meta = {
+            "underlying_ticker": (
+                inputs_store.get("resolved_ticker")
+                or inputs_store.get("ticker")
+                or ui_store.get("ticker")
+                or ""
+            ),
+            "option_ticker_leg1": "",
+            "option_ticker_leg2": "",
+            "contracts_leg1": 0,
+            "shares": inputs_store.get("stock_position") or ui_store.get("stock_position") or 0,
+            "cio_rating": inputs_store.get("cio_rating") or ui_store.get("cio_rating") or "",
+        }
+
+        # Extract leg tickers and contracts from legs array
+        if len(legs) > 0 and isinstance(legs[0], dict):
+            meta["option_ticker_leg1"] = (
+                legs[0].get("bbg_ticker") or legs[0].get("option_ticker") or ""
+            )
+            try:
+                meta["contracts_leg1"] = abs(int(float(legs[0].get("position") or legs[0].get("qty") or 0)))
+            except (ValueError, TypeError):
+                pass
+        if len(legs) > 1 and isinstance(legs[1], dict):
+            meta["option_ticker_leg2"] = (
+                legs[1].get("bbg_ticker") or legs[1].get("option_ticker") or ""
+            )
+
+        # Construct option tickers from components if not available from BBG
+        expiry_val = inputs_store.get("expiry") or ui_store.get("expiry") or ""
+        if not meta["option_ticker_leg1"] and len(legs) > 0 and isinstance(legs[0], dict):
+            meta["option_ticker_leg1"] = _build_option_ticker(
+                meta["underlying_ticker"], expiry_val,
+                legs[0].get("type") or legs[0].get("kind") or "",
+                legs[0].get("strike") or 0,
+            )
+        if not meta["option_ticker_leg2"] and len(legs) > 1 and isinstance(legs[1], dict):
+            meta["option_ticker_leg2"] = _build_option_ticker(
+                meta["underlying_ticker"], expiry_val,
+                legs[1].get("type") or legs[1].get("kind") or "",
+                legs[1].get("strike") or 0,
+            )
+
+        try:
+            # ── Step 1: Fill template ──
+            from reporting.excel_templates.filler import fill_template
+            filled_path = fill_template(template_key, pack, meta)
+            if not filled_path:
+                return no_update, "Template fill failed — check template file exists."
+
+            # ── Step 2: Export PDF via Excel ──
+            from reporting.excel_templates.pdf_exporter import export_pdf
+            from reporting.excel_templates.registry import get_template_config
+            config = get_template_config(template_key)
+            output_sheet = config.get("output_sheet") if config else None
+
+            pdf_path = export_pdf(
+                filled_path,
+                output_sheet=output_sheet,
+                visible=False,
+                timeout_seconds=45,
+            )
+
+            if not pdf_path or not os.path.isfile(pdf_path):
+                return no_update, "PDF export failed — is Excel installed?"
+
+            # ── Step 3: Return as download ──
+            ticker = meta["underlying_ticker"].replace(" ", "_")
+            template_name = template_key.replace("template_", "")
+            filename = f"{ticker}_{template_name}_{pack.get('as_of', 'report')}.pdf"
+            filename = re.sub(r"[^0-9A-Za-z_.-]+", "_", filename)
+
+            with open(pdf_path, "rb") as f:
+                pdf_bytes = f.read()
+
+            # Clean up temp files
+            try:
+                os.remove(filled_path)
+                os.remove(pdf_path)
+            except OSError:
+                pass
+
+            return dcc.send_bytes(pdf_bytes, filename=filename), f"Excel PDF generated: {filename}"
+
+        except ImportError as exc:
+            return no_update, f"Missing dependency: {exc} (requires Windows + Excel)"
+        except FileNotFoundError as exc:
+            return no_update, f"Template not found: {exc}"
+        except Exception as exc:
+            traceback.print_exc()
+            return no_update, f"Excel PDF error: {type(exc).__name__}: {exc}"
 
     # ── #16 Run analysis ─────────────────────────────────────
     @app.callback(

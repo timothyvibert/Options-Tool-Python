@@ -712,6 +712,7 @@ def build_analysis_pack(
             "ubs_target": _clean_value(normalized_profile.get("UBS_TARGET")
                 or normalized_profile.get("BEST_TARGET_PRICE")
                 or profile_value.get("ubs_target")),
+            "mov_avg_200d": _clean_value(normalized_profile.get("MOV_AVG_200D") or normalized_profile.get("MOV_AVG_200D".lower()) or profile_value.get("mov_avg_200d")),
             "earnings_date": expected_report_value,
             "earnings_risk": {
                 "earnings_date": (
@@ -741,6 +742,7 @@ def build_analysis_pack(
             "pricing_mode": pricing_mode,
             "roi_policy": roi_policy,
             "vol_mode": vol_mode,
+            "risk_free_rate": risk_free_rate,
         },
         "legs": legs,
         "payoff": {

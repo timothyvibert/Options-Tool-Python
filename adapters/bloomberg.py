@@ -59,6 +59,7 @@ UNDERLYING_FIELDS = [
     "EQY_DVD_EX_DATE",
     "EXPECTED_REPORT_DT",
     "EARNINGS_ANNOUNCEMENT_DATE",
+    "MOV_AVG_200D",   # 200-day moving average (used by Cash-Secured Put template)
 ]
 DIVIDEND_FIELDS = [
     "DVD_EX_DT",
@@ -171,6 +172,7 @@ def fetch_underlying_snapshot(ticker: str) -> pd.Series:
     record["projected_dividend"] = bds_dividend.get("projected_dividend")
     record["dividend_status"] = bds_dividend.get("dividend_status")
     record["dividend_debug"] = bds_dividend.get("debug") or {}
+    record["mov_avg_200d"] = _clean_value(record.get("MOV_AVG_200D"))
     analyst = fetch_ubs_analyst_data(ticker)
     record["ubs_rating"] = analyst.get("ubs_rating")
     record["ubs_target"] = analyst.get("ubs_target")

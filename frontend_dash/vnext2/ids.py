@@ -86,6 +86,12 @@ CIO_RATING_INPUT = "v2-cio-rating-input"
 DL_REPORT_PDF = "v2-dl-report-pdf"
 DL_MARKET_JSON = "v2-dl-market-json"
 
+# ─── Excel Template ─────────────────────────────────────
+EXCEL_TEMPLATE_SELECT = "v2-excel-template-select"
+BTN_EXCEL_PDF = "v2-btn-excel-pdf"
+DL_EXCEL_PDF = "v2-dl-excel-pdf"
+EXCEL_STATUS = "v2-excel-status"
+
 # ─── Status displays ────────────────────────────────────
 SPOT_STATUS = "v2-spot-status"
 REFRESH_STATUS = "v2-refresh-status"

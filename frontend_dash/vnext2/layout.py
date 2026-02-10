@@ -298,6 +298,7 @@ def _card_actions():
                 children=[
                     dmc.Button("REFRESH DATA", id=ID.BTN_REFRESH, variant="outline", color="cyan", size="sm"),
                     dmc.Button("RUN ANALYSIS", id=ID.BTN_ANALYZE, variant="filled", color="cyan", size="sm"),
+                    dmc.Button("CLEAR", id=ID.BTN_CLEAR, variant="outline", color="gray", size="sm"),
                 ],
             ),
             dmc.Text(id=ID.REFRESH_STATUS, children="", size="xs", c="dimmed"),
@@ -311,7 +312,15 @@ def _card_tracking():
         children=[
             _section_title("OUTPUT & TRACKING"),
             dmc.TextInput(id=ID.FA_NAME_INPUT, label="FA Name", placeholder="e.g. John Smith", size="sm", mb="xs"),
-            dmc.TextInput(id=ID.ACCT_NUMBER_INPUT, label="Account Number", placeholder="e.g. AB-123456", size="sm", mb="sm"),
+            dmc.Group(
+                [
+                    dmc.TextInput(id=ID.ACCT_NUMBER_INPUT, label="Account #", placeholder="Account #", size="sm", style={"flex": 1}),
+                    dmc.TextInput(id=ID.FA_ID_INPUT, label="FA ID", placeholder="FA ID", size="sm", style={"flex": 1}),
+                ],
+                grow=True,
+                gap="xs",
+                mb="sm",
+            ),
             dmc.Button("GENERATE PDF REPORT", id=ID.BTN_PDF, variant="light", color="green", fullWidth=True, size="sm", mb="xs"),
             dmc.Text(id=ID.REPORT_STATUS, children="", size="xs", c="dimmed"),
         ],
@@ -323,18 +332,18 @@ def _card_tracking():
 # ───────────────────────────────────────────────────────────
 
 _LEGS_DARK_HEADER = {
-    "backgroundColor": "#141825",
-    "color": "#A8AFBF",
+    "backgroundColor": "#161B22",
+    "color": "#E6EDF3",
     "fontWeight": "bold",
     "fontSize": "11px",
     "textTransform": "uppercase",
     "letterSpacing": "0.04em",
-    "borderBottom": "1px solid #1E2433",
+    "borderBottom": "1px solid #30363D",
 }
 _LEGS_DARK_CELL = {
-    "backgroundColor": "#0E1119",
-    "color": "#C1C7D6",
-    "borderBottom": "1px solid #1E2433",
+    "backgroundColor": "#0D1117",
+    "color": "#E6EDF3",
+    "borderBottom": "1px solid #30363D",
     "fontSize": "12px",
     "padding": "8px",
 }
@@ -395,7 +404,7 @@ def _card_legs():
                 style_data_conditional=[
                     {
                         "if": {"state": "active"},
-                        "backgroundColor": "#1A2030",
+                        "backgroundColor": "#161B22",
                         "border": "1px solid #22d3ee",
                     },
                 ],
@@ -501,17 +510,17 @@ def _card_payoff():
     fig.update_layout(
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(20,24,37,0.5)",
-        font={"color": "#C1C7D6"},
+        plot_bgcolor="rgba(13,17,23,0.6)",
+        font={"color": "#E6EDF3"},
         xaxis={
             "title": "Stock Price at Expiry",
-            "gridcolor": "#1E2433",
+            "gridcolor": "#21262D",
         },
         yaxis={
             "title": "Profit / Loss ($)",
-            "gridcolor": "#1E2433",
+            "gridcolor": "#21262D",
             "zeroline": True,
-            "zerolinecolor": "#3D4559",
+            "zerolinecolor": "#8B949E",
         },
         margin={"l": 50, "r": 20, "t": 30, "b": 60},
         height=500,

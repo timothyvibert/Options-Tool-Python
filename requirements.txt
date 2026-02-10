@@ -13,9 +13,17 @@ plotly>=5.0,<6
 polars-bloomberg>=0.2
 
 # Reporting (HTML -> PDF)
-weasyprint>=60,<70
+weasyprint>=60          # Requires system pango — see Alpha_Engine_Setup_Guide.docx
 jinja2>=3.1,<4
 jsonschema>=4,<5
+
+# Data formats & Excel
+pyarrow>=14.0
+openpyxl>=3.1
+matplotlib>=3.8
+
+# Windows COM automation (Bloomberg, Excel)
+pywin32>=306; sys_platform == "win32"
 
 # Testing
 pytest>=8.0

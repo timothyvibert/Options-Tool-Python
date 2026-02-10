@@ -520,6 +520,52 @@ def register_v2_callbacks(
     def _v2_toggle_theme(checked):
         return "light" if checked else "dark"
 
+    # ── #0b Theme-aware DataTable styling ─────────────────────
+    @app.callback(
+        Output(ID.LEGS_TABLE, "style_header"),
+        Output(ID.LEGS_TABLE, "style_cell"),
+        Output(ID.LEGS_TABLE, "style_data"),
+        Output(ID.LEGS_TABLE, "style_data_conditional"),
+        Input(ID.THEME_TOGGLE, "checked"),
+    )
+    def _v2_toggle_table_theme(is_light):
+        """Switch DataTable colors with theme toggle."""
+        if is_light:
+            header = {
+                "backgroundColor": "#F6F8FA", "color": "#1F2328",
+                "fontWeight": 600, "fontSize": "11px",
+                "textTransform": "uppercase", "letterSpacing": "0.04em",
+                "borderBottom": "1px solid #D0D7DE",
+            }
+            cell = {
+                "backgroundColor": "#FFFFFF", "color": "#1F2328",
+                "borderBottom": "1px solid #D0D7DE",
+                "fontSize": "12px", "padding": "8px",
+            }
+            data = {"backgroundColor": "#FFFFFF", "color": "#1F2328"}
+            conditional = [
+                {"if": {"state": "active"},
+                 "backgroundColor": "#F0F3F6", "border": "1px solid #0969DA"},
+            ]
+        else:
+            header = {
+                "backgroundColor": "#161B22", "color": "#E6EDF3",
+                "fontWeight": 600, "fontSize": "11px",
+                "textTransform": "uppercase", "letterSpacing": "0.04em",
+                "borderBottom": "1px solid #30363D",
+            }
+            cell = {
+                "backgroundColor": "#0D1117", "color": "#E6EDF3",
+                "borderBottom": "1px solid #30363D",
+                "fontSize": "12px", "padding": "8px",
+            }
+            data = {"backgroundColor": "#0D1117", "color": "#E6EDF3"}
+            conditional = [
+                {"if": {"state": "active"},
+                 "backgroundColor": "#161B22", "border": "1px solid #22d3ee"},
+            ]
+        return header, cell, data, conditional
+
     # ── #7 Update strategies from group ─────────────────────
     @app.callback(
         Output(ID.STRATEGY_SELECT, "data"),
@@ -547,11 +593,12 @@ def register_v2_callbacks(
             return options, stored_value
         return options, str(int(df.iloc[0]["strategy_id"]))
 
-    # ── #8 Apply legs updates (strategy template or market quotes) ──
+    # ── #8 Apply legs updates (strategy template, market quotes, or clear) ──
     @app.callback(
         Output(ID.LEGS_TABLE, "data"),
         Input(ID.STRATEGY_SELECT, "value"),
         Input(ID.STORE_MARKET, "data"),
+        Input(ID.BTN_CLEAR, "n_clicks"),
         State(ID.STORE_REF, "data"),
         State(ID.PRICING_MODE, "value"),
         State(ID.LEGS_TABLE, "data"),
@@ -559,9 +606,15 @@ def register_v2_callbacks(
         prevent_initial_call=True,
     )
     def _v2_apply_legs_updates(
-        strategy_id, market_data, ref_data, pricing_mode, legs_data, ui_state
+        strategy_id, market_data, clear_clicks, ref_data, pricing_mode, legs_data, ui_state
     ):
         trigger_id = ctx.triggered_id if ctx else None
+        if trigger_id == ID.BTN_CLEAR:
+            return [
+                {"type": "", "side": "", "qty": "", "strike": "",
+                 "premium": "", "override": "", "bbg_ticker": ""}
+                for _ in range(3)
+            ]
         stored_strategy_id = None
         if isinstance(ui_state, dict):
             stored_strategy_id = ui_state.get("strategy_id")
@@ -984,11 +1037,12 @@ def register_v2_callbacks(
         State(ID.STORE_ANALYSIS_KEY, "data"),
         State(ID.FA_NAME_INPUT, "value"),
         State(ID.ACCT_NUMBER_INPUT, "value"),
+        State(ID.FA_ID_INPUT, "value"),
         prevent_initial_call=True,
     )
     def _v2_download_report_pdf(
         n_clicks_report, ui_state, inputs_state, market_data, key_payload,
-        fa_name_val, acct_number_val,
+        fa_name_val, acct_number_val, fa_id_val,
     ):
         if not n_clicks_report:
             return no_update, no_update, no_update
@@ -1070,6 +1124,7 @@ def register_v2_callbacks(
                 append_entry({
                     "fa_name": fa_name_val or "",
                     "acct_number": acct_number_val or "",
+                    "fa_id": fa_id_val or "",
                     "ticker": inputs_store.get("resolved_ticker") or inputs_store.get("ticker") or "",
                     "strategy": _strategy_name,
                     "expiry": inputs_store.get("expiry") or "",
@@ -1519,8 +1574,9 @@ def register_v2_callbacks(
         Output(ID.PAYOFF_CHART, "figure"),
         Input(ID.STORE_ANALYSIS_KEY, "data"),
         Input(ID.TABS, "value"),
+        Input(ID.THEME_TOGGLE, "checked"),
     )
-    def _v2_render_chart(key_payload, tab_value):
+    def _v2_render_chart(key_payload, tab_value, checked):
         if tab_value != "dashboard":
             raise PreventUpdate
         fig = go.Figure()
@@ -1531,57 +1587,62 @@ def register_v2_callbacks(
         show_strikes = True
         show_breakevens = True
 
+        # Theme-aware chart colors
+        is_light = bool(checked)
+        if is_light:
+            _paper_bg = "rgba(255,255,255,0)"
+            _plot_bg = "rgba(246,248,250,0.8)"
+            _font_color = "#1F2328"
+            _grid_color = "#D0D7DE"
+            _zero_line_color = "#656D76"
+            _template = "plotly_white"
+        else:
+            _paper_bg = "rgba(0,0,0,0)"
+            _plot_bg = "rgba(13,17,23,0.6)"
+            _font_color = "#E6EDF3"
+            _grid_color = "#21262D"
+            _zero_line_color = "#8B949E"
+            _template = "plotly_dark"
+        _stock_color = "#9CA3AF" if is_light else "#D1D5DB"
+
+        def _empty_chart(title=None, annotation=None):
+            """Return an empty themed figure for early-return cases."""
+            f = go.Figure()
+            layout_kw = dict(
+                template=_template,
+                paper_bgcolor=_paper_bg,
+                plot_bgcolor=_plot_bg,
+                font={"color": _font_color},
+            )
+            if title:
+                layout_kw["title"] = title
+            f.update_layout(**layout_kw)
+            if annotation:
+                hint_color = "#656D76" if is_light else "#6C7589"
+                f.add_annotation(
+                    text=annotation,
+                    xref="paper", yref="paper", x=0.5, y=0.5,
+                    showarrow=False, font={"size": 14, "color": hint_color},
+                )
+            return f
+
         if not isinstance(key_payload, dict) or key_payload.get("error"):
             if isinstance(key_payload, dict) and key_payload.get("error"):
-                fig.update_layout(
-                    template="plotly_dark",
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(20,24,37,0.5)",
-                    title=f"Analysis error: {key_payload['error']}",
-                )
-            else:
-                fig.update_layout(
-                    template="plotly_dark",
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(20,24,37,0.5)",
-                )
-                fig.add_annotation(
-                    text="Run analysis to see payoff diagram",
-                    xref="paper", yref="paper", x=0.5, y=0.5,
-                    showarrow=False, font={"size": 14, "color": "#6C7589"},
-                )
-            return fig
+                return _empty_chart(title=f"Analysis error: {key_payload['error']}")
+            return _empty_chart(annotation="Run analysis to see payoff diagram")
         pack = cache_get(key_payload.get("key"))
         if not pack:
-            fig.update_layout(
-                template="plotly_dark",
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(20,24,37,0.5)",
-                title="Analysis expired; rerun",
-            )
-            return fig
+            return _empty_chart(title="Analysis expired; rerun")
         pack_store = analysis_pack_to_store(pack)
         payoff = pack_store.get("payoff") if isinstance(pack_store, dict) else None
         if not isinstance(payoff, dict):
-            fig.update_layout(
-                template="plotly_dark",
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(20,24,37,0.5)",
-                title="No payoff data in analysis_pack",
-            )
-            return fig
+            return _empty_chart(title="No payoff data in analysis_pack")
         x = payoff.get("price_grid") or []
         options = payoff.get("options_pnl") or []
         stock = payoff.get("stock_pnl") or []
         combined = payoff.get("combined_pnl") or []
         if not x:
-            fig.update_layout(
-                template="plotly_dark",
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(20,24,37,0.5)",
-                title="No payoff data in analysis_pack",
-            )
-            return fig
+            return _empty_chart(title="No payoff data in analysis_pack")
         if show_options and len(options) == len(x):
             fig.add_trace(go.Scatter(
                 x=x, y=options, name="Options PnL",
@@ -1590,7 +1651,7 @@ def register_v2_callbacks(
         if show_stock and len(stock) == len(x):
             fig.add_trace(go.Scatter(
                 x=x, y=stock, name="Stock PnL",
-                line={"color": "#D1D5DB"},
+                line={"color": _stock_color},
             ))
         if show_combined and len(combined) == len(x):
             fig.add_trace(go.Scatter(
@@ -1686,16 +1747,16 @@ def register_v2_callbacks(
                 )
 
         fig.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(20,24,37,0.5)",
-            font={"color": "#C1C7D6"},
+            template=_template,
+            paper_bgcolor=_paper_bg,
+            plot_bgcolor=_plot_bg,
+            font={"color": _font_color},
             xaxis_title="Stock Price at Expiry",
             yaxis_title="Profit / Loss ($)",
-            xaxis_gridcolor="#1E2433",
-            yaxis_gridcolor="#1E2433",
+            xaxis_gridcolor=_grid_color,
+            yaxis_gridcolor=_grid_color,
             yaxis_zeroline=True,
-            yaxis_zerolinecolor="#3D4559",
+            yaxis_zerolinecolor=_zero_line_color,
             margin={"l": 50, "r": 20, "t": 30, "b": 60},
             height=400,
             showlegend=False,
@@ -1784,7 +1845,7 @@ def register_v2_callbacks(
             return no_update
         return state
 
-    # ── #19 Hydrate UI from STORE_UI on tab switch ───────────
+    # ── #19 Hydrate UI from STORE_UI on tab switch (+ CLEAR) ──
     # NOTE: STRATEGY_SELECT.value is NOT output here.
     # It is owned by _v2_update_strategies, which already restores from STORE_UI
     # on its initial fire.
@@ -1801,10 +1862,14 @@ def register_v2_callbacks(
         Output(ID.UPSIDE_TARGET, "value"),
         Output(ID.CIO_RATING_INPUT, "value"),
         Input(ID.TABS, "value"),
+        Input(ID.BTN_CLEAR, "n_clicks"),
         State(ID.STORE_UI, "data"),
     )
-    def _v2_hydrate_ui(tab_value, ui_state):
+    def _v2_hydrate_ui(tab_value, clear_clicks, ui_state):
         hydrate_count = 11
+        # CLEAR button → reset all fields to defaults
+        if ctx.triggered_id == ID.BTN_CLEAR:
+            return ("", None, None, 0, 0, "mid", "premium", "targets", -10.0, 10.0, None)
         if tab_value != "dashboard":
             return (no_update,) * hydrate_count
         state = ui_state if isinstance(ui_state, dict) else {}
@@ -1827,6 +1892,17 @@ def register_v2_callbacks(
             _value("upside_pct", 10.0),
             _value("cio_rating", ""),
         )
+
+    # ── #19b Clear FA / tracking fields ─────────────────────
+    @app.callback(
+        Output(ID.FA_NAME_INPUT, "value"),
+        Output(ID.ACCT_NUMBER_INPUT, "value"),
+        Output(ID.FA_ID_INPUT, "value"),
+        Input(ID.BTN_CLEAR, "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def _v2_clear_fa_fields(n):
+        return "", "", ""
 
     # ── #20 Render metrics/dividend panels ───────────────────
     @app.callback(
@@ -1974,7 +2050,8 @@ def register_v2_callbacks(
         p25 = colored_prob(probs.get("prob_25_profit"), probs.get("prob_25_pct", "--"), good_high=True)
         p50 = colored_prob(probs.get("prob_50_profit"), probs.get("prob_50_pct", "--"), good_high=True)
         p100 = colored_prob(probs.get("prob_100_profit"), probs.get("prob_100_pct", "--"), good_high=True)
-        iv_text = dmc.Text(probs.get("iv_used_pct", "--"), size="sm", fw=600, ta="center")
+        iv_val = probs.get("iv_used_pct", "--")
+        iv_text = dmc.Text(iv_val if iv_val != "--" else "--", size="sm", fw=600, ta="center")
 
         return pop, assign, p25, p50, p100, iv_text
 

@@ -408,14 +408,19 @@ def build_analysis_pack(
         })
 
     # Compute all probability metrics
+    # Prefer VEGA_WEIGHTED when per-leg IVs are available; fall back to ATM
     try:
-        from core.probability import effective_sigma
+        from core.probability import effective_sigma, _fallback_atm
+        _valid_ivs = [iv for iv in per_leg_iv if iv is not None and iv > 0]
+        _eff_mode = "VEGA_WEIGHTED" if _valid_ivs else vol_mode
         eff_sigma = effective_sigma(
-            strategy_input, per_leg_iv, vol_mode, risk_free_rate, 0.0, t,
+            strategy_input, per_leg_iv, _eff_mode, risk_free_rate, 0.0, t,
             atm_iv=atm_iv,
         )
     except Exception:
-        eff_sigma = 0.2
+        # Fall back to simple average of available per-leg IVs, not a hardcoded 0.2
+        from core.probability import _fallback_atm
+        eff_sigma = _fallback_atm(per_leg_iv) or 0.2
 
     max_profit_val = max(options_pnl) if options_pnl else None
     # Target probs use options-only payoff so thresholds are meaningful

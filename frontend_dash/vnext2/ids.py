@@ -25,11 +25,13 @@ AVG_COST_INPUT = "v2-avg-cost-input"
 # ─── Output & Tracking ─────────────────────────────────────
 FA_NAME_INPUT = "v2-fa-name-input"
 ACCT_NUMBER_INPUT = "v2-acct-number-input"
+FA_ID_INPUT = "v2-fa-id-input"
 
 # ─── Action buttons ───────────────────────────────────────
 BTN_REFRESH = "v2-btn-refresh"
 BTN_ANALYZE = "v2-btn-analyze"
 BTN_PDF = "v2-btn-pdf"
+BTN_CLEAR = "v2-btn-clear"
 
 # ─── Legs table ──────────────────────────────────────────
 LEGS_TABLE = "v2-legs-table"

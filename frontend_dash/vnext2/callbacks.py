@@ -816,10 +816,28 @@ def register_v2_callbacks(
             ("Ex-Div Date", _pick(["DVD_EX_DT", "EX_DVD_DT", "ex_div_date"])),
             ("52W High", _pick(["HIGH_52WEEK", "WEEK_52_HIGH", "PX_52W_HIGH"])),
             ("52W Low", _pick(["LOW_52WEEK", "WEEK_52_LOW", "PX_52W_LOW"])),
+            ("1D Change %", _pick(["chg_pct_1d", "CHG_PCT_1D"])),
+            ("1D Change $", _pick(["chg_net_1d", "CHG_NET_1D"])),
+            ("6M ATM IV", _pick(["impvol_6m_atm", "6MTH_IMPVOL_100.0%MNY_DF"])),
             ("UBS Rating", _pick(["ubs_rating", "BEST_ANALYST_REC", "UBS_RATING"])),
             ("UBS Target", _pick(["ubs_target", "BEST_TARGET_PRICE", "UBS_TARGET"])),
             ("Risk-Free Rate", _pick(["risk_free_rate", "RISK_FREE_RATE"])),
         ]
+
+        # Append dividend schedule info from analysis pack if available
+        ak = analysis_key if isinstance(analysis_key, dict) else {}
+        ak_key = ak.get("key")
+        if ak_key:
+            ak_pack = cache_get(ak_key)
+            if isinstance(ak_pack, dict):
+                div_sched = ak_pack.get("dividend_schedule")
+                if isinstance(div_sched, dict):
+                    underlying_fields.append(
+                        ("Dividends to Expiry", div_sched.get("dividend_sum"))
+                    )
+                    underlying_fields.append(
+                        ("# Div Payments", div_sched.get("dividend_count"))
+                    )
 
         # Build as a dmc.Table with two columns
         underlying_rows = []
@@ -1251,6 +1269,26 @@ def register_v2_callbacks(
             return {"key": None, "as_of": _utc_now_str(), "error": str(exc)}, to_jsonable(
                 inputs_snapshot
             )
+
+        # Populate dividend schedule from Bloomberg (needs expiry)
+        if expiry_value:
+            try:
+                from adapters.bloomberg import fetch_dividend_sum_to_expiry
+                from datetime import date as _date2
+                expiry_parsed = None
+                try:
+                    expiry_parsed = _date2.fromisoformat(str(expiry_value)[:10])
+                except (ValueError, TypeError):
+                    pass
+                if expiry_parsed:
+                    div_ticker = resolved_ticker or raw_ticker
+                    div_schedule = fetch_dividend_sum_to_expiry(
+                        ticker=div_ticker,
+                        expiry_date=expiry_parsed,
+                    )
+                    pack["dividend_schedule"] = div_schedule
+            except Exception as e:
+                print(f"[DIV_SCHEDULE] Error: {e}")
 
         key = cache_put(pack)
         key_payload = {

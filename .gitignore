@@ -26,3 +26,7 @@ activity_log.csv
 
 # Excel lock files
 ~$*.xls*
+
+# Excel templates (proprietary desk formatting)
+templates/excel/*.xlsx
+templates/excel/*.xlsm

@@ -223,6 +223,12 @@ def build_analysis_pack(
     chg_pct_ytd = normalized_profile.get("CHG_PCT_YTD")
     vol_percentile = normalized_profile.get("VOL_PERCENTILE")
     impvol_3m_atm = normalized_profile.get("3MTH_IMPVOL_100.0%MNY_DF")
+    chg_pct_1d = normalized_profile.get("CHG_PCT_1D")
+    chg_net_1d = normalized_profile.get("CHG_NET_1D")
+    impvol_6m_atm = (
+        normalized_profile.get("6MTH_IMPVOL_100.0%MNY_DF")
+        or normalized_profile.get("IMPVOL_6M_ATM")
+    )
     earnings_related_implied_move = normalized_profile.get(
         "EARNINGS_RELATED_IMPLIED_MOVE"
     )
@@ -694,6 +700,9 @@ def build_analysis_pack(
             "eqy_trr_pct_1yr": _clean_value(eqy_trr_pct_1yr),
             "vol_percentile": _clean_value(vol_percentile),
             "impvol_3m_atm": _clean_value(impvol_3m_atm),
+            "chg_pct_1d": _clean_value(chg_pct_1d),
+            "chg_net_1d": _clean_value(chg_net_1d),
+            "impvol_6m_atm": _clean_value(impvol_6m_atm),
             "earnings_related_implied_move": _clean_value(
                 earnings_related_implied_move
             ),
@@ -766,6 +775,7 @@ def build_analysis_pack(
         "commentary_blocks": commentary_blocks,
     }
     analysis_pack["key_levels"] = key_levels
+    analysis_pack["dividend_schedule"] = None  # Populated by callback layer via fetch_dividend_sum_to_expiry
     analysis_pack["narrative_scenarios"] = build_narrative_scenarios(
         strategy_input=strategy_input,
         key_levels=key_levels,

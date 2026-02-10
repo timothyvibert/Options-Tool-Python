@@ -48,6 +48,9 @@ UNDERLYING_FIELDS = [
     "VOL_PERCENTILE",
     "3MTH_IMPVOL_100.0%MNY_DF",
     "EARNINGS_RELATED_IMPLIED_MOVE",
+    "CHG_PCT_1D",
+    "CHG_NET_1D",
+    "6MTH_IMPVOL_100.0%MNY_DF",
     "DVD_YLD",
     "EQY_DVD_YLD_IND",
     "DVD_EX_DT",
@@ -155,6 +158,9 @@ def fetch_underlying_snapshot(ticker: str) -> pd.Series:
     record["chg_pct_ytd"] = _clean_value(record.get("CHG_PCT_YTD"))
     record["vol_percentile"] = _clean_value(record.get("VOL_PERCENTILE"))
     record["impvol_3m_atm"] = _clean_value(record.get("3MTH_IMPVOL_100.0%MNY_DF"))
+    record["chg_pct_1d"] = _clean_value(record.get("CHG_PCT_1D"))
+    record["chg_net_1d"] = _clean_value(record.get("CHG_NET_1D"))
+    record["impvol_6m_atm"] = _clean_value(record.get("6MTH_IMPVOL_100.0%MNY_DF"))
     record["earnings_related_implied_move"] = _clean_value(
         record.get("EARNINGS_RELATED_IMPLIED_MOVE")
     )
@@ -549,41 +555,13 @@ def _fetch_bds_rows(security: str, field: str) -> tuple[list[dict], Optional[str
         session.stop()
 
 
-def fetch_projected_dividend(
-    ticker: str, as_of_date: Optional[date] = None
-) -> Dict[str, object]:
-    debug = {
-        "dataset": "BDVD_PR_EX_DTS_DVD_AMTS_W_ANN",
-        "rows": None,
-        "first_row": None,
-        "selected_row": None,
-        "parsed": {
-            "ex_div_date": None,
-            "projected_dividend": None,
-            "dividend_status": None,
-        },
-        "error": None,
-    }
-    if not ticker:
-        return {
-            "ex_div_date": None,
-            "projected_dividend": None,
-            "dividend_status": None,
-            "debug": debug,
-        }
-    rows, error = _fetch_bds_rows(
-        ticker, "BDVD_PR_EX_DTS_DVD_AMTS_W_ANN"
-    )
-    debug["error"] = error
-    debug["rows"] = len(rows)
-    if not rows:
-        return {
-            "ex_div_date": None,
-            "projected_dividend": None,
-            "dividend_status": None,
-            "debug": debug,
-        }
+def _parse_bds_dividend_rows(rows: list[dict]) -> list[dict]:
+    """Parse raw BDS dividend rows into standardized format.
 
+    Each input row is a dict with variable key names (Bloomberg BDS format).
+    Returns list of {"ex_div_date": date|None, "projected_dividend": float|None,
+                      "dividend_status": str|None, "raw": dict}
+    """
     date_keys = [
         "EX DATE",
         "EX_DATE",
@@ -594,7 +572,9 @@ def fetch_projected_dividend(
     ]
     amount_keys = [
         "AMOUNT",
+        "AMOUNT PER SHARE",
         "DVD_AMT",
+        "DVD_AMOUNT",
         "DIVIDEND AMOUNT",
         "PROJECTED DIVIDEND",
         "DIVIDEND",
@@ -605,6 +585,7 @@ def fetch_projected_dividend(
         "STATUS",
         "DIVIDEND STATUS",
         "DVD_TYPE",
+        "PROJECTED/CONFIRMED",
     ]
 
     def _pick_value(row: Mapping[str, object], keys: Iterable[str]) -> object:
@@ -680,6 +661,46 @@ def fetch_projected_dividend(
             }
         )
 
+    return parsed_rows
+
+
+def fetch_projected_dividend(
+    ticker: str, as_of_date: Optional[date] = None
+) -> Dict[str, object]:
+    debug = {
+        "dataset": "BDVD_PR_EX_DTS_DVD_AMTS_W_ANN",
+        "rows": None,
+        "first_row": None,
+        "selected_row": None,
+        "parsed": {
+            "ex_div_date": None,
+            "projected_dividend": None,
+            "dividend_status": None,
+        },
+        "error": None,
+    }
+    if not ticker:
+        return {
+            "ex_div_date": None,
+            "projected_dividend": None,
+            "dividend_status": None,
+            "debug": debug,
+        }
+    rows, error = _fetch_bds_rows(
+        ticker, "BDVD_PR_EX_DTS_DVD_AMTS_W_ANN"
+    )
+    debug["error"] = error
+    debug["rows"] = len(rows)
+    if not rows:
+        return {
+            "ex_div_date": None,
+            "projected_dividend": None,
+            "dividend_status": None,
+            "debug": debug,
+        }
+
+    parsed_rows = _parse_bds_dividend_rows(rows)
+
     if parsed_rows:
         debug_first = {}
         for key, value in parsed_rows[0]["raw"].items():
@@ -735,6 +756,83 @@ def fetch_projected_dividend(
         "ex_div_date": parsed_ex_div,
         "projected_dividend": projected_value,
         "dividend_status": status_value,
+        "debug": debug,
+    }
+
+
+def fetch_dividend_sum_to_expiry(
+    ticker: str,
+    as_of_date: Optional[date] = None,
+    expiry_date: Optional[date] = None,
+) -> Dict[str, object]:
+    """Sum all projected dividends between as_of_date and expiry_date (inclusive).
+
+    Uses BDVD_ALL_PROJECTIONS first (richer data). Falls back to
+    BDVD_PR_EX_DTS_DVD_AMTS_W_ANN if no results.
+    """
+    debug: Dict[str, object] = {
+        "dataset": None,
+        "total_rows": 0,
+        "filtered_rows": 0,
+        "error": None,
+        "first_row_keys": None,
+    }
+    empty: Dict[str, object] = {
+        "dividend_sum": None,
+        "dividend_count": 0,
+        "dividends": [],
+        "debug": debug,
+    }
+    if not ticker or expiry_date is None:
+        return empty
+
+    as_of = as_of_date or datetime.now().date()
+
+    # Try BDVD_ALL_PROJECTIONS first (Bloomberg DV140)
+    rows, error = _fetch_bds_rows(ticker, "BDVD_ALL_PROJECTIONS")
+    dataset_used = "BDVD_ALL_PROJECTIONS"
+
+    if not rows:
+        # Fallback to the dataset used by fetch_projected_dividend
+        rows, error2 = _fetch_bds_rows(ticker, "BDVD_PR_EX_DTS_DVD_AMTS_W_ANN")
+        dataset_used = "BDVD_PR_EX_DTS_DVD_AMTS_W_ANN"
+        if error2 and not error:
+            error = error2
+
+    debug["dataset"] = dataset_used
+    debug["error"] = error
+    debug["total_rows"] = len(rows)
+
+    if not rows:
+        return {
+            "dividend_sum": 0.0,
+            "dividend_count": 0,
+            "dividends": [],
+            "debug": debug,
+        }
+
+    if rows:
+        debug["first_row_keys"] = list(rows[0].keys())
+
+    parsed = _parse_bds_dividend_rows(rows)
+
+    # Filter: as_of <= ex_div_date <= expiry_date
+    filtered = []
+    for row in parsed:
+        ex = row["ex_div_date"]
+        amt = row["projected_dividend"]
+        if ex is None:
+            continue
+        if as_of <= ex <= expiry_date and amt is not None and amt > 0:
+            filtered.append({"ex_date": ex.isoformat(), "amount": amt})
+
+    debug["filtered_rows"] = len(filtered)
+
+    dividend_sum = sum(d["amount"] for d in filtered)
+    return {
+        "dividend_sum": round(dividend_sum, 6),
+        "dividend_count": len(filtered),
+        "dividends": filtered,
         "debug": debug,
     }
 

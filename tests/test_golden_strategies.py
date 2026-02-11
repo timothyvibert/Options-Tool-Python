@@ -58,6 +58,8 @@ def _build_scenario_df(
         payoff_result=payoff_result,
         roi_policy=roi_policy,
         strategy_row=None,
+        downside_tgt=0.8,
+        upside_tgt=1.2,
     )
     return points, scenario_df
 

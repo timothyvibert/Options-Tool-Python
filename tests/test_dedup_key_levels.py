@@ -9,7 +9,8 @@ class TestDedupKeyLevels:
     """Fix 2A: non-ALWAYS_KEEP entries at a price should be removed
     when an ALWAYS_KEEP entry arrives at the same price."""
 
-    def test_downside_removed_when_breakeven_at_same_price(self):
+    def test_downside_survives_with_breakeven_at_same_price(self):
+        """Both downside and breakeven are ALWAYS_KEEP, so both survive."""
         levels = [
             {"id": "downside", "label": "Downside (47%) at 70.83",
              "price": 70.83, "source": "downside"},
@@ -19,9 +20,11 @@ class TestDedupKeyLevels:
         result = _dedup_key_levels(levels)
         labels = [lv["label"] for lv in result]
         assert "Breakeven 1 at 70.83" in labels
-        assert "Downside (47%) at 70.83" not in labels
+        assert "Downside (47%) at 70.83" in labels
+        assert len(result) == 2
 
-    def test_upside_removed_when_strike_at_same_price(self):
+    def test_upside_survives_with_strike_at_same_price(self):
+        """Both upside and strike are ALWAYS_KEEP, so both survive."""
         levels = [
             {"id": "upside", "label": "Upside (48%) at 200.00",
              "price": 200.0, "source": "upside"},
@@ -31,7 +34,8 @@ class TestDedupKeyLevels:
         result = _dedup_key_levels(levels)
         labels = [lv["label"] for lv in result]
         assert "Upper Strike at 200.00" in labels
-        assert "Upside (48%) at 200.00" not in labels
+        assert "Upside (48%) at 200.00" in labels
+        assert len(result) == 2
 
     def test_always_keep_entries_both_survive_at_same_price(self):
         """Two ALWAYS_KEEP sources at the same price should both survive."""
@@ -72,7 +76,7 @@ class TestDedupKeyLevels:
         assert len(result) == 2
 
     def test_breakeven_then_downside_at_same_price(self):
-        """When breakeven comes FIRST, downside should be skipped."""
+        """Both breakeven and downside are ALWAYS_KEEP, so both survive."""
         levels = [
             {"id": "breakeven_1", "label": "Breakeven 1 at 70.83",
              "price": 70.83, "source": "breakeven"},
@@ -82,11 +86,11 @@ class TestDedupKeyLevels:
         result = _dedup_key_levels(levels)
         labels = [lv["label"] for lv in result]
         assert "Breakeven 1 at 70.83" in labels
-        assert "Downside (47%) at 70.83" not in labels
-        assert len(result) == 1
+        assert "Downside (47%) at 70.83" in labels
+        assert len(result) == 2
 
     def test_multiple_non_always_keep_removed_by_single_always_keep(self):
-        """Multiple low-priority entries at the same price removed by one high-priority."""
+        """Low-priority 'target' removed by high-priority; downside/upside survive."""
         levels = [
             {"id": "down", "label": "Downside", "price": 100.0, "source": "downside"},
             {"id": "target", "label": "Target", "price": 100.0, "source": "target"},
@@ -95,9 +99,9 @@ class TestDedupKeyLevels:
         result = _dedup_key_levels(levels)
         labels = [lv["label"] for lv in result]
         assert "Spot" in labels
-        assert "Downside" not in labels
+        assert "Downside" in labels  # downside is ALWAYS_KEEP
         assert "Target" not in labels
-        assert len(result) == 1
+        assert len(result) == 2
 
     def test_result_sorted_by_price(self):
         levels = [

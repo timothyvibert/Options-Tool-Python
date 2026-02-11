@@ -376,9 +376,11 @@ def test_key_levels_no_duplicates_strike_at_target():
     )
     levels = pack["key_levels"]["levels"]
     prices_at_110 = [lv for lv in levels if lv.get("price") is not None and abs(lv["price"] - 110.0) < 0.01]
-    # Strike should survive, upside target should be removed
-    assert len(prices_at_110) == 1
-    assert prices_at_110[0]["source"] == "strike"
+    # Both strike and upside target coexist at the same price
+    sources_at_110 = {lv["source"] for lv in prices_at_110}
+    assert "strike" in sources_at_110
+    assert "upside" in sources_at_110
+    assert len(prices_at_110) == 2
 
 
 def test_key_levels_infinity_mode_no_upside_downside():

@@ -110,6 +110,8 @@ def compute_scenario_table(
     payoff_result: dict,
     roi_policy: str = NET_PREMIUM,
     strategy_row: Optional[pd.Series] = None,
+    downside_tgt: Optional[float] = None,
+    upside_tgt: Optional[float] = None,
 ) -> pd.DataFrame:
     option_only = StrategyInput(
         spot=input.spot,
@@ -141,15 +143,12 @@ def compute_scenario_table(
         label_map[_price_key(strike)] = label
     for breakeven, label in breakeven_labels.items():
         label_map[_price_key(breakeven)] = label
-    if points:
-        min_price = min(points)
-        max_price = max(points)
-        label_map[_price_key(min_price)] = _move_label(
-            "Downside", spot, float(min_price)
-        )
-        label_map[_price_key(max_price)] = _move_label(
-            "Upside", spot, float(max_price)
-        )
+    if downside_tgt is not None:
+        ds_price = spot * downside_tgt
+        label_map[_price_key(ds_price)] = _move_label("Downside", spot, ds_price)
+    if upside_tgt is not None:
+        us_price = spot * upside_tgt
+        label_map[_price_key(us_price)] = _move_label("Upside", spot, us_price)
     label_map[_price_key(spot)] = "Current Market Price"
 
     rows = []

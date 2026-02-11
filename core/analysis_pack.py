@@ -217,7 +217,7 @@ def _dedup_key_levels(levels: List[dict]) -> List[dict]:
     """
     # Sources that should always be kept even when sharing a price with
     # another source.
-    ALWAYS_KEEP = {"spot", "strike", "breakeven", "sentinel"}
+    ALWAYS_KEEP = {"spot", "strike", "breakeven", "sentinel", "downside", "upside"}
 
     seen_ids: set = set()
     result: List[dict] = []
@@ -244,6 +244,9 @@ def _dedup_key_levels(levels: List[dict]) -> List[dict]:
         existing = price_sources.get(rp, set())
 
         if source in ALWAYS_KEEP:
+            # Same source at same price — skip (e.g. two downside entries)
+            if source in existing:
+                continue
             # Retroactively remove non-ALWAYS_KEEP entries at this price
             if rp in price_entries:
                 for entry_source, entry_level in list(price_entries[rp]):
@@ -254,7 +257,7 @@ def _dedup_key_levels(levels: List[dict]) -> List[dict]:
                     (s, l) for s, l in price_entries[rp]
                     if s in ALWAYS_KEEP
                 ]
-            # Always include spot/strike/breakeven/sentinel
+            # Always include spot/strike/breakeven/sentinel/downside/upside
             price_sources.setdefault(rp, set()).add(source)
             price_entries.setdefault(rp, []).append((source, level))
             seen_ids.add(lid)
@@ -438,6 +441,8 @@ def build_analysis_pack(
         payoff_result=payoff_result,
         roi_policy=roi_policy,
         strategy_row=strategy_row if isinstance(strategy_row, pd.Series) else None,
+        downside_tgt=downside_tgt if scenario_mode.upper() != "INFINITY" else None,
+        upside_tgt=upside_tgt if scenario_mode.upper() != "INFINITY" else None,
     )
 
     # Compute net premium totals early (needed for capital basis override)
@@ -903,18 +908,18 @@ def build_analysis_pack(
         "spot",
     )
 
-    # Bug 2C: Only add downside/upside target levels in non-infinity mode.
-    # In infinity mode the min/max scenario prices are 0.0 and spot*1000
-    # (sentinels), not meaningful targets.
-    if scenario_mode.upper() != "INFINITY" and not price_values.empty:
-        downside_price = float(price_values.min())
+    # Add downside/upside target levels using the actual target prices
+    # from the UI (downside_tgt/upside_tgt factors), not min/max of
+    # the scenario table (which would pick up strikes instead).
+    if scenario_mode.upper() != "INFINITY":
+        downside_price = spot * downside_tgt
         downside_row = _row_for_price(downside_price)
-        downside_label = _move_label("Downside", spot, downside_price)
+        downside_label = _move_label("Downside Target", spot, downside_price)
         add_level("downside", downside_label, downside_row, downside_price, "downside")
 
-        upside_price = float(price_values.max())
+        upside_price = spot * upside_tgt
         upside_row = _row_for_price(upside_price)
-        upside_label = _move_label("Upside", spot, upside_price)
+        upside_label = _move_label("Upside Target", spot, upside_price)
         add_level("upside", upside_label, upside_row, upside_price, "upside")
 
     for idx, strike in enumerate(strikes, start=1):

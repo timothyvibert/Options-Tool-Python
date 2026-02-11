@@ -100,11 +100,11 @@ def test_scenario_labels_for_downside_upside():
         points,
         payoff_result=payoff,
         roi_policy=NET_PREMIUM,
+        downside_tgt=0.8,
+        upside_tgt=1.2,
     )
-    min_price = min(points)
-    max_price = max(points)
-    downside_label = table.loc[table["price"] == min_price].iloc[0]["scenario"]
-    upside_label = table.loc[table["price"] == max_price].iloc[0]["scenario"]
+    downside_label = table.loc[table["price"] == 80.0].iloc[0]["scenario"]
+    upside_label = table.loc[table["price"] == 120.0].iloc[0]["scenario"]
     assert downside_label == "Downside (20%)"
     assert upside_label == "Upside (20%)"
 

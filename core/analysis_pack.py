@@ -701,13 +701,13 @@ def build_analysis_pack(
         },
         {
             "metric": "Net Prem/Share",
-            "options": _format_dollar(net_prem_per_share),
-            "combined": _format_dollar(net_prem_per_share),
+            "options": _format_dollar(-net_prem_per_share),
+            "combined": _format_dollar(-net_prem_per_share),
         },
         {
             "metric": "Net Prem % Spot",
-            "options": f"{net_premium_pct:.2f}%",
-            "combined": f"{net_premium_pct:.2f}%",
+            "options": f"{-net_premium_pct:.2f}%",
+            "combined": f"{-net_premium_pct:.2f}%",
         },
         {
             "metric": "PoP",

@@ -1,0 +1,95 @@
+/* ===== DataTable DARK MODE (default) ===== */
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th {
+    background-color: #161B22 !important;
+    color: #E6EDF3 !important;
+    border-color: #30363D !important;
+    font-weight: 600 !important;
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.04em !important;
+    font-family: Inter, "Segoe UI", sans-serif !important;
+}
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td {
+    background-color: #0D1117 !important;
+    color: #E6EDF3 !important;
+    border-color: #30363D !important;
+    font-size: 12px !important;
+    padding: 8px !important;
+    font-family: Inter, "Segoe UI", sans-serif !important;
+}
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td.focused {
+    border: 2px solid #22d3ee !important;
+}
+/* Dropdown cells */
+.dash-table-container .Select-control {
+    background-color: #0D1117 !important;
+    color: #E6EDF3 !important;
+    border-color: #30363D !important;
+}
+.dash-table-container .Select-menu-outer {
+    background-color: #161B22 !important;
+}
+.dash-table-container .Select-option {
+    background-color: #161B22 !important;
+    color: #E6EDF3 !important;
+}
+.dash-table-container .Select-option.is-focused {
+    background-color: #30363D !important;
+}
+.dash-table-container .Select-value-label {
+    color: #E6EDF3 !important;
+}
+.dash-table-container .Select-arrow {
+    border-color: #E6EDF3 transparent transparent !important;
+}
+/* Input cells */
+.dash-table-container .dash-cell-value {
+    color: #E6EDF3 !important;
+}
+.dash-table-container input.dash-cell-value {
+    background-color: transparent !important;
+    color: #E6EDF3 !important;
+}
+
+/* ===== DataTable LIGHT MODE ===== */
+[data-mantine-color-scheme="light"] .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th {
+    background-color: #F6F8FA !important;
+    color: #1F2328 !important;
+    border-color: #D0D7DE !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td {
+    background-color: #FFFFFF !important;
+    color: #1F2328 !important;
+    border-color: #D0D7DE !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td.focused {
+    border: 2px solid #0969da !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container .Select-control {
+    background-color: #FFFFFF !important;
+    color: #1F2328 !important;
+    border-color: #D0D7DE !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container .Select-menu-outer {
+    background-color: #FFFFFF !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container .Select-option {
+    background-color: #FFFFFF !important;
+    color: #1F2328 !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container .Select-option.is-focused {
+    background-color: #F6F8FA !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container .Select-value-label {
+    color: #1F2328 !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container .Select-arrow {
+    border-color: #1F2328 transparent transparent !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container .dash-cell-value {
+    color: #1F2328 !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container input.dash-cell-value {
+    background-color: transparent !important;
+    color: #1F2328 !important;
+}

@@ -465,6 +465,17 @@ def build_analysis_pack(
     # Compute strategy_code early so it's available for summary metrics
     strategy_code = determine_strategy_code(strategy_input, roi_policy)
 
+    # Auto capital basis — must run after strategy_code and margin_proxy
+    # are available so the result feeds into summary metrics and ROI.
+    auto_basis = _auto_capital_basis(
+        strategy_code, strategy_input.legs,
+        int(strategy_input.stock_position), strategy_input.avg_cost,
+        margin_proxy,
+    )
+    if auto_basis["amount"] > 0:
+        option_basis = auto_basis["amount"]
+        total_basis = combined_capital_basis(strategy_input, option_basis)
+
     dte_days = 0.0
     if expiry_date is not None and as_of_date is not None:
         dte_days = float(max((expiry_date - as_of_date).days, 0))
@@ -732,13 +743,6 @@ def build_analysis_pack(
         summary_rows.append({"metric": "Treasury Obligation", "options": treasury_str, "combined": treasury_str})
         summary_rows.append({"metric": "Treasury Interest", "options": treasury_return_str, "combined": treasury_return_str})
         summary_rows.append({"metric": "Treasury Return %", "options": treasury_return_pct_str, "combined": treasury_return_pct_str})
-
-    # Auto capital basis
-    auto_basis = _auto_capital_basis(
-        strategy_code, strategy_input.legs,
-        int(strategy_input.stock_position), strategy_input.avg_cost,
-        margin_proxy,
-    )
 
     legs_meta = _safe_list(meta.get("legs_meta") or meta.get("legs"))
     bbg_quotes = []

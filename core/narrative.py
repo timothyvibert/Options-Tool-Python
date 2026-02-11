@@ -1427,8 +1427,10 @@ def build_narrative_scenarios(
 
     if payoff_result is None:
         payoff_result = compute_payoff(strategy_input)
-    defined_risk = not payoff_result.get("unlimited_upside", False) and not payoff_result.get(
-        "unlimited_downside", False
+    defined_risk = (
+        not payoff_result.get("unlimited_upside", False)
+        and not payoff_result.get("unlimited_downside", False)
+        and not payoff_result.get("unlimited_loss_upside", False)
     )
 
     classification = classify_strategy(strategy_input)

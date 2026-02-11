@@ -60,12 +60,14 @@ def _detect_breakevens(grid: List[float], pnl: List[float]) -> List[float]:
 
 def _detect_unlimited(grid: List[float], pnl: List[float]) -> Dict[str, bool]:
     if len(grid) < 2:
-        return {"unlimited_upside": False, "unlimited_downside": False}
+        return {"unlimited_upside": False, "unlimited_downside": False, "unlimited_loss_upside": False}
     slope_high = (pnl[-1] - pnl[-2]) / (grid[-1] - grid[-2])
     slope_low = (pnl[1] - pnl[0]) / (grid[1] - grid[0])
     return {
         "unlimited_upside": slope_high > 0.0,
         "unlimited_downside": slope_low < 0.0,
+        # P&L drops as stock rises (naked short call) — unlimited loss on upside
+        "unlimited_loss_upside": slope_high < 0.0,
     }
 
 

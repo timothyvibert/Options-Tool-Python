@@ -161,11 +161,16 @@ def compute_scenario_key(
             return "UNLIMITED_UPSIDE"
         if payoff_result.get("unlimited_downside") and slope < -slope_tol:
             return "UNLIMITED_RISK"
+        if payoff_result.get("unlimited_loss_upside") and slope < -slope_tol:
+            return "UNLIMITED_RISK"
         return region
 
     if region == "ABOVE_UPPER_BOUND" and payoff_result.get("unlimited_upside"):
         if slope > slope_tol:
             return "UNLIMITED_UPSIDE"
+    if region == "ABOVE_UPPER_BOUND" and payoff_result.get("unlimited_loss_upside"):
+        if slope < -slope_tol:
+            return "UNLIMITED_RISK"
     if region == "BELOW_LOWER_BOUND" and payoff_result.get("unlimited_downside"):
         if slope < -slope_tol:
             return "UNLIMITED_RISK"

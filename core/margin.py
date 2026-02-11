@@ -92,8 +92,10 @@ def classify_strategy(input: StrategyInput) -> str:
             return SH_OPT
 
     payoff = compute_payoff(input)
-    bounded = not payoff.get("unlimited_upside", False) and not payoff.get(
-        "unlimited_downside", False
+    bounded = (
+        not payoff.get("unlimited_upside", False)
+        and not payoff.get("unlimited_downside", False)
+        and not payoff.get("unlimited_loss_upside", False)
     )
     if bounded:
         return SPR

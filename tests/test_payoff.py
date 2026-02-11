@@ -67,3 +67,25 @@ def test_unlimited_upside():
     results = compute_payoff(strategy)
     assert results["unlimited_upside"] is True
     assert results["unlimited_downside"] is False
+
+
+def test_unlimited_downside_naked_short_call():
+    strategy = StrategyInput(
+        spot=100.0,
+        legs=[OptionLeg(kind="call", position=-1, strike=100.0, premium=5.0)],
+    )
+    results = compute_payoff(strategy)
+    assert results["unlimited_upside"] is False
+    assert results["unlimited_downside"] is False  # stock going to 0 doesn't cause loss
+    assert results["unlimited_loss_upside"] is True  # loss grows as stock rises
+
+
+def test_short_put_no_unlimited():
+    strategy = StrategyInput(
+        spot=100.0,
+        legs=[OptionLeg(kind="put", position=-1, strike=100.0, premium=5.0)],
+    )
+    results = compute_payoff(strategy)
+    assert results["unlimited_upside"] is False
+    assert results["unlimited_downside"] is False
+    assert results["unlimited_loss_upside"] is False

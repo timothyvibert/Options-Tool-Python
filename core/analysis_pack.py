@@ -11,7 +11,7 @@ from core.eligibility import determine_strategy_code, get_account_eligibility
 from core.margin import classify_strategy, compute_margin_proxy, compute_margin_full
 from core.models import StrategyInput
 from core.narrative import build_narrative_scenarios
-from core.payoff import _compute_pnl_for_price, compute_payoff
+from core.payoff import _compute_pnl_for_price, _detect_unlimited, compute_payoff
 from core.probability import strategy_pop, compute_all_probabilities
 from core.roi import capital_basis, combined_capital_basis, compute_net_premium
 from core.scenarios import build_scenario_points, compute_scenario_table
@@ -66,10 +66,10 @@ def _safe_list(value: object) -> List[dict]:
 
 def _format_net_premium(net_premium: float) -> str:
     if net_premium < 0:
-        return f"Credit {abs(net_premium):.2f}"
+        return f"Credit ${abs(net_premium):,.2f}"
     if net_premium > 0:
-        return f"Debit {net_premium:.2f}"
-    return "0.00"
+        return f"Debit ${net_premium:,.2f}"
+    return "$0.00"
 
 
 def _format_number(value: Optional[float]) -> str:
@@ -164,6 +164,94 @@ def _move_label(prefix: str, spot: float, price: float) -> str:
 
 def _fallback_label(price: float) -> str:
     return f"Scenario @ {price:.2f}"
+
+
+def _risk_reward(max_prof: float, max_loss_val: float) -> str:
+    """Format risk/reward ratio from max profit and max loss."""
+    if max_loss_val == 0:
+        return "\u221e" if max_prof > 0 else "N/A"
+    return f"{abs(max_prof / max_loss_val):.2f}"
+
+
+def _auto_capital_basis(strategy_code: str, legs, shares: int,
+                        avg_cost: float, margin_proxy: float) -> dict:
+    """Auto-select the most appropriate capital basis."""
+    if strategy_code in ("CSP", "SP", "CSPW", "cash_secured_put"):
+        short_puts = [l for l in legs if l.kind.lower() == "put" and l.position < 0]
+        amount = sum(l.strike * abs(l.position) * l.multiplier for l in short_puts)
+        return {"mode": "cash_secured", "amount": amount, "label": "Cash-Secured (Treasury Collateral)"}
+
+    if strategy_code in ("CC", "COL", "CW"):
+        amount = avg_cost * shares if shares and avg_cost else 0
+        return {"mode": "stock_cost", "amount": amount, "label": "Stock Cost Basis"}
+
+    if strategy_code in ("BCS", "BPS", "BFS", "BEFS"):
+        amount = abs(margin_proxy) if margin_proxy else 0
+        return {"mode": "max_loss", "amount": amount, "label": "Net Debit / Max Loss"}
+
+    amount = margin_proxy or 0
+    return {"mode": "margin", "amount": amount, "label": "Margin Requirement"}
+
+
+def _dedup_key_levels(levels: List[dict]) -> List[dict]:
+    """Deduplicate key levels that share the same rounded price AND source.
+
+    Only merges entries from the same source category (e.g., two upside
+    targets at the same price).  Different categories (spot, strike,
+    breakeven) at the same price are preserved so that every semantic
+    level remains visible.  Upside/downside targets that land on a
+    strike or breakeven price are removed in favour of the more
+    informative label.
+    """
+    # Sources that should always be kept even when sharing a price with
+    # another source.
+    ALWAYS_KEEP = {"spot", "strike", "breakeven", "sentinel"}
+
+    seen_ids: set = set()
+    result: List[dict] = []
+    # Map rounded-price → set of sources already included at that price
+    price_sources: dict = {}
+
+    for level in levels:
+        lid = level.get("id")
+        if lid in seen_ids:
+            continue  # duplicate id already present
+
+        price = level.get("price")
+        source = level.get("source", "sentinel")
+
+        if price is None:
+            # Sentinel rows (infinity, zero) — always keep, keyed by id
+            seen_ids.add(lid)
+            result.append(level)
+            continue
+
+        rp = round(float(price), 2)
+        existing = price_sources.get(rp, set())
+
+        if source in ALWAYS_KEEP:
+            # Always include spot/strike/breakeven/sentinel
+            price_sources.setdefault(rp, set()).add(source)
+            seen_ids.add(lid)
+            result.append(level)
+        elif source in existing:
+            # Duplicate same-source at same price — skip
+            continue
+        elif existing & ALWAYS_KEEP:
+            # This target/upside/downside overlaps with a more important level — skip
+            continue
+        else:
+            price_sources.setdefault(rp, set()).add(source)
+            seen_ids.add(lid)
+            result.append(level)
+
+    # Sort by price ascending, sentinels (None) at end
+    result.sort(
+        key=lambda lv: (
+            lv.get("price") if lv.get("price") is not None else float("inf"),
+        )
+    )
+    return result
 
 
 def build_analysis_pack(
@@ -299,6 +387,10 @@ def build_analysis_pack(
         combined - option for combined, option in zip(combined_pnl, options_pnl)
     ]
 
+    # Detect unlimited upside/downside for both combined and options-only payoff
+    combined_unlimited = _detect_unlimited(price_grid, combined_pnl)
+    options_unlimited = _detect_unlimited(price_grid, options_pnl)
+
     strikes = _unique_sorted(
         [float(leg.strike) for leg in strategy_input.legs]
     )
@@ -325,6 +417,9 @@ def build_analysis_pack(
     option_basis = capital_basis(strategy_input, payoff_result, roi_policy)
     total_basis = combined_capital_basis(strategy_input, option_basis)
     margin_proxy = compute_margin_proxy(strategy_input, payoff_result)
+
+    # Compute strategy_code early so it's available for summary metrics
+    strategy_code = determine_strategy_code(strategy_input, roi_policy)
 
     dte_days = 0.0
     if expiry_date is not None and as_of_date is not None:
@@ -365,7 +460,11 @@ def build_analysis_pack(
         ]
 
     net_premium = compute_net_premium(strategy_input)
-    net_premium_text = _format_net_premium(net_premium)
+    net_premium_total = sum(
+        leg.position * leg.premium * leg.multiplier
+        for leg in strategy_input.legs
+    )
+    net_premium_text = _format_net_premium(net_premium_total)
     net_premium_pct = (
         net_premium / strategy_input.spot * 100.0
         if strategy_input.spot
@@ -444,16 +543,36 @@ def build_analysis_pack(
     prob_results["pop"] = pop
     prob_results["pop_pct"] = f"{pop * 100:.1f}%"
 
+    # Determine Max Profit / Max Loss with unlimited detection
+    options_max_profit = (
+        "Unlimited" if options_unlimited["unlimited_upside"]
+        else _format_number(max(options_pnl) if options_pnl else None)
+    )
+    combined_max_profit = (
+        "Unlimited" if combined_unlimited["unlimited_upside"]
+        else _format_number(max(combined_pnl) if combined_pnl else None)
+    )
+    options_max_loss = (
+        "Unlimited" if (options_unlimited["unlimited_downside"]
+                        or options_unlimited.get("unlimited_loss_upside", False))
+        else _format_number(min(options_pnl) if options_pnl else None)
+    )
+    combined_max_loss = (
+        "Unlimited" if (combined_unlimited["unlimited_downside"]
+                        or combined_unlimited.get("unlimited_loss_upside", False))
+        else _format_number(min(combined_pnl) if combined_pnl else None)
+    )
+
     summary_rows = [
         {
             "metric": "Max Profit",
-            "options": _format_number(max(options_pnl) if options_pnl else None),
-            "combined": _format_number(max(combined_pnl) if combined_pnl else None),
+            "options": options_max_profit,
+            "combined": combined_max_profit,
         },
         {
             "metric": "Max Loss",
-            "options": _format_number(min(options_pnl) if options_pnl else None),
-            "combined": _format_number(min(combined_pnl) if combined_pnl else None),
+            "options": options_max_loss,
+            "combined": combined_max_loss,
         },
         {
             "metric": "Capital Basis",
@@ -496,6 +615,59 @@ def build_analysis_pack(
             "combined": pop_text,
         },
     ]
+
+    # --- New metrics: Risk/Reward, Breakeven, Treasury ---
+
+    # Risk/Reward Ratio
+    options_max_profit_num = max(options_pnl) if options_pnl else 0
+    options_max_loss_num = min(options_pnl) if options_pnl else 0
+    combined_max_profit_num = max(combined_pnl) if combined_pnl else 0
+    combined_max_loss_num = min(combined_pnl) if combined_pnl else 0
+
+    rr_options = _risk_reward(options_max_profit_num, options_max_loss_num)
+    rr_combined = _risk_reward(combined_max_profit_num, combined_max_loss_num)
+    summary_rows.append({"metric": "Risk/Reward", "options": rr_options, "combined": rr_combined})
+
+    # Closest Breakeven and BE Distance %
+    spot = float(strategy_input.spot)
+    if breakevens:
+        closest_be = min(breakevens, key=lambda be: abs(be - spot))
+        closest_be_str = f"${closest_be:,.2f}"
+        be_distance_pct = ((closest_be - spot) / spot) * 100 if spot else 0
+        be_distance_str = f"{be_distance_pct:+.2f}%"
+    else:
+        closest_be_str = "N/A"
+        be_distance_str = "N/A"
+
+    summary_rows.append({"metric": "Closest Breakeven", "options": closest_be_str, "combined": closest_be_str})
+    summary_rows.append({"metric": "BE Distance %", "options": be_distance_str, "combined": be_distance_str})
+
+    # Treasury Obligation (cash-secured strategies only)
+    is_cash_secured = strategy_code in ("CSP", "SP", "CSPW", "cash_secured_put")
+    if is_cash_secured:
+        short_puts = [l for l in strategy_input.legs if l.kind.lower() == "put" and l.position < 0]
+        treasury_obligation = sum(l.strike * abs(l.position) * l.multiplier for l in short_puts)
+        treasury_str = f"${treasury_obligation:,.2f}"
+
+        if treasury_obligation > 0:
+            treasury_interest = treasury_obligation * risk_free_rate * (dte_days / 365)
+            treasury_return_str = f"${treasury_interest:,.2f}"
+            treasury_return_pct = (treasury_interest / treasury_obligation) * 100
+            treasury_return_pct_str = f"{treasury_return_pct:.2f}%"
+        else:
+            treasury_return_str = "N/A"
+            treasury_return_pct_str = "N/A"
+
+        summary_rows.append({"metric": "Treasury Obligation", "options": treasury_str, "combined": treasury_str})
+        summary_rows.append({"metric": "Treasury Interest", "options": treasury_return_str, "combined": treasury_return_str})
+        summary_rows.append({"metric": "Treasury Return %", "options": treasury_return_pct_str, "combined": treasury_return_pct_str})
+
+    # Auto capital basis
+    auto_basis = _auto_capital_basis(
+        strategy_code, strategy_input.legs,
+        int(strategy_input.stock_position), strategy_input.avg_cost,
+        margin_proxy,
+    )
 
     legs_meta = _safe_list(meta.get("legs_meta") or meta.get("legs"))
     bbg_quotes = []
@@ -656,7 +828,10 @@ def build_analysis_pack(
         "spot",
     )
 
-    if not price_values.empty:
+    # Bug 2C: Only add downside/upside target levels in non-infinity mode.
+    # In infinity mode the min/max scenario prices are 0.0 and spot*1000
+    # (sentinels), not meaningful targets.
+    if scenario_mode.upper() != "INFINITY" and not price_values.empty:
         downside_price = float(price_values.min())
         downside_row = _row_by_price(scenario_df, downside_price)
         downside_label = _move_label("Downside", spot, downside_price)
@@ -679,9 +854,26 @@ def build_analysis_pack(
 
     zero_row = _row_for_price(0.0)
     add_level("zero", "Stock to Zero", zero_row, 0.0, "sentinel")
-    add_level("infinity", "Stock to Infinity", None, None, "sentinel")
 
-    strategy_code = determine_strategy_code(strategy_input, roi_policy)
+    # Bug 2D: Compute actual PnL values for "Stock to Infinity" using a
+    # proxy high price instead of showing "--" for all fields.
+    max_strike = max((leg.strike for leg in strategy_input.legs), default=spot)
+    inf_proxy = max(max_strike * 10, spot * 10)
+    opt_pnl_inf = _compute_pnl_for_price(option_only, inf_proxy)
+    comb_pnl_inf = _compute_pnl_for_price(strategy_input, inf_proxy)
+    stock_pnl_inf = comb_pnl_inf - opt_pnl_inf
+    opt_roi_inf = opt_pnl_inf / option_basis if option_basis else None
+    net_roi_inf = comb_pnl_inf / total_basis if total_basis else None
+    infinity_row = pd.Series({
+        "price": None,
+        "option_pnl": opt_pnl_inf,
+        "stock_pnl": stock_pnl_inf,
+        "combined_pnl": comb_pnl_inf,
+        "option_roi": opt_roi_inf,
+        "net_roi": net_roi_inf,
+    })
+    add_level("infinity", "Stock to Infinity", infinity_row, None, "sentinel")
+
     eligibility_error = None
     try:
         eligibility_df = get_account_eligibility(strategy_code)
@@ -762,6 +954,7 @@ def build_analysis_pack(
             "roi_policy": roi_policy,
             "vol_mode": vol_mode,
             "risk_free_rate": risk_free_rate,
+            "auto_capital_basis": auto_basis,
         },
         "legs": legs,
         "payoff": {
@@ -775,6 +968,7 @@ def build_analysis_pack(
         "summary": {
             "rows": summary_rows,
             "net_premium_total": net_premium_text,
+            "net_premium_total_value": net_premium_total,
             "net_premium_per_share": _format_number(net_premium),
         },
         "margin": {
@@ -795,6 +989,8 @@ def build_analysis_pack(
         },
         "commentary_blocks": commentary_blocks,
     }
+    # Bug 2A: Deduplicate key levels that share the same price
+    key_levels["levels"] = _dedup_key_levels(key_levels["levels"])
     analysis_pack["key_levels"] = key_levels
     analysis_pack["dividend_schedule"] = None  # Populated by callback layer via fetch_dividend_sum_to_expiry
     analysis_pack["narrative_scenarios"] = build_narrative_scenarios(

@@ -464,7 +464,7 @@ def _dmc_table(headers: list[str], rows: list[list]) -> dmc.Table:
     tbody_rows = []
     for row in rows:
         tbody_rows.append(
-            dmc.TableTr([dmc.TableTd(str(cell) if cell is not None else "--") for cell in row])
+            dmc.TableTr([dmc.TableTd(cell if cell is not None else "--") for cell in row])
         )
     tbody = dmc.TableTbody(tbody_rows)
     return dmc.Table(
@@ -1932,6 +1932,9 @@ def register_v2_callbacks(
                 if "%" in text:
                     return text
                 return _fmt_percent_point(raw_value) if _coerce_float(raw_value) is not None else text
+            if metric_key in {"risk/reward", "closest breakeven", "be distance %",
+                              "treasury obligation", "treasury interest", "treasury return %"}:
+                return text
             return text
 
         if not isinstance(key_payload, dict) or key_payload.get("error"):
@@ -1964,17 +1967,34 @@ def register_v2_callbacks(
                         return value
             return None
 
+        def _color_cost_credit(text):
+            text_str = str(text)
+            if text_str.startswith("Credit"):
+                return dmc.Text(text_str, c="green", size="sm", fw=500)
+            elif text_str.startswith("Debit"):
+                return dmc.Text(text_str, c="red", size="sm", fw=500)
+            return text_str
+
         for row in summary_rows or []:
             if not isinstance(row, dict):
                 continue
             metric = row.get("metric") or row.get("label") or row.get("Metric") or ""
             options_raw = _pick_value(row, ["options", "Options"])
             combined_raw = _pick_value(row, ["combined", "Combined", "net"])
+
+            options_formatted = _format_summary_value(metric, options_raw)
+            combined_formatted = _format_summary_value(metric, combined_raw)
+
+            # Color Cost/Credit
+            if str(metric).lower() == "cost/credit":
+                options_formatted = _color_cost_credit(options_formatted)
+                combined_formatted = _color_cost_credit(combined_formatted)
+
             metrics_rows.append(
                 [
                     metric,
-                    _format_summary_value(metric, options_raw),
-                    _format_summary_value(metric, combined_raw),
+                    options_formatted,
+                    combined_formatted,
                 ]
             )
 

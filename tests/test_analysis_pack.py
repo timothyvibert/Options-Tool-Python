@@ -195,6 +195,131 @@ def test_key_levels_zero_level_has_pnl():
     assert zero_level.get("net_pnl") is not None
 
 
+def _summary_row(pack, metric):
+    for row in pack["summary"]["rows"]:
+        if row["metric"] == metric:
+            return row
+    return None
+
+
+def test_naked_short_call_max_loss_unlimited():
+    """Bug 1A: Naked short call has unlimited loss on the upside."""
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=0.0,
+        avg_cost=0.0,
+        legs=[OptionLeg(kind="call", position=-10.0, strike=110.0, premium=5.0)],
+    )
+    pack = build_analysis_pack(
+        strategy_input=strategy_input,
+        strategy_meta={"strategy_name": "Naked Short Call", "as_of": "2026-01-18", "expiry": "2026-03-20"},
+        pricing_mode="MID",
+        roi_policy=NET_PREMIUM,
+        vol_mode="ATM",
+        atm_iv=0.2,
+        underlying_profile=None,
+        bbg_leg_snapshots=None,
+        scenario_mode="STANDARD",
+        downside_tgt=0.9,
+        upside_tgt=1.1,
+    )
+    max_loss = _summary_row(pack, "Max Loss")
+    assert max_loss is not None
+    # Naked short call: options P&L goes to -infinity as stock rises
+    # The slope at high end is negative (short call), so unlimited_loss_upside = True
+    assert max_loss["options"] == "Unlimited"
+    assert max_loss["combined"] == "Unlimited"
+
+
+def test_long_call_max_profit_unlimited():
+    """Bug 1A: Long call has unlimited upside profit."""
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=0.0,
+        avg_cost=0.0,
+        legs=[OptionLeg(kind="call", position=1.0, strike=100.0, premium=2.0)],
+    )
+    pack = build_analysis_pack(
+        strategy_input=strategy_input,
+        strategy_meta={"strategy_name": "Long Call", "as_of": "2026-01-18", "expiry": "2026-03-20"},
+        pricing_mode="MID",
+        roi_policy=NET_PREMIUM,
+        vol_mode="ATM",
+        atm_iv=0.2,
+        underlying_profile=None,
+        bbg_leg_snapshots=None,
+        scenario_mode="STANDARD",
+        downside_tgt=0.9,
+        upside_tgt=1.1,
+    )
+    max_profit = _summary_row(pack, "Max Profit")
+    assert max_profit is not None
+    assert max_profit["options"] == "Unlimited"
+    assert max_profit["combined"] == "Unlimited"
+    # Max loss should be finite for long call
+    max_loss = _summary_row(pack, "Max Loss")
+    assert max_loss["options"] != "Unlimited"
+    assert max_loss["combined"] != "Unlimited"
+
+
+def test_cost_credit_with_multiplier():
+    """Bug 1B: Cost/Credit should show total (with multiplier), not per-share."""
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=0.0,
+        avg_cost=0.0,
+        legs=[OptionLeg(kind="call", position=-10.0, strike=110.0, premium=51.80)],
+    )
+    pack = build_analysis_pack(
+        strategy_input=strategy_input,
+        strategy_meta={"strategy_name": "Short Call", "as_of": "2026-01-18", "expiry": "2026-03-20"},
+        pricing_mode="MID",
+        roi_policy=NET_PREMIUM,
+        vol_mode="ATM",
+        atm_iv=0.2,
+        underlying_profile=None,
+        bbg_leg_snapshots=None,
+        scenario_mode="STANDARD",
+        downside_tgt=0.9,
+        upside_tgt=1.1,
+    )
+    cost_credit = _summary_row(pack, "Cost/Credit")
+    assert cost_credit is not None
+    # -10 × 51.80 × 100 = -51,800.00 → Credit $51,800.00
+    assert cost_credit["options"] == "Credit $51,800.00"
+    # Net Prem/Share should be per-share: -10 × 51.80 = -518.0
+    prem_share = _summary_row(pack, "Net Prem/Share")
+    assert prem_share is not None
+    assert prem_share["options"] == "-518.00"
+
+
+def test_cost_credit_debit():
+    """Bug 1B: Long call should show debit."""
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=0.0,
+        avg_cost=0.0,
+        legs=[OptionLeg(kind="call", position=1.0, strike=100.0, premium=5.0)],
+    )
+    pack = build_analysis_pack(
+        strategy_input=strategy_input,
+        strategy_meta={"strategy_name": "Long Call", "as_of": "2026-01-18", "expiry": "2026-03-20"},
+        pricing_mode="MID",
+        roi_policy=NET_PREMIUM,
+        vol_mode="ATM",
+        atm_iv=0.2,
+        underlying_profile=None,
+        bbg_leg_snapshots=None,
+        scenario_mode="STANDARD",
+        downside_tgt=0.9,
+        upside_tgt=1.1,
+    )
+    cost_credit = _summary_row(pack, "Cost/Credit")
+    assert cost_credit is not None
+    # 1 × 5.0 × 100 = 500.00 → Debit $500.00
+    assert cost_credit["options"] == "Debit $500.00"
+
+
 def test_key_levels_zero_level_stock_pnl_no_stock():
     strategy_input = StrategyInput(
         spot=100.0,
@@ -225,3 +350,96 @@ def test_key_levels_zero_level_stock_pnl_no_stock():
     )
     assert zero_level is not None
     assert zero_level.get("stock_pnl") == 0.0
+
+
+def test_key_levels_no_duplicates_strike_at_target():
+    """Bug 2A: When a strike coincides with an upside/downside target,
+    the key levels list should not contain duplicate rows at that price."""
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=0.0,
+        avg_cost=0.0,
+        legs=[OptionLeg(kind="call", position=1.0, strike=110.0, premium=2.0)],
+    )
+    pack = build_analysis_pack(
+        strategy_input=strategy_input,
+        strategy_meta={"strategy_name": "Long Call", "as_of": "2026-01-18", "expiry": "2026-03-20"},
+        pricing_mode="MID",
+        roi_policy=NET_PREMIUM,
+        vol_mode="ATM",
+        atm_iv=0.2,
+        underlying_profile=None,
+        bbg_leg_snapshots=None,
+        scenario_mode="STANDARD",
+        downside_tgt=0.9,
+        upside_tgt=1.1,  # spot * 1.1 = 110 = strike
+    )
+    levels = pack["key_levels"]["levels"]
+    prices_at_110 = [lv for lv in levels if lv.get("price") is not None and abs(lv["price"] - 110.0) < 0.01]
+    # Strike should survive, upside target should be removed
+    assert len(prices_at_110) == 1
+    assert prices_at_110[0]["source"] == "strike"
+
+
+def test_key_levels_infinity_mode_no_upside_downside():
+    """Bug 2C: In INFINITY mode, no 'upside' or 'downside' target rows
+    should appear (they would be 0.0 and spot*1000, which are sentinels)."""
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=0.0,
+        avg_cost=0.0,
+        legs=[OptionLeg(kind="call", position=1.0, strike=105.0, premium=2.0)],
+    )
+    pack = build_analysis_pack(
+        strategy_input=strategy_input,
+        strategy_meta={"strategy_name": "Long Call", "as_of": "2026-01-18", "expiry": "2026-03-20"},
+        pricing_mode="MID",
+        roi_policy=NET_PREMIUM,
+        vol_mode="ATM",
+        atm_iv=0.2,
+        underlying_profile=None,
+        bbg_leg_snapshots=None,
+        scenario_mode="INFINITY",
+        downside_tgt=0.9,
+        upside_tgt=1.1,
+    )
+    levels = pack["key_levels"]["levels"]
+    sources = [lv.get("source") for lv in levels]
+    assert "downside" not in sources, "Downside target should not appear in INFINITY mode"
+    assert "upside" not in sources, "Upside target should not appear in INFINITY mode"
+    # Sentinels should still be present
+    ids = [lv.get("id") for lv in levels]
+    assert "zero" in ids
+    assert "infinity" in ids
+
+
+def test_key_levels_infinity_row_has_pnl():
+    """Bug 2D: The 'Stock to Infinity' sentinel row should have computed
+    PnL values rather than all None/--."""
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=100.0,
+        avg_cost=100.0,
+        legs=[OptionLeg(kind="call", position=-1.0, strike=110.0, premium=2.0)],
+    )
+    pack = build_analysis_pack(
+        strategy_input=strategy_input,
+        strategy_meta={"strategy_name": "Covered Call", "as_of": "2026-01-18", "expiry": "2026-03-20"},
+        pricing_mode="MID",
+        roi_policy=NET_PREMIUM,
+        vol_mode="ATM",
+        atm_iv=0.2,
+        underlying_profile=None,
+        bbg_leg_snapshots=None,
+        scenario_mode="STANDARD",
+        downside_tgt=0.9,
+        upside_tgt=1.1,
+    )
+    levels = pack["key_levels"]["levels"]
+    inf_level = next((lv for lv in levels if lv.get("id") == "infinity"), None)
+    assert inf_level is not None
+    # Price should be None (display as infinity), but PnL values should be computed
+    assert inf_level["price"] is None
+    assert inf_level["option_pnl"] is not None
+    assert inf_level["net_pnl"] is not None
+    assert inf_level["stock_pnl"] is not None

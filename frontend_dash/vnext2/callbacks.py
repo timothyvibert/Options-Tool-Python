@@ -11,6 +11,7 @@ import json
 import math
 import re
 
+import pandas as pd
 import dash_mantine_components as dmc
 import plotly.graph_objects as go
 from dash import Input, Output, State, dcc, no_update, ctx, html, dash_table
@@ -520,60 +521,6 @@ def register_v2_callbacks(
     def _v2_toggle_theme(checked):
         return "light" if checked else "dark"
 
-    # ── #0b Theme-aware DataTable styling ─────────────────────
-    # No prevent_initial_call — fires on load to set initial dark styles
-    @app.callback(
-        Output(ID.LEGS_TABLE, "style_header"),
-        Output(ID.LEGS_TABLE, "style_cell"),
-        Output(ID.LEGS_TABLE, "style_data"),
-        Output(ID.LEGS_TABLE, "style_data_conditional"),
-        Output(ID.BBG_LEG_QUOTES, "style_header"),
-        Output(ID.BBG_LEG_QUOTES, "style_cell"),
-        Output(ID.BBG_LEG_QUOTES, "style_data"),
-        Input(ID.THEME_TOGGLE, "checked"),
-    )
-    def _v2_toggle_table_theme(is_light):
-        """Switch DataTable colors with theme toggle."""
-        if is_light:
-            header = {
-                "backgroundColor": "#F6F8FA", "color": "#1F2328",
-                "fontWeight": 600, "fontSize": "11px",
-                "textTransform": "uppercase", "letterSpacing": "0.04em",
-                "borderBottom": "1px solid #D0D7DE",
-                "fontFamily": "Inter, Segoe UI, sans-serif",
-            }
-            cell = {
-                "backgroundColor": "#FFFFFF", "color": "#1F2328",
-                "borderBottom": "1px solid #D0D7DE",
-                "fontSize": "12px", "padding": "8px",
-                "fontFamily": "Inter, Segoe UI, sans-serif",
-            }
-            data = {"backgroundColor": "#FFFFFF", "color": "#1F2328"}
-            conditional = [
-                {"if": {"state": "active"},
-                 "backgroundColor": "#F0F3F6", "border": "1px solid #0969DA"},
-            ]
-        else:
-            header = {
-                "backgroundColor": "#161B22", "color": "#E6EDF3",
-                "fontWeight": 600, "fontSize": "11px",
-                "textTransform": "uppercase", "letterSpacing": "0.04em",
-                "borderBottom": "1px solid #30363D",
-                "fontFamily": "Inter, Segoe UI, sans-serif",
-            }
-            cell = {
-                "backgroundColor": "#0D1117", "color": "#E6EDF3",
-                "borderBottom": "1px solid #30363D",
-                "fontSize": "12px", "padding": "8px",
-                "fontFamily": "Inter, Segoe UI, sans-serif",
-            }
-            data = {"backgroundColor": "#0D1117", "color": "#E6EDF3"}
-            conditional = [
-                {"if": {"state": "active"},
-                 "backgroundColor": "#161B22", "border": "1px solid #22d3ee"},
-            ]
-        return header, cell, data, conditional, header, cell, data
-
     # ── #7 Update strategies from group ─────────────────────
     @app.callback(
         Output(ID.STRATEGY_SELECT, "data"),
@@ -808,6 +755,24 @@ def register_v2_callbacks(
             legs_rows=v1_rows,
             pricing_mode=pricing_mode or "mid",
         )
+        # Fetch vol surface during REFRESH DATA
+        if isinstance(market_snapshot, dict):
+            try:
+                from adapters.bloomberg import fetch_vol_surface
+                _resolved = resolved or raw_ticker
+                if _resolved:
+                    _vol_surface = fetch_vol_surface(_resolved)
+                    if _vol_surface is not None:
+                        # Store as list of dicts for JSON serialization
+                        market_snapshot["_vol_surface_records"] = _vol_surface.to_dict(orient="records")
+                        market_snapshot["_vol_surface_expiries"] = sorted(
+                            _vol_surface["expiry"].dropna().unique().astype(str).tolist()
+                        )
+                    else:
+                        market_snapshot["_vol_surface_records"] = None
+            except Exception as e:
+                print(f"[VOL_SURFACE] Error in refresh: {e}")
+                market_snapshot["_vol_surface_records"] = None
         return to_jsonable(market_snapshot), status
 
     # ── #13 Render Bloomberg tab ─────────────────────────────
@@ -1440,8 +1405,8 @@ def register_v2_callbacks(
             "legs": [to_jsonable(row) for row in v1_rows],
             "pricing_mode": pricing_mode,
             "roi_policy": roi_policy,
-            "vol_mode": "atm",
-            "atm_iv": 0.2,
+            "vol_mode": "atm",  # updated below after vol surface extraction
+            "atm_iv": 0.2,  # updated below after vol surface extraction
             "scenario_mode": scenario_mode_ui,
             "scenario_mode_backend": scenario_mode_backend,
             "downside_pct": downside_pct,
@@ -1506,6 +1471,44 @@ def register_v2_callbacks(
             if per_leg_iv is not None or leg_quotes is not None:
                 bbg_leg_snapshots = {"per_leg_iv": per_leg_iv, "leg_quotes": leg_quotes}
 
+        # Extract tenor-matched ATM IV from vol surface (if available from REFRESH)
+        _atm_iv_from_surface = None
+        if isinstance(market_data, dict) and market_data.get("_vol_surface_records"):
+            try:
+                from adapters.bloomberg import extract_atm_iv_for_expiry
+                _vol_surface_df = pd.DataFrame(market_data["_vol_surface_records"])
+                _vol_surface_df["expiry"] = pd.to_datetime(_vol_surface_df["expiry"], errors="coerce")
+                if expiry_value and spot > 0:
+                    _atm_iv_from_surface = extract_atm_iv_for_expiry(
+                        _vol_surface_df, expiry_value, spot
+                    )
+            except Exception as e:
+                print(f"[VOL_SURFACE] ATM IV extraction failed: {e}")
+
+        # Use surface ATM IV if available, otherwise fall back to BDP 3M ATM IV
+        if _atm_iv_from_surface is not None:
+            _effective_atm_iv = _atm_iv_from_surface / 100.0  # convert pct to decimal
+            _effective_vol_mode = "surface_atm"
+        else:
+            # Fallback to 3M ATM IV from underlying profile
+            _3m_iv = None
+            if isinstance(underlying_profile, dict):
+                for k in ["impvol_3m_atm", "3MTH_IMPVOL_100.0%MNY_DF", "IMPVOL_3M_ATM"]:
+                    v = underlying_profile.get(k)
+                    if v is not None:
+                        try:
+                            _3m_iv = float(v)
+                            break
+                        except (TypeError, ValueError):
+                            pass
+            _effective_atm_iv = (_3m_iv / 100.0) if _3m_iv else 0.2
+            _effective_vol_mode = "atm"
+
+        # Update inputs snapshot with resolved vol values
+        inputs_snapshot["vol_mode"] = _effective_vol_mode
+        inputs_snapshot["atm_iv"] = _effective_atm_iv
+        inputs_snapshot["atm_iv_from_surface_pct"] = _atm_iv_from_surface
+
         # Fetch risk-free rate from Bloomberg treasury indices
         rfr = 0.0
         if expiry_value:
@@ -1531,8 +1534,8 @@ def register_v2_callbacks(
                 strategy_meta=strategy_meta,
                 pricing_mode=pricing_mode or "mid",
                 roi_policy=roi_backend,
-                vol_mode="atm",
-                atm_iv=0.2,
+                vol_mode=_effective_vol_mode,
+                atm_iv=_effective_atm_iv,
                 underlying_profile=underlying_profile,
                 bbg_leg_snapshots=bbg_leg_snapshots,
                 scenario_mode=scenario_mode_backend,
@@ -1978,6 +1981,28 @@ def register_v2_callbacks(
                 return dmc.Text(text_str, c="red", size="sm", fw=500)
             return text_str
 
+        def _value_color(val_str: str) -> str:
+            """Return color for positive/negative values."""
+            s = str(val_str).strip()
+            if s in ("--", "N/A", "Unlimited", "", "\u2014"):
+                return "dimmed"
+            if "Credit" in s:
+                return "green"
+            if "Debit" in s:
+                return "red"
+            try:
+                num_str = s.replace("$", "").replace(",", "").replace("%", "").replace("x", "").replace("+", "")
+                num = float(num_str)
+                if num > 0:
+                    return "green"
+                elif num < 0:
+                    return "red"
+            except (ValueError, TypeError):
+                pass
+            return "dimmed"
+
+        _no_color_metrics = {"net prem % spot", "be distance %", "pop", "closest breakeven"}
+
         for row in summary_rows or []:
             if not isinstance(row, dict):
                 continue
@@ -1988,10 +2013,19 @@ def register_v2_callbacks(
             options_formatted = _format_summary_value(metric, options_raw)
             combined_formatted = _format_summary_value(metric, combined_raw)
 
+            _metric_key = str(metric).strip().lower()
+
             # Color Cost/Credit
-            if str(metric).lower() == "cost/credit":
+            if _metric_key == "cost/credit":
                 options_formatted = _color_cost_credit(options_formatted)
                 combined_formatted = _color_cost_credit(combined_formatted)
+            elif _metric_key not in _no_color_metrics:
+                opt_color = _value_color(str(options_formatted))
+                comb_color = _value_color(str(combined_formatted))
+                if opt_color != "dimmed":
+                    options_formatted = dmc.Text(str(options_formatted), c=opt_color, size="sm")
+                if comb_color != "dimmed":
+                    combined_formatted = dmc.Text(str(combined_formatted), c=comb_color, size="sm")
 
             metrics_rows.append(
                 [

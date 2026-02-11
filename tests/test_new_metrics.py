@@ -15,7 +15,7 @@ from core.roi import CASH_SECURED, NET_PREMIUM
 
 
 def test_risk_reward_normal():
-    assert _risk_reward(1000, -500) == "2.00"
+    assert _risk_reward(1000, -500) == "2.00x"
 
 
 def test_risk_reward_zero_loss():
@@ -27,7 +27,7 @@ def test_risk_reward_zero_both():
 
 
 def test_risk_reward_loss_only():
-    assert _risk_reward(0, -200) == "0.00"
+    assert _risk_reward(0, -200) == "0.00x"
 
 
 # ── Unit tests for _auto_capital_basis ──

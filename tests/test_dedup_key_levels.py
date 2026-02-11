@@ -135,20 +135,22 @@ class TestIVSourceAnnotation:
             upside_tgt=1.1,
         )
 
-    def test_atm_fallback_shows_atm_suffix(self):
-        """When no per-leg IVs, iv_used_pct should contain '(ATM)'."""
+    def test_atm_fallback_shows_clean_pct(self):
+        """When no per-leg IVs, iv_used_pct should be a clean percentage (no ATM suffix)."""
         pack = self._build_pack(per_leg_iv=[None, None])
         probs = pack.get("probabilities", {})
         iv_pct = probs.get("iv_used_pct", "")
-        assert "(ATM)" in iv_pct, f"Expected '(ATM)' suffix, got '{iv_pct}'"
+        assert "%" in iv_pct, f"Expected percentage, got '{iv_pct}'"
+        assert "(ATM)" not in iv_pct, f"Should not have ATM suffix, got '{iv_pct}'"
         assert probs.get("iv_source") == "atm_fallback"
 
-    def test_no_per_leg_iv_shows_atm_suffix(self):
-        """When per_leg_iv is empty, iv_used_pct should contain '(ATM)'."""
+    def test_no_per_leg_iv_shows_clean_pct(self):
+        """When per_leg_iv is empty, iv_used_pct should be a clean percentage."""
         pack = self._build_pack(per_leg_iv=[])
         probs = pack.get("probabilities", {})
         iv_pct = probs.get("iv_used_pct", "")
-        assert "(ATM)" in iv_pct, f"Expected '(ATM)' suffix, got '{iv_pct}'"
+        assert "%" in iv_pct, f"Expected percentage, got '{iv_pct}'"
+        assert "(ATM)" not in iv_pct, f"Should not have ATM suffix, got '{iv_pct}'"
 
     def test_with_per_leg_iv_no_atm_suffix(self):
         """When per-leg IVs are provided, iv_used_pct should NOT contain '(ATM)'."""

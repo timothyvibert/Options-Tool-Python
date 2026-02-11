@@ -188,6 +188,114 @@ def fetch_underlying_snapshot(ticker: str) -> pd.Series:
     return record
 
 
+def fetch_vol_surface(security: str) -> pd.DataFrame | None:
+    """Pull the full implied volatility surface via BDS (IVOL_SURFACE_STRIKE).
+
+    Returns DataFrame with columns: expiry (datetime), strike (float), iv (float),
+    underlying_price (float), dividend (float). Returns None if unavailable.
+    """
+    try:
+        rows, error = _fetch_bds_rows(security, "IVOL_SURFACE_STRIKE")
+        if not rows:
+            return None
+
+        df = pd.DataFrame(rows)
+        if df.empty or len(df.columns) < 3:
+            return None
+
+        cols = list(df.columns)
+        col_map = {}
+        for col in cols:
+            col_lower = str(col).lower().replace(" ", "_")
+            if "expir" in col_lower or "date" in col_lower:
+                col_map[col] = "expiry"
+            elif "strike" in col_lower:
+                col_map[col] = "strike"
+            elif "impl" in col_lower or ("vol" in col_lower and "percentile" not in col_lower):
+                col_map[col] = "iv"
+            elif "under" in col_lower or ("price" in col_lower and "strike" not in col_lower):
+                col_map[col] = "underlying_price"
+            elif "div" in col_lower:
+                col_map[col] = "dividend"
+
+        if len(col_map) < 3:
+            # Fallback to positional
+            if len(cols) >= 5:
+                col_map = {cols[0]: "expiry", cols[1]: "strike", cols[2]: "iv",
+                           cols[3]: "underlying_price", cols[4]: "dividend"}
+            elif len(cols) >= 3:
+                col_map = {cols[0]: "expiry", cols[1]: "strike", cols[2]: "iv"}
+
+        df = df.rename(columns=col_map)
+
+        if "expiry" in df.columns:
+            original_vals = df["expiry"].copy()
+            df["expiry"] = pd.to_datetime(df["expiry"].astype(str), format="%Y%m%d", errors="coerce")
+            # Also try mixed format if YYYYMMDD fails
+            mask = df["expiry"].isna()
+            if mask.any():
+                df.loc[mask, "expiry"] = pd.to_datetime(
+                    original_vals[mask].astype(str), errors="coerce"
+                )
+
+        for col in ["strike", "iv", "underlying_price", "dividend"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        required = [c for c in ["expiry", "strike", "iv"] if c in df.columns]
+        if len(required) < 3:
+            return None
+        return df.dropna(subset=required)
+    except Exception as e:
+        print(f"[VOL_SURFACE] Failed for {security}: {e}")
+        return None
+
+
+def extract_atm_iv_for_expiry(vol_surface: pd.DataFrame,
+                               target_expiry,
+                               spot: float) -> float | None:
+    """Extract ATM IV for a specific expiry from the vol surface.
+
+    Args:
+        vol_surface: DataFrame from fetch_vol_surface()
+        target_expiry: Strategy expiry as string "YYYY-MM-DD" or datetime
+        spot: Current stock price
+    Returns:
+        ATM IV as percentage (e.g., 88.1), or None if unavailable.
+    """
+    if vol_surface is None or vol_surface.empty:
+        return None
+
+    target_dt = pd.Timestamp(target_expiry)
+    unique_expiries = vol_surface["expiry"].dropna().unique()
+    if len(unique_expiries) == 0:
+        return None
+
+    diffs = [(abs((pd.Timestamp(exp) - target_dt).days), exp) for exp in unique_expiries]
+    diffs.sort()
+    closest_days, closest_expiry = diffs[0]
+
+    if closest_days > 7:
+        print(f"[VOL_SURFACE] Closest expiry is {closest_days} days from target "
+              f"({pd.Timestamp(closest_expiry).date()} vs {target_dt.date()})")
+
+    expiry_slice = vol_surface[vol_surface["expiry"] == closest_expiry].copy()
+    expiry_slice = expiry_slice.sort_values("strike")
+
+    if expiry_slice.empty:
+        return None
+
+    strikes = expiry_slice["strike"].values
+    ivs = expiry_slice["iv"].values
+
+    if len(strikes) == 1:
+        return float(round(ivs[0], 2))
+
+    from numpy import interp
+    atm_iv = float(interp(spot, strikes, ivs))
+    return round(atm_iv, 2)
+
+
 def fetch_stock_derivatives_bql(security: str) -> Dict[str, object]:
     """Fetch advanced vol analytics via BQL.
 

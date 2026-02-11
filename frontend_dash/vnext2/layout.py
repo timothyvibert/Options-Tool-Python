@@ -17,6 +17,109 @@ from reporting.excel_templates.registry import list_templates as _list_excel_tem
 
 
 # ═══════════════════════════════════════════════════════════
+# DATATABLE THEME CSS (hooks into Mantine data-mantine-color-scheme)
+# ═══════════════════════════════════════════════════════════
+
+_DATATABLE_THEME_CSS = """
+/* ===== DataTable DARK MODE (default) ===== */
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th {
+    background-color: #161B22 !important;
+    color: #E6EDF3 !important;
+    border-color: #30363D !important;
+    font-weight: 600 !important;
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.04em !important;
+    font-family: Inter, "Segoe UI", sans-serif !important;
+}
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td {
+    background-color: #0D1117 !important;
+    color: #E6EDF3 !important;
+    border-color: #30363D !important;
+    font-size: 12px !important;
+    padding: 8px !important;
+    font-family: Inter, "Segoe UI", sans-serif !important;
+}
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td.focused {
+    border: 2px solid #22d3ee !important;
+}
+/* Dropdown cells */
+.dash-table-container .Select-control {
+    background-color: #0D1117 !important;
+    color: #E6EDF3 !important;
+    border-color: #30363D !important;
+}
+.dash-table-container .Select-menu-outer {
+    background-color: #161B22 !important;
+}
+.dash-table-container .Select-option {
+    background-color: #161B22 !important;
+    color: #E6EDF3 !important;
+}
+.dash-table-container .Select-option.is-focused {
+    background-color: #30363D !important;
+}
+.dash-table-container .Select-value-label {
+    color: #E6EDF3 !important;
+}
+.dash-table-container .Select-arrow {
+    border-color: #E6EDF3 transparent transparent !important;
+}
+/* Input cells */
+.dash-table-container .dash-cell-value {
+    color: #E6EDF3 !important;
+}
+.dash-table-container input.dash-cell-value {
+    background-color: transparent !important;
+    color: #E6EDF3 !important;
+}
+
+/* ===== DataTable LIGHT MODE ===== */
+[data-mantine-color-scheme="light"] .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th {
+    background-color: #F6F8FA !important;
+    color: #1F2328 !important;
+    border-color: #D0D7DE !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td {
+    background-color: #FFFFFF !important;
+    color: #1F2328 !important;
+    border-color: #D0D7DE !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td.focused {
+    border: 2px solid #0969da !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container .Select-control {
+    background-color: #FFFFFF !important;
+    color: #1F2328 !important;
+    border-color: #D0D7DE !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container .Select-menu-outer {
+    background-color: #FFFFFF !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container .Select-option {
+    background-color: #FFFFFF !important;
+    color: #1F2328 !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container .Select-option.is-focused {
+    background-color: #F6F8FA !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container .Select-value-label {
+    color: #1F2328 !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container .Select-arrow {
+    border-color: #1F2328 transparent transparent !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container .dash-cell-value {
+    color: #1F2328 !important;
+}
+[data-mantine-color-scheme="light"] .dash-table-container input.dash-cell-value {
+    background-color: transparent !important;
+    color: #1F2328 !important;
+}
+"""
+
+
+# ═══════════════════════════════════════════════════════════
 # PUBLIC ENTRY
 # ═══════════════════════════════════════════════════════════
 
@@ -28,6 +131,7 @@ def layout_v2():
             forceColorScheme="dark",
             theme=THEME,
             children=[
+                html.Style(_DATATABLE_THEME_CSS),
                 _stores(),
                 _shutdown_modal(),
                 dmc.AppShell(
@@ -329,24 +433,6 @@ def _card_tracking():
 # ───────────────────────────────────────────────────────────
 # ROW 2 Cards
 # ───────────────────────────────────────────────────────────
-
-_LEGS_DARK_HEADER = {
-    "backgroundColor": "#161B22",
-    "color": "#E6EDF3",
-    "fontWeight": "bold",
-    "fontSize": "11px",
-    "textTransform": "uppercase",
-    "letterSpacing": "0.04em",
-    "borderBottom": "1px solid #30363D",
-}
-_LEGS_DARK_CELL = {
-    "backgroundColor": "#0D1117",
-    "color": "#E6EDF3",
-    "borderBottom": "1px solid #30363D",
-    "fontSize": "12px",
-    "padding": "8px",
-}
-
 
 def _card_legs():
     return dmc.Card(
@@ -1047,10 +1133,8 @@ def _report_tab():
                 filter_action="native",
                 page_size=20,
                 style_table={"overflowX": "auto"},
-                style_header={"fontWeight": "bold", "backgroundColor": "transparent"},
-                style_cell={"textAlign": "center", "padding": "8px", "backgroundColor": "transparent"},
-                style_data={"backgroundColor": "transparent"},
-                style_filter={"backgroundColor": "transparent"},
+                style_header={"fontWeight": "bold"},
+                style_cell={"textAlign": "center", "padding": "8px"},
             ),
 
             # Confirmation modal for clear

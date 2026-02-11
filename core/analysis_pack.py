@@ -78,6 +78,15 @@ def _format_number(value: Optional[float]) -> str:
     return f"{value:.2f}"
 
 
+def _format_dollar(value: Optional[float]) -> str:
+    """Format numeric value with $ sign and commas."""
+    if value is None or not math.isfinite(value):
+        return "--"
+    if value < 0:
+        return f"-${abs(value):,.2f}"
+    return f"${value:,.2f}"
+
+
 def _unique_sorted(values: Iterable[float]) -> List[float]:
     deduped: List[float] = []
     for value in sorted(values):
@@ -170,7 +179,7 @@ def _risk_reward(max_prof: float, max_loss_val: float) -> str:
     """Format risk/reward ratio from max profit and max loss."""
     if max_loss_val == 0:
         return "\u221e" if max_prof > 0 else "N/A"
-    return f"{abs(max_prof / max_loss_val):.2f}"
+    return f"{abs(max_prof / max_loss_val):.2f}x"
 
 
 def _auto_capital_basis(strategy_code: str, legs, shares: int,
@@ -586,26 +595,26 @@ def build_analysis_pack(
     else:
         prob_results["iv_source"] = "atm_fallback"
         if "iv_used_pct" in prob_results:
-            prob_results["iv_used_pct"] = f"{eff_sigma * 100:.1f}% (ATM)"
+            prob_results["iv_used_pct"] = f"{eff_sigma * 100:.1f}%"
 
     # Determine Max Profit / Max Loss with unlimited detection
     options_max_profit = (
         "Unlimited" if options_unlimited["unlimited_upside"]
-        else _format_number(max(options_pnl) if options_pnl else None)
+        else _format_dollar(max(options_pnl) if options_pnl else None)
     )
     combined_max_profit = (
         "Unlimited" if combined_unlimited["unlimited_upside"]
-        else _format_number(max(combined_pnl) if combined_pnl else None)
+        else _format_dollar(max(combined_pnl) if combined_pnl else None)
     )
     options_max_loss = (
         "Unlimited" if (options_unlimited["unlimited_downside"]
                         or options_unlimited.get("unlimited_loss_upside", False))
-        else _format_number(min(options_pnl) if options_pnl else None)
+        else _format_dollar(min(options_pnl) if options_pnl else None)
     )
     combined_max_loss = (
         "Unlimited" if (combined_unlimited["unlimited_downside"]
                         or combined_unlimited.get("unlimited_loss_upside", False))
-        else _format_number(min(combined_pnl) if combined_pnl else None)
+        else _format_dollar(min(combined_pnl) if combined_pnl else None)
     )
 
     # Risk/Reward Ratio (computed before summary_rows so it can be inline)
@@ -646,8 +655,8 @@ def build_analysis_pack(
         },
         {
             "metric": "Capital Basis",
-            "options": _format_number(option_basis),
-            "combined": _format_number(total_basis),
+            "options": _format_dollar(option_basis),
+            "combined": _format_dollar(total_basis),
         },
         {
             "metric": "Max ROI",
@@ -666,13 +675,13 @@ def build_analysis_pack(
         },
         {
             "metric": "Notional Exposure",
-            "options": _format_number(options_notional),
-            "combined": _format_number(combined_notional),
+            "options": _format_dollar(options_notional),
+            "combined": _format_dollar(combined_notional),
         },
         {
             "metric": "Net Prem/Share",
-            "options": _format_number(net_prem_per_share),
-            "combined": _format_number(net_prem_per_share),
+            "options": _format_dollar(net_prem_per_share),
+            "combined": _format_dollar(net_prem_per_share),
         },
         {
             "metric": "Net Prem % Spot",
@@ -891,12 +900,12 @@ def build_analysis_pack(
     # (sentinels), not meaningful targets.
     if scenario_mode.upper() != "INFINITY" and not price_values.empty:
         downside_price = float(price_values.min())
-        downside_row = _row_by_price(scenario_df, downside_price)
+        downside_row = _row_for_price(downside_price)
         downside_label = _move_label("Downside", spot, downside_price)
         add_level("downside", downside_label, downside_row, downside_price, "downside")
 
         upside_price = float(price_values.max())
-        upside_row = _row_by_price(scenario_df, upside_price)
+        upside_row = _row_for_price(upside_price)
         upside_label = _move_label("Upside", spot, upside_price)
         add_level("upside", upside_label, upside_row, upside_price, "upside")
 
@@ -1051,6 +1060,11 @@ def build_analysis_pack(
     key_levels["levels"] = _dedup_key_levels(key_levels["levels"])
     analysis_pack["key_levels"] = key_levels
     analysis_pack["dividend_schedule"] = None  # Populated by callback layer via fetch_dividend_sum_to_expiry
+    # Store vol surface metadata (data from callback layer, not fetched here)
+    analysis_pack["vol_surface"] = {
+        "atm_iv_at_expiry": None,  # populated by callback layer
+        "source": "IVOL_SURFACE_STRIKE" if vol_mode == "surface_atm" else "3M_ATM_BDP",
+    }
     analysis_pack["narrative_scenarios"] = build_narrative_scenarios(
         strategy_input=strategy_input,
         key_levels=key_levels,

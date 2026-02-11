@@ -290,7 +290,7 @@ def test_cost_credit_with_multiplier():
     # Net Prem/Share = net_premium_total / total_contracts = -51800 / 10 = -5180.0
     prem_share = _summary_row(pack, "Net Prem/Share")
     assert prem_share is not None
-    assert prem_share["options"] == "-5180.00"
+    assert prem_share["options"] == "-$5,180.00"
 
 
 def test_cost_credit_debit():
@@ -477,7 +477,7 @@ def test_net_prem_per_share_with_stock():
     # net_premium_total = (-10*51.80*100) + (-10*7.55*100) = -51800 + -7550 = -59350
     # shares = 1000
     # net_prem_per_share = -59350 / 1000 = -59.35
-    assert prem_share["options"] == "-59.35"
+    assert prem_share["options"] == "-$59.35"
 
 
 def test_net_prem_per_share_no_stock():
@@ -506,7 +506,7 @@ def test_net_prem_per_share_no_stock():
     # net_premium_total = 5 * 3.0 * 100 = 1500
     # total_contracts = 5
     # net_prem_per_share = 1500 / 5 = 300.0
-    assert prem_share["options"] == "300.00"
+    assert prem_share["options"] == "$300.00"
 
 
 # ── Fix 1B: Net Prem % Spot cascades from 1A ──
@@ -601,7 +601,7 @@ def test_capital_basis_credit_uncovered_uses_margin():
     assert cap_basis is not None
     margin_proxy = pack["margin"]["margin_proxy"]
     # Capital basis should equal margin proxy for credit + unlimited loss
-    assert cap_basis["options"] == f"{margin_proxy:.2f}"
+    assert cap_basis["options"] == f"${margin_proxy:,.2f}"
 
 
 # ── Fix 1E: Risk/Reward row position ──

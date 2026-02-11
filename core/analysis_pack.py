@@ -14,7 +14,7 @@ from core.eligibility import determine_strategy_code, get_account_eligibility
 from core.margin import classify_strategy, compute_margin_proxy, compute_margin_full
 from core.models import StrategyInput
 from core.narrative import build_narrative_scenarios
-from core.payoff import _compute_pnl_for_price, _detect_unlimited, compute_payoff
+from core.payoff import _compute_pnl_for_price, _detect_breakevens, _detect_unlimited, compute_payoff
 from core.probability import strategy_pop, compute_all_probabilities
 from core.roi import capital_basis, combined_capital_basis, compute_net_premium
 from core.scenarios import build_scenario_points, compute_scenario_table
@@ -424,6 +424,7 @@ def build_analysis_pack(
         [float(leg.strike) for leg in strategy_input.legs]
     )
     breakevens = payoff_result.get("breakevens", [])
+    options_breakevens = _detect_breakevens(price_grid, options_pnl)
 
     scenario_points = build_scenario_points(
         strategy_input,
@@ -715,19 +716,27 @@ def build_analysis_pack(
         },
     ]
 
-    # Closest Breakeven and BE Distance %
+    # Closest Breakeven and BE Distance % — separate for options-only vs combined
     spot = float(strategy_input.spot)
-    if breakevens:
-        closest_be = min(breakevens, key=lambda be: abs(be - spot))
-        closest_be_str = f"${closest_be:,.2f}"
-        be_distance_pct = ((closest_be - spot) / spot) * 100 if spot else 0
-        be_distance_str = f"{be_distance_pct:+.2f}%"
+    if options_breakevens:
+        opt_closest_be = min(options_breakevens, key=lambda be: abs(be - spot))
+        opt_closest_be_str = f"${opt_closest_be:,.2f}"
+        opt_be_dist = ((opt_closest_be - spot) / spot) * 100 if spot else 0
+        opt_be_dist_str = f"{opt_be_dist:+.2f}%"
     else:
-        closest_be_str = "N/A"
-        be_distance_str = "N/A"
+        opt_closest_be_str = "N/A"
+        opt_be_dist_str = "N/A"
+    if breakevens:
+        comb_closest_be = min(breakevens, key=lambda be: abs(be - spot))
+        comb_closest_be_str = f"${comb_closest_be:,.2f}"
+        comb_be_dist = ((comb_closest_be - spot) / spot) * 100 if spot else 0
+        comb_be_dist_str = f"{comb_be_dist:+.2f}%"
+    else:
+        comb_closest_be_str = "N/A"
+        comb_be_dist_str = "N/A"
 
-    summary_rows.append({"metric": "Closest Breakeven", "options": closest_be_str, "combined": closest_be_str})
-    summary_rows.append({"metric": "BE Distance %", "options": be_distance_str, "combined": be_distance_str})
+    summary_rows.append({"metric": "Closest Breakeven", "options": opt_closest_be_str, "combined": comb_closest_be_str})
+    summary_rows.append({"metric": "BE Distance %", "options": opt_be_dist_str, "combined": comb_be_dist_str})
 
     # Treasury Obligation (cash-secured strategies only)
     is_cash_secured = strategy_code in ("CSP", "SP", "CSPW", "CSPT", "cash_secured_put")

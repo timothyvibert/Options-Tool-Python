@@ -944,12 +944,17 @@ def build_analysis_pack(
     stock_pnl_inf = comb_pnl_inf - opt_pnl_inf
     opt_roi_inf = opt_pnl_inf / option_basis if option_basis else None
     net_roi_inf = comb_pnl_inf / total_basis if total_basis else None
+    # Show "Unlimited" for options-only when naked short call exists
+    opt_unlimited_up = (
+        options_unlimited["unlimited_downside"]
+        or options_unlimited.get("unlimited_loss_upside", False)
+    )
     infinity_row = pd.Series({
         "price": None,
-        "option_pnl": opt_pnl_inf,
+        "option_pnl": "Unlimited" if opt_unlimited_up else opt_pnl_inf,
         "stock_pnl": stock_pnl_inf,
         "combined_pnl": comb_pnl_inf,
-        "option_roi": opt_roi_inf,
+        "option_roi": "Unlimited" if opt_unlimited_up else opt_roi_inf,
         "net_roi": net_roi_inf,
     })
     add_level("infinity", "Stock to Infinity", infinity_row, None, "sentinel")

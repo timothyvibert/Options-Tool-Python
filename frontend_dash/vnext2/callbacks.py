@@ -521,6 +521,7 @@ def register_v2_callbacks(
         return "light" if checked else "dark"
 
     # ── #0b Theme-aware DataTable styling ─────────────────────
+    # No prevent_initial_call — fires on load to set initial dark styles
     @app.callback(
         Output(ID.LEGS_TABLE, "style_header"),
         Output(ID.LEGS_TABLE, "style_cell"),
@@ -536,11 +537,13 @@ def register_v2_callbacks(
                 "fontWeight": 600, "fontSize": "11px",
                 "textTransform": "uppercase", "letterSpacing": "0.04em",
                 "borderBottom": "1px solid #D0D7DE",
+                "fontFamily": "Inter, Segoe UI, sans-serif",
             }
             cell = {
                 "backgroundColor": "#FFFFFF", "color": "#1F2328",
                 "borderBottom": "1px solid #D0D7DE",
                 "fontSize": "12px", "padding": "8px",
+                "fontFamily": "Inter, Segoe UI, sans-serif",
             }
             data = {"backgroundColor": "#FFFFFF", "color": "#1F2328"}
             conditional = [
@@ -553,11 +556,13 @@ def register_v2_callbacks(
                 "fontWeight": 600, "fontSize": "11px",
                 "textTransform": "uppercase", "letterSpacing": "0.04em",
                 "borderBottom": "1px solid #30363D",
+                "fontFamily": "Inter, Segoe UI, sans-serif",
             }
             cell = {
                 "backgroundColor": "#0D1117", "color": "#E6EDF3",
                 "borderBottom": "1px solid #30363D",
                 "fontSize": "12px", "padding": "8px",
+                "fontFamily": "Inter, Segoe UI, sans-serif",
             }
             data = {"backgroundColor": "#0D1117", "color": "#E6EDF3"}
             conditional = [
@@ -1845,7 +1850,7 @@ def register_v2_callbacks(
             return no_update
         return state
 
-    # ── #19 Hydrate UI from STORE_UI on tab switch (+ CLEAR) ──
+    # ── #19 Hydrate UI from STORE_UI on tab switch ───────────
     # NOTE: STRATEGY_SELECT.value is NOT output here.
     # It is owned by _v2_update_strategies, which already restores from STORE_UI
     # on its initial fire.
@@ -1862,14 +1867,10 @@ def register_v2_callbacks(
         Output(ID.UPSIDE_TARGET, "value"),
         Output(ID.CIO_RATING_INPUT, "value"),
         Input(ID.TABS, "value"),
-        Input(ID.BTN_CLEAR, "n_clicks"),
         State(ID.STORE_UI, "data"),
     )
-    def _v2_hydrate_ui(tab_value, clear_clicks, ui_state):
+    def _v2_hydrate_ui(tab_value, ui_state):
         hydrate_count = 11
-        # CLEAR button → reset all fields to defaults
-        if ctx.triggered_id == ID.BTN_CLEAR:
-            return ("", None, None, 0, 0, "mid", "premium", "targets", -10.0, 10.0, None)
         if tab_value != "dashboard":
             return (no_update,) * hydrate_count
         state = ui_state if isinstance(ui_state, dict) else {}
@@ -1892,17 +1893,6 @@ def register_v2_callbacks(
             _value("upside_pct", 10.0),
             _value("cio_rating", ""),
         )
-
-    # ── #19b Clear FA / tracking fields ─────────────────────
-    @app.callback(
-        Output(ID.FA_NAME_INPUT, "value"),
-        Output(ID.ACCT_NUMBER_INPUT, "value"),
-        Output(ID.FA_ID_INPUT, "value"),
-        Input(ID.BTN_CLEAR, "n_clicks"),
-        prevent_initial_call=True,
-    )
-    def _v2_clear_fa_fields(n):
-        return "", "", ""
 
     # ── #20 Render metrics/dividend panels ───────────────────
     @app.callback(

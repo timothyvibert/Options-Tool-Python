@@ -298,7 +298,6 @@ def _card_actions():
                 children=[
                     dmc.Button("REFRESH DATA", id=ID.BTN_REFRESH, variant="outline", color="cyan", size="sm"),
                     dmc.Button("RUN ANALYSIS", id=ID.BTN_ANALYZE, variant="filled", color="cyan", size="sm"),
-                    dmc.Button("CLEAR", id=ID.BTN_CLEAR, variant="outline", color="gray", size="sm"),
                 ],
             ),
             dmc.Text(id=ID.REFRESH_STATUS, children="", size="xs", c="dimmed"),
@@ -353,7 +352,21 @@ def _card_legs():
     return dmc.Card(
         withBorder=True,
         children=[
-            _section_title("OPTION LEGS"),
+            dmc.Group(
+                [
+                    _section_title("OPTION LEGS"),
+                    dmc.Button(
+                        "CLEAR",
+                        id=ID.BTN_CLEAR,
+                        variant="subtle",
+                        color="gray",
+                        size="compact-xs",
+                    ),
+                ],
+                justify="space-between",
+                align="center",
+                mb="xs",
+            ),
             dash_table.DataTable(
                 id=ID.LEGS_TABLE,
                 columns=[
@@ -399,15 +412,7 @@ def _card_legs():
                     },
                 },
                 style_table={"overflowX": "auto"},
-                style_header=_LEGS_DARK_HEADER,
-                style_cell=_LEGS_DARK_CELL,
-                style_data_conditional=[
-                    {
-                        "if": {"state": "active"},
-                        "backgroundColor": "#161B22",
-                        "border": "1px solid #22d3ee",
-                    },
-                ],
+                # style_header and style_cell set dynamically by _v2_toggle_table_theme
             ),
         ],
     )

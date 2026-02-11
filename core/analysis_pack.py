@@ -517,7 +517,12 @@ def build_analysis_pack(
                 "premium": meta_leg.get("premium", leg.premium),
                 "ticker": meta_leg.get("ticker"),
                 "override": bool(meta_leg.get("override", False)),
-                "delta_mid": quote.get("delta"),
+                "delta": quote.get("delta"),
+                "delta_mid": quote.get("delta"),  # alias for backward compat
+                "gamma": quote.get("gamma"),
+                "theta": quote.get("theta"),
+                "vega": quote.get("vega"),
+                "rho": quote.get("rho"),
             }
         )
 
@@ -734,6 +739,15 @@ def build_analysis_pack(
                 "projected_dividend": projected_dividend,
                 "dividend_status": dividend_status,
             },
+            "put_call_oi_ratio": _clean_value(profile_value.get("put_call_oi_ratio")),
+            "put_call_vol_ratio": _clean_value(profile_value.get("put_call_vol_ratio")),
+            "realized_vol_3m": _clean_value(profile_value.get("realized_vol_3m")),
+            "iv_rv_spread": _clean_value(profile_value.get("iv_rv_spread")),
+            "iv_skew_3m": _clean_value(profile_value.get("iv_skew_3m")),
+            "iv_term_premium": _clean_value(profile_value.get("iv_term_premium")),
+            "iv_rv_percentile": _clean_value(profile_value.get("iv_rv_percentile")),
+            "iv_skew_percentile": _clean_value(profile_value.get("iv_skew_percentile")),
+            "iv_term_premium_percentile": _clean_value(profile_value.get("iv_term_premium_percentile")),
         },
         "strategy": {
             "group": meta.get("group"),

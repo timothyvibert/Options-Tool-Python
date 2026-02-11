@@ -26,6 +26,7 @@ OPTION_SNAPSHOT_FIELDS = [
     "THETA_MID",
     "GAMMA",
     "VEGA",
+    "RHO",
 ]
 MARKET_SECTOR_KEYWORDS = {"EQUITY", "INDEX", "CURNCY", "COMDTY"}
 DEFAULT_STRIKE_OFFSETS = [-0.5, 0.5, -1.0, 1.0, -2.5, 2.5, -5.0, 5.0]
@@ -60,6 +61,8 @@ UNDERLYING_FIELDS = [
     "EXPECTED_REPORT_DT",
     "EARNINGS_ANNOUNCEMENT_DATE",
     "MOV_AVG_200D",   # 200-day moving average (used by Cash-Secured Put template)
+    "PUT_CALL_OPEN_INTEREST_RATIO",
+    "PUT_CALL_VOLUME_RATIO_CUR_DAY",
 ]
 DIVIDEND_FIELDS = [
     "DVD_EX_DT",
@@ -173,10 +176,32 @@ def fetch_underlying_snapshot(ticker: str) -> pd.Series:
     record["dividend_status"] = bds_dividend.get("dividend_status")
     record["dividend_debug"] = bds_dividend.get("debug") or {}
     record["mov_avg_200d"] = _clean_value(record.get("MOV_AVG_200D"))
+    record["put_call_oi_ratio"] = _clean_value(record.get("PUT_CALL_OPEN_INTEREST_RATIO"))
+    record["put_call_vol_ratio"] = _clean_value(record.get("PUT_CALL_VOLUME_RATIO_CUR_DAY"))
     analyst = fetch_ubs_analyst_data(ticker)
     record["ubs_rating"] = analyst.get("ubs_rating")
     record["ubs_target"] = analyst.get("ubs_target")
+    # Derivative analytics via BQL (stubbed — requires raw blpapi BQL)
+    derivatives = fetch_stock_derivatives_bql(ticker)
+    for key, value in derivatives.items():
+        record[key] = value
     return record
+
+
+def fetch_stock_derivatives_bql(security: str) -> Dict[str, object]:
+    """Fetch advanced vol analytics via BQL.
+
+    These fields require BQL syntax (raw blpapi BeqsRequest) and cannot be
+    pulled via simple BDP through polars_bloomberg.  Currently stubbed —
+    returns empty dict.  Wire up when raw blpapi BQL adapter is available.
+
+    Planned fields:
+      realized_vol_3m, iv_rv_spread, iv_skew_3m, iv_term_premium,
+      iv_rv_percentile, iv_skew_percentile, iv_term_premium_percentile
+    """
+    # polars_bloomberg BQuery does not expose BQL.  Returning empty dict
+    # so downstream code treats all BQL fields as None (graceful degradation).
+    return {}
 
 
 def fetch_ubs_analyst_data(ticker: str) -> Dict[str, object]:
@@ -286,11 +311,13 @@ def fetch_option_snapshot(option_tickers: list[str]) -> pd.DataFrame:
                 "THETA_MID",
                 "GAMMA",
                 "VEGA",
+                "RHO",
                 "dte",
                 "delta_mid",
                 "theta",
                 "gamma",
                 "vega",
+                "rho",
                 "iv_mid",
             ]
         )
@@ -321,6 +348,7 @@ def fetch_option_snapshot(option_tickers: list[str]) -> pd.DataFrame:
         "THETA_MID",
         "GAMMA",
         "VEGA",
+        "RHO",
     ]
     for field in numeric_fields:
         if field in df.columns:
@@ -339,6 +367,7 @@ def fetch_option_snapshot(option_tickers: list[str]) -> pd.DataFrame:
     df["theta"] = theta
     df["gamma"] = pd.to_numeric(df.get("GAMMA"), errors="coerce")
     df["vega"] = pd.to_numeric(df.get("VEGA"), errors="coerce")
+    df["rho"] = pd.to_numeric(df.get("RHO"), errors="coerce")
     iv_mid = pd.to_numeric(df.get("IVOL_MID"), errors="coerce")
     if "IVOL" in df.columns:
         iv_mid = iv_mid.fillna(pd.to_numeric(df.get("IVOL"), errors="coerce"))
@@ -361,11 +390,13 @@ def fetch_option_snapshot(option_tickers: list[str]) -> pd.DataFrame:
             "THETA_MID",
             "GAMMA",
             "VEGA",
+            "RHO",
             "dte",
             "delta_mid",
             "theta",
             "gamma",
             "vega",
+            "rho",
             "iv_mid",
         ]
     ]

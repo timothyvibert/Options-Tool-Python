@@ -946,8 +946,7 @@ def _bloomberg_tab():
                 ],
                 data=[],
                 style_table={"overflowX": "auto"},
-                style_header=_LEGS_DARK_HEADER,
-                style_cell=_LEGS_DARK_CELL,
+                # style_header and style_cell set dynamically by _v2_toggle_table_theme
             ),
         ],
     )

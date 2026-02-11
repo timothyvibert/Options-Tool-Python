@@ -34,6 +34,23 @@
   --ae-shadow: 0 18px 40px rgba(2, 6, 23, 0.45);
 }
 
+/* Light-mode overrides — activated when MantineProvider sets color scheme */
+[data-mantine-color-scheme="light"] {
+  --ae-bg: #F8F9FA;
+  --ae-surface: #FFFFFF;
+  --ae-surface-2: #F6F8FA;
+  --ae-panel: var(--ae-surface-2);
+  --ae-border: #D0D7DE;
+  --ae-text: #1F2328;
+  --ae-muted: #656D76;
+  --ae-accent: #0969DA;
+  --ae-warn: #bf8700;
+  --ae-error: #cf222e;
+  --ae-success: #1a7f37;
+  --ae-warning: var(--ae-warn);
+  --ae-shadow: 0 8px 24px rgba(140, 149, 159, 0.2);
+}
+
 html,
 body {
   background: var(--ae-bg);
@@ -986,4 +1003,13 @@ div[class*="Select-control"] {
 
 .dash-spreadsheet .Select-option.is-focused {
   background: var(--ae-surface-2) !important;
+}
+
+/* Light-mode DataTable focus overrides (rgba values are not theme-variable-driven) */
+[data-mantine-color-scheme="light"] .dash-cell.focused,
+[data-mantine-color-scheme="light"] .dash-cell.cell--selected,
+[data-mantine-color-scheme="light"] .dash-cell.selected,
+[data-mantine-color-scheme="light"] .dash-spreadsheet td.focused {
+  background: rgba(9, 105, 218, 0.08) !important;
+  outline: 1px solid rgba(9, 105, 218, 0.4) !important;
 }

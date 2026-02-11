@@ -287,10 +287,10 @@ def test_cost_credit_with_multiplier():
     assert cost_credit is not None
     # -10 × 51.80 × 100 = -51,800.00 → Credit $51,800.00
     assert cost_credit["options"] == "Credit $51,800.00"
-    # Net Prem/Share should be per-share: -10 × 51.80 = -518.0
+    # Net Prem/Share = net_premium_total / total_contracts = -51800 / 10 = -5180.0
     prem_share = _summary_row(pack, "Net Prem/Share")
     assert prem_share is not None
-    assert prem_share["options"] == "-518.00"
+    assert prem_share["options"] == "-5180.00"
 
 
 def test_cost_credit_debit():
@@ -443,3 +443,195 @@ def test_key_levels_infinity_row_has_pnl():
     assert inf_level["option_pnl"] is not None
     assert inf_level["net_pnl"] is not None
     assert inf_level["stock_pnl"] is not None
+
+
+# ── Fix 1A: Net Prem/Share with stock position ──
+
+
+def test_net_prem_per_share_with_stock():
+    """Fix 1A: Net Prem/Share = net_premium_total / shares when stock position exists."""
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=1000.0,
+        avg_cost=95.0,
+        legs=[
+            OptionLeg(kind="call", position=-10.0, strike=200.0, premium=51.80),
+            OptionLeg(kind="put", position=-10.0, strike=85.0, premium=7.55),
+        ],
+    )
+    pack = build_analysis_pack(
+        strategy_input=strategy_input,
+        strategy_meta={"strategy_name": "Short Strangle", "as_of": "2026-01-18", "expiry": "2026-03-20"},
+        pricing_mode="MID",
+        roi_policy=NET_PREMIUM,
+        vol_mode="ATM",
+        atm_iv=0.2,
+        underlying_profile=None,
+        bbg_leg_snapshots=None,
+        scenario_mode="STANDARD",
+        downside_tgt=0.9,
+        upside_tgt=1.1,
+    )
+    prem_share = _summary_row(pack, "Net Prem/Share")
+    assert prem_share is not None
+    # net_premium_total = (-10*51.80*100) + (-10*7.55*100) = -51800 + -7550 = -59350
+    # shares = 1000
+    # net_prem_per_share = -59350 / 1000 = -59.35
+    assert prem_share["options"] == "-59.35"
+
+
+def test_net_prem_per_share_no_stock():
+    """Fix 1A: Net Prem/Share = net_premium_total / total_contracts without stock."""
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=0.0,
+        avg_cost=0.0,
+        legs=[OptionLeg(kind="call", position=5.0, strike=100.0, premium=3.0)],
+    )
+    pack = build_analysis_pack(
+        strategy_input=strategy_input,
+        strategy_meta={"strategy_name": "Long Call", "as_of": "2026-01-18", "expiry": "2026-03-20"},
+        pricing_mode="MID",
+        roi_policy=NET_PREMIUM,
+        vol_mode="ATM",
+        atm_iv=0.2,
+        underlying_profile=None,
+        bbg_leg_snapshots=None,
+        scenario_mode="STANDARD",
+        downside_tgt=0.9,
+        upside_tgt=1.1,
+    )
+    prem_share = _summary_row(pack, "Net Prem/Share")
+    assert prem_share is not None
+    # net_premium_total = 5 * 3.0 * 100 = 1500
+    # total_contracts = 5
+    # net_prem_per_share = 1500 / 5 = 300.0
+    assert prem_share["options"] == "300.00"
+
+
+# ── Fix 1B: Net Prem % Spot cascades from 1A ──
+
+
+def test_net_prem_pct_spot():
+    """Fix 1B: Net Prem % Spot uses net_prem_per_share, not raw compute_net_premium."""
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=0.0,
+        avg_cost=0.0,
+        legs=[OptionLeg(kind="call", position=1.0, strike=100.0, premium=5.0)],
+    )
+    pack = build_analysis_pack(
+        strategy_input=strategy_input,
+        strategy_meta={"strategy_name": "Long Call", "as_of": "2026-01-18", "expiry": "2026-03-20"},
+        pricing_mode="MID",
+        roi_policy=NET_PREMIUM,
+        vol_mode="ATM",
+        atm_iv=0.2,
+        underlying_profile=None,
+        bbg_leg_snapshots=None,
+        scenario_mode="STANDARD",
+        downside_tgt=0.9,
+        upside_tgt=1.1,
+    )
+    pct = _summary_row(pack, "Net Prem % Spot")
+    assert pct is not None
+    # net_premium_total = 1 * 5.0 * 100 = 500
+    # net_prem_per_share = 500 / 1 = 500
+    # pct = 500 / 100 * 100 = 500.00%
+    assert pct["options"] == "500.00%"
+
+
+# ── Fix 1C: Min ROI N/A when max loss is unlimited ──
+
+
+def test_min_roi_na_when_unlimited_loss():
+    """Fix 1C: Min ROI should show N/A when max loss is unlimited."""
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=0.0,
+        avg_cost=0.0,
+        legs=[OptionLeg(kind="call", position=-1.0, strike=110.0, premium=2.0)],
+    )
+    pack = build_analysis_pack(
+        strategy_input=strategy_input,
+        strategy_meta={"strategy_name": "Short Call", "as_of": "2026-01-18", "expiry": "2026-03-20"},
+        pricing_mode="MID",
+        roi_policy=NET_PREMIUM,
+        vol_mode="ATM",
+        atm_iv=0.2,
+        underlying_profile=None,
+        bbg_leg_snapshots=None,
+        scenario_mode="INFINITY",
+        downside_tgt=0.8,
+        upside_tgt=1.2,
+    )
+    max_loss = _summary_row(pack, "Max Loss")
+    assert max_loss is not None
+    assert max_loss["options"] == "Unlimited"
+    min_roi = _summary_row(pack, "Min ROI")
+    assert min_roi is not None
+    assert min_roi["options"] == "N/A"
+
+
+# ── Fix 1D: Capital basis override for credit/uncovered ──
+
+
+def test_capital_basis_credit_uncovered_uses_margin():
+    """Fix 1D: For credit strategies with unlimited loss, capital basis = margin proxy."""
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=0.0,
+        avg_cost=0.0,
+        legs=[OptionLeg(kind="call", position=-1.0, strike=110.0, premium=5.0)],
+    )
+    pack = build_analysis_pack(
+        strategy_input=strategy_input,
+        strategy_meta={"strategy_name": "Short Call", "as_of": "2026-01-18", "expiry": "2026-03-20"},
+        pricing_mode="MID",
+        roi_policy=NET_PREMIUM,
+        vol_mode="ATM",
+        atm_iv=0.2,
+        underlying_profile=None,
+        bbg_leg_snapshots=None,
+        scenario_mode="INFINITY",
+        downside_tgt=0.8,
+        upside_tgt=1.2,
+    )
+    cap_basis = _summary_row(pack, "Capital Basis")
+    assert cap_basis is not None
+    margin_proxy = pack["margin"]["margin_proxy"]
+    # Capital basis should equal margin proxy for credit + unlimited loss
+    assert cap_basis["options"] == f"{margin_proxy:.2f}"
+
+
+# ── Fix 1E: Risk/Reward row position ──
+
+
+def test_risk_reward_after_max_loss():
+    """Fix 1E: Risk/Reward row should appear right after Max Loss."""
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=0.0,
+        avg_cost=0.0,
+        legs=[OptionLeg(kind="call", position=1.0, strike=100.0, premium=2.0)],
+    )
+    pack = build_analysis_pack(
+        strategy_input=strategy_input,
+        strategy_meta={"strategy_name": "Long Call", "as_of": "2026-01-18", "expiry": "2026-03-20"},
+        pricing_mode="MID",
+        roi_policy=NET_PREMIUM,
+        vol_mode="ATM",
+        atm_iv=0.2,
+        underlying_profile=None,
+        bbg_leg_snapshots=None,
+        scenario_mode="STANDARD",
+        downside_tgt=0.9,
+        upside_tgt=1.1,
+    )
+    rows = pack["summary"]["rows"]
+    metrics = [r["metric"] for r in rows]
+    max_loss_idx = metrics.index("Max Loss")
+    rr_idx = metrics.index("Risk/Reward")
+    assert rr_idx == max_loss_idx + 1, (
+        f"Risk/Reward at index {rr_idx} should be right after Max Loss at {max_loss_idx}"
+    )

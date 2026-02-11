@@ -211,6 +211,8 @@ def _dedup_key_levels(levels: List[dict]) -> List[dict]:
     result: List[dict] = []
     # Map rounded-price → set of sources already included at that price
     price_sources: dict = {}
+    # Map rounded-price → list of (source, level) for retroactive removal
+    price_entries: dict = {}
 
     for level in levels:
         lid = level.get("id")
@@ -230,8 +232,19 @@ def _dedup_key_levels(levels: List[dict]) -> List[dict]:
         existing = price_sources.get(rp, set())
 
         if source in ALWAYS_KEEP:
+            # Retroactively remove non-ALWAYS_KEEP entries at this price
+            if rp in price_entries:
+                for entry_source, entry_level in list(price_entries[rp]):
+                    if entry_source not in ALWAYS_KEEP:
+                        result.remove(entry_level)
+                        seen_ids.discard(entry_level.get("id"))
+                price_entries[rp] = [
+                    (s, l) for s, l in price_entries[rp]
+                    if s in ALWAYS_KEEP
+                ]
             # Always include spot/strike/breakeven/sentinel
             price_sources.setdefault(rp, set()).add(source)
+            price_entries.setdefault(rp, []).append((source, level))
             seen_ids.add(lid)
             result.append(level)
         elif source in existing:
@@ -242,6 +255,7 @@ def _dedup_key_levels(levels: List[dict]) -> List[dict]:
             continue
         else:
             price_sources.setdefault(rp, set()).add(source)
+            price_entries.setdefault(rp, []).append((source, level))
             seen_ids.add(lid)
             result.append(level)
 
@@ -414,9 +428,27 @@ def build_analysis_pack(
         strategy_row=strategy_row if isinstance(strategy_row, pd.Series) else None,
     )
 
+    # Compute net premium totals early (needed for capital basis override)
+    net_premium = compute_net_premium(strategy_input)
+    net_premium_total = sum(
+        leg.position * leg.premium * leg.multiplier
+        for leg in strategy_input.legs
+    )
+
     option_basis = capital_basis(strategy_input, payoff_result, roi_policy)
-    total_basis = combined_capital_basis(strategy_input, option_basis)
     margin_proxy = compute_margin_proxy(strategy_input, payoff_result)
+
+    # For credit strategies with unlimited loss, use margin as capital basis
+    # (premium received is income, not capital at risk)
+    is_net_credit = net_premium_total < 0
+    has_unlimited = (
+        options_unlimited["unlimited_downside"]
+        or options_unlimited.get("unlimited_loss_upside", False)
+    )
+    if is_net_credit and has_unlimited and margin_proxy > 0:
+        option_basis = margin_proxy
+
+    total_basis = combined_capital_basis(strategy_input, option_basis)
 
     # Compute strategy_code early so it's available for summary metrics
     strategy_code = determine_strategy_code(strategy_input, roi_policy)
@@ -459,14 +491,19 @@ def build_analysis_pack(
             .tolist()
         ]
 
-    net_premium = compute_net_premium(strategy_input)
-    net_premium_total = sum(
-        leg.position * leg.premium * leg.multiplier
-        for leg in strategy_input.legs
-    )
+    # net_premium and net_premium_total already computed above (before capital basis)
     net_premium_text = _format_net_premium(net_premium_total)
+
+    # Net Prem/Share: total premium / shares (or / total contracts if no stock)
+    shares = abs(strategy_input.stock_position) if strategy_input.stock_position else 0
+    if shares > 0:
+        net_prem_per_share = net_premium_total / shares
+    else:
+        total_contracts = sum(abs(leg.position) for leg in strategy_input.legs) or 1
+        net_prem_per_share = net_premium_total / total_contracts
+
     net_premium_pct = (
-        net_premium / strategy_input.spot * 100.0
+        net_prem_per_share / strategy_input.spot * 100.0
         if strategy_input.spot
         else 0.0
     )
@@ -543,6 +580,14 @@ def build_analysis_pack(
     prob_results["pop"] = pop
     prob_results["pop_pct"] = f"{pop * 100:.1f}%"
 
+    # Annotate IV source so the UI can distinguish real vs fallback values
+    if _valid_ivs:
+        prob_results["iv_source"] = "vega_weighted"
+    else:
+        prob_results["iv_source"] = "atm_fallback"
+        if "iv_used_pct" in prob_results:
+            prob_results["iv_used_pct"] = f"{eff_sigma * 100:.1f}% (ATM)"
+
     # Determine Max Profit / Max Loss with unlimited detection
     options_max_profit = (
         "Unlimited" if options_unlimited["unlimited_upside"]
@@ -563,6 +608,26 @@ def build_analysis_pack(
         else _format_number(min(combined_pnl) if combined_pnl else None)
     )
 
+    # Risk/Reward Ratio (computed before summary_rows so it can be inline)
+    options_max_profit_num = max(options_pnl) if options_pnl else 0
+    options_max_loss_num = min(options_pnl) if options_pnl else 0
+    combined_max_profit_num = max(combined_pnl) if combined_pnl else 0
+    combined_max_loss_num = min(combined_pnl) if combined_pnl else 0
+
+    rr_options = _risk_reward(options_max_profit_num, options_max_loss_num)
+    rr_combined = _risk_reward(combined_max_profit_num, combined_max_loss_num)
+
+    # Min ROI: show "N/A" when max loss is unlimited (huge negative is meaningless)
+    if options_max_loss == "Unlimited":
+        min_roi_options = "N/A"
+    else:
+        min_roi_options = _format_number(min(option_roi_values) if option_roi_values else None)
+
+    if combined_max_loss == "Unlimited":
+        min_roi_combined = "N/A"
+    else:
+        min_roi_combined = _format_number(min(net_roi_values) if net_roi_values else None)
+
     summary_rows = [
         {
             "metric": "Max Profit",
@@ -573,6 +638,11 @@ def build_analysis_pack(
             "metric": "Max Loss",
             "options": options_max_loss,
             "combined": combined_max_loss,
+        },
+        {
+            "metric": "Risk/Reward",
+            "options": rr_options,
+            "combined": rr_combined,
         },
         {
             "metric": "Capital Basis",
@@ -586,8 +656,8 @@ def build_analysis_pack(
         },
         {
             "metric": "Min ROI",
-            "options": _format_number(min(option_roi_values) if option_roi_values else None),
-            "combined": _format_number(min(net_roi_values) if net_roi_values else None),
+            "options": min_roi_options,
+            "combined": min_roi_combined,
         },
         {
             "metric": "Cost/Credit",
@@ -601,8 +671,8 @@ def build_analysis_pack(
         },
         {
             "metric": "Net Prem/Share",
-            "options": _format_number(net_premium),
-            "combined": _format_number(net_premium),
+            "options": _format_number(net_prem_per_share),
+            "combined": _format_number(net_prem_per_share),
         },
         {
             "metric": "Net Prem % Spot",
@@ -615,18 +685,6 @@ def build_analysis_pack(
             "combined": pop_text,
         },
     ]
-
-    # --- New metrics: Risk/Reward, Breakeven, Treasury ---
-
-    # Risk/Reward Ratio
-    options_max_profit_num = max(options_pnl) if options_pnl else 0
-    options_max_loss_num = min(options_pnl) if options_pnl else 0
-    combined_max_profit_num = max(combined_pnl) if combined_pnl else 0
-    combined_max_loss_num = min(combined_pnl) if combined_pnl else 0
-
-    rr_options = _risk_reward(options_max_profit_num, options_max_loss_num)
-    rr_combined = _risk_reward(combined_max_profit_num, combined_max_loss_num)
-    summary_rows.append({"metric": "Risk/Reward", "options": rr_options, "combined": rr_combined})
 
     # Closest Breakeven and BE Distance %
     spot = float(strategy_input.spot)
@@ -969,7 +1027,7 @@ def build_analysis_pack(
             "rows": summary_rows,
             "net_premium_total": net_premium_text,
             "net_premium_total_value": net_premium_total,
-            "net_premium_per_share": _format_number(net_premium),
+            "net_premium_per_share": _format_number(net_prem_per_share),
         },
         "margin": {
             "classification": classify_strategy(strategy_input),

@@ -527,6 +527,9 @@ def register_v2_callbacks(
         Output(ID.LEGS_TABLE, "style_cell"),
         Output(ID.LEGS_TABLE, "style_data"),
         Output(ID.LEGS_TABLE, "style_data_conditional"),
+        Output(ID.BBG_LEG_QUOTES, "style_header"),
+        Output(ID.BBG_LEG_QUOTES, "style_cell"),
+        Output(ID.BBG_LEG_QUOTES, "style_data"),
         Input(ID.THEME_TOGGLE, "checked"),
     )
     def _v2_toggle_table_theme(is_light):
@@ -569,7 +572,7 @@ def register_v2_callbacks(
                 {"if": {"state": "active"},
                  "backgroundColor": "#161B22", "border": "1px solid #22d3ee"},
             ]
-        return header, cell, data, conditional
+        return header, cell, data, conditional, header, cell, data
 
     # ── #7 Update strategies from group ─────────────────────
     @app.callback(

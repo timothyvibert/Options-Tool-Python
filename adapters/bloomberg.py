@@ -362,41 +362,52 @@ def fetch_ubs_analyst_data(ticker: str) -> Dict[str, object]:
     return result
 
 
-# Treasury index tickers ordered by maturity (days)
-_TREASURY_INDICES = [
-    (30, "USGG1M Index"),
-    (90, "USGG3M Index"),
-    (180, "USGG6M Index"),
-    (365, "USGG1Y Index"),
+# Treasury index tickers ordered by maturity threshold (days)
+_TREASURY_MAP = [
+    (30,    "USGG1M Index",   "1M UST"),
+    (90,    "USGG3M Index",   "3M UST"),
+    (180,   "USGG6M Index",   "6M UST"),
+    (365,   "USGG12M Index",  "12M UST"),
+    (730,   "USGG2YR Index",  "2Y UST"),
+    (1095,  "USGG3YR Index",  "3Y UST"),
+    (1825,  "USGG5YR Index",  "5Y UST"),
+    (2555,  "USGG7YR Index",  "7Y UST"),
+    (3650,  "USGG10YR Index", "10Y UST"),
+    (7300,  "USGG20YR Index", "20Y UST"),
+    (99999, "USGG30YR Index", "30Y UST"),
 ]
 
+_RFR_DEFAULT: dict = {"rate": 0.0, "ticker": "", "label": ""}
 
-def fetch_risk_free_rate(dte: int) -> float:
+
+def fetch_risk_free_rate(dte: int) -> dict:
     """Fetch risk-free rate from US Treasury indices matched to option DTE.
 
-    Selects the treasury index whose maturity is closest to *dte* days,
-    fetches PX_LAST (yield as %), and returns the rate as a decimal
-    (e.g. 4.5% → 0.045).  Returns 0.0 on any failure.
+    Selects the first treasury index whose maturity threshold >= *dte*,
+    fetches PX_LAST (yield as %), and returns a dict with the rate as a
+    decimal (e.g. 4.5% → 0.045), the Bloomberg ticker, and a short label.
+    Returns ``_RFR_DEFAULT`` on any failure.
     """
     if dte <= 0:
-        return 0.0
-    # Pick the closest maturity
-    best_ticker = min(_TREASURY_INDICES, key=lambda t: abs(t[0] - dte))[1]
+        return dict(_RFR_DEFAULT)
+    # Pick the first bucket where dte <= threshold
+    best = next((t for t in _TREASURY_MAP if dte <= t[0]), _TREASURY_MAP[-1])
+    best_ticker, best_label = best[1], best[2]
     try:
         with with_session() as query:
             raw = query.bdp([best_ticker], ["PX_LAST"])
         df = _ensure_security_column(_to_pandas(raw))
         if "PX_LAST" not in df.columns or df.empty:
-            return 0.0
+            return dict(_RFR_DEFAULT)
         row = df.loc[df["security"] == best_ticker]
         if row.empty:
             row = df.iloc[[0]]
         value = row["PX_LAST"].iloc[0]
         if pd.isna(value):
-            return 0.0
-        return float(value) / 100.0  # convert percentage to decimal
+            return dict(_RFR_DEFAULT)
+        return {"rate": float(value) / 100.0, "ticker": best_ticker, "label": best_label}
     except Exception:
-        return 0.0
+        return dict(_RFR_DEFAULT)
 
 
 def fetch_option_snapshot(option_tickers: list[str]) -> pd.DataFrame:

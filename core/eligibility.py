@@ -7,7 +7,7 @@ import pandas as pd
 
 from core.margin import classify_strategy
 from core.models import StrategyInput
-from core.roi import CASH_SECURED, is_pure_short_puts
+from core.roi import is_pure_short_puts
 
 
 _ACCOUNT_MAP: Optional[pd.DataFrame] = None
@@ -23,7 +23,7 @@ def load_account_map() -> pd.DataFrame:
 
 def determine_strategy_code(input: StrategyInput, roi_policy: str) -> str:
     base_code = classify_strategy(input)
-    if roi_policy.upper() == CASH_SECURED and is_pure_short_puts(input):
+    if is_pure_short_puts(input):
         return "CSPT"
     mapping = {
         "LNG_LE_9M": "LNG",

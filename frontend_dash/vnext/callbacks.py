@@ -1130,6 +1130,7 @@ def register_callbacks(
 
         # Fetch risk-free rate from Bloomberg treasury indices
         rfr = 0.0
+        treasury_label = ""
         if expiry_value:
             try:
                 from adapters.bloomberg import fetch_risk_free_rate as _fetch_rfr
@@ -1137,7 +1138,9 @@ def register_callbacks(
                 exp_date = _date.fromisoformat(str(expiry_value)[:10])
                 dte = (exp_date - _date.today()).days
                 if dte > 0:
-                    rfr = _fetch_rfr(dte)
+                    rfr_info = _fetch_rfr(dte)
+                    rfr = rfr_info["rate"]
+                    treasury_label = rfr_info.get("label", "")
             except Exception:
                 rfr = 0.0
 
@@ -1161,6 +1164,7 @@ def register_callbacks(
                 downside_tgt=downside_factor,
                 upside_tgt=upside_factor,
                 risk_free_rate=rfr,
+                treasury_label=treasury_label,
             )
         except Exception as exc:
             return {"key": None, "as_of": _utc_now_str(), "error": str(exc)}, to_jsonable(

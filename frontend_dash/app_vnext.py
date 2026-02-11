@@ -769,13 +769,16 @@ def _run_analysis(
 
     # Fetch risk-free rate from Bloomberg treasury indices
     rfr = 0.0
+    treasury_label = ""
     if BLOOMBERG_AVAILABLE and _bbg_fetch_rfr and expiry_value:
         try:
             from datetime import date as _date
             exp_date = _date.fromisoformat(expiry_value[:10])
             dte = (exp_date - _date.today()).days
             if dte > 0:
-                rfr = _bbg_fetch_rfr(dte)
+                rfr_info = _bbg_fetch_rfr(dte)
+                rfr = rfr_info["rate"]
+                treasury_label = rfr_info.get("label", "")
         except Exception:
             rfr = 0.0
 
@@ -799,6 +802,7 @@ def _run_analysis(
             downside_tgt=downside_factor,
             upside_tgt=upside_factor,
             risk_free_rate=rfr,
+            treasury_label=treasury_label,
         )
     except Exception as exc:
         return {"key": None, "as_of": _utc_now_str(), "error": str(exc)}, to_jsonable(

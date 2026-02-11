@@ -296,6 +296,7 @@ def build_analysis_pack(
     downside_tgt: float,
     upside_tgt: float,
     risk_free_rate: float = 0.0,
+    treasury_label: str = "",
 ) -> dict:
     meta = strategy_meta if isinstance(strategy_meta, Mapping) else {}
     as_of = meta.get("as_of") or "--"
@@ -749,7 +750,10 @@ def build_analysis_pack(
             treasury_interest = treasury_obligation * risk_free_rate * (dte_days / 365)
             treasury_return_str = f"${treasury_interest:,.2f}"
             treasury_return_pct = (treasury_interest / treasury_obligation) * 100
-            treasury_return_pct_str = f"{treasury_return_pct:.2f}%"
+            if treasury_label:
+                treasury_return_pct_str = f"{treasury_return_pct:.2f}% ({treasury_label})"
+            else:
+                treasury_return_pct_str = f"{treasury_return_pct:.2f}%"
         else:
             treasury_return_str = "N/A"
             treasury_return_pct_str = "N/A"
@@ -1048,6 +1052,7 @@ def build_analysis_pack(
             "roi_policy": roi_policy,
             "vol_mode": vol_mode,
             "risk_free_rate": risk_free_rate,
+            "treasury_label": treasury_label,
             "auto_capital_basis": auto_basis,
         },
         "legs": legs,

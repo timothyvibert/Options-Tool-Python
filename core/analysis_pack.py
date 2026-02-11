@@ -176,7 +176,7 @@ def _risk_reward(max_prof: float, max_loss_val: float) -> str:
 def _auto_capital_basis(strategy_code: str, legs, shares: int,
                         avg_cost: float, margin_proxy: float) -> dict:
     """Auto-select the most appropriate capital basis."""
-    if strategy_code in ("CSP", "SP", "CSPW", "cash_secured_put"):
+    if strategy_code in ("CSP", "SP", "CSPW", "CSPT", "cash_secured_put"):
         short_puts = [l for l in legs if l.kind.lower() == "put" and l.position < 0]
         amount = sum(l.strike * abs(l.position) * l.multiplier for l in short_puts)
         return {"mode": "cash_secured", "amount": amount, "label": "Cash-Secured (Treasury Collateral)"}
@@ -643,7 +643,7 @@ def build_analysis_pack(
     summary_rows.append({"metric": "BE Distance %", "options": be_distance_str, "combined": be_distance_str})
 
     # Treasury Obligation (cash-secured strategies only)
-    is_cash_secured = strategy_code in ("CSP", "SP", "CSPW", "cash_secured_put")
+    is_cash_secured = strategy_code in ("CSP", "SP", "CSPW", "CSPT", "cash_secured_put")
     if is_cash_secured:
         short_puts = [l for l in strategy_input.legs if l.kind.lower() == "put" and l.position < 0]
         treasury_obligation = sum(l.strike * abs(l.position) * l.multiplier for l in short_puts)

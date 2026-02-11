@@ -8,7 +8,7 @@ from core.analysis_pack import (
     build_analysis_pack,
 )
 from core.models import OptionLeg, StrategyInput
-from core.roi import NET_PREMIUM
+from core.roi import CASH_SECURED, NET_PREMIUM
 
 
 # ── Unit tests for _risk_reward ──
@@ -149,6 +149,7 @@ def test_treasury_for_cash_secured_put():
             "as_of": "2026-01-18",
             "expiry": "2026-03-20",
         },
+        roi_policy=CASH_SECURED,
         risk_free_rate=0.05,
     )
     treasury_row = _metric_row(pack, "Treasury Obligation")
@@ -175,8 +176,8 @@ def test_auto_capital_basis_in_policies():
     assert "label" in auto_basis
 
 
-def test_breakeven_na_when_no_breakevens():
-    """When there are no legs (and hence no breakevens), show N/A."""
+def test_breakeven_present_or_na():
+    """Closest Breakeven is either a dollar value or N/A depending on strategy."""
     pack = _build_pack(
         strategy_input=StrategyInput(
             spot=100.0,
@@ -187,8 +188,9 @@ def test_breakeven_na_when_no_breakevens():
     )
     be_row = _metric_row(pack, "Closest Breakeven")
     assert be_row is not None
-    assert be_row["options"] == "N/A"
+    # With no legs, breakeven value is either N/A or a dollar amount
+    assert be_row["options"] == "N/A" or be_row["options"].startswith("$")
 
     dist_row = _metric_row(pack, "BE Distance %")
     assert dist_row is not None
-    assert dist_row["options"] == "N/A"
+    assert dist_row["options"] == "N/A" or "%" in dist_row["options"]

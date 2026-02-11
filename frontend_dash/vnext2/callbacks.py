@@ -1654,20 +1654,21 @@ def register_v2_callbacks(
         combined = payoff.get("combined_pnl") or []
         if not x:
             return _empty_chart(title="No payoff data in analysis_pack")
-        if show_options and len(options) == len(x):
-            fig.add_trace(go.Scatter(
-                x=x, y=options, name="Options PnL",
-                line={"color": "#2563EB"},
-            ))
+        # Add traces: stock first (back), options middle, combined last (front)
         if show_stock and len(stock) == len(x):
             fig.add_trace(go.Scatter(
                 x=x, y=stock, name="Stock PnL",
-                line={"color": _stock_color},
+                line={"color": _stock_color, "width": 1.5},
+            ))
+        if show_options and len(options) == len(x):
+            fig.add_trace(go.Scatter(
+                x=x, y=options, name="Options PnL",
+                line={"color": "#2563EB", "width": 2.5},
             ))
         if show_combined and len(combined) == len(x):
             fig.add_trace(go.Scatter(
                 x=x, y=combined, name="Combined PnL",
-                line={"color": "#7C3AED"},
+                line={"color": "#7C3AED", "width": 3},
             ))
 
         def _numeric_list(values):
@@ -1678,47 +1679,69 @@ def register_v2_callbacks(
                     items.append(num)
             return sorted(set(items))
 
-        if show_strikes:
-            for strike in _numeric_list(payoff.get("strikes")):
-                fig.add_vline(x=strike, line_dash="dot", line_color="#EF4444")
-                fig.add_annotation(x=strike, y=1.02, yref="paper", text=f"K={strike:g}")
-        if show_breakevens:
-            for be in _numeric_list(payoff.get("breakevens")):
-                fig.add_vline(x=be, line_dash="dash", line_color="#22D3EE")
-                fig.add_annotation(x=be, y=1.08, yref="paper", text=f"BE={be:g}")
-
+        # ── X-axis scaling: center on spot, default ±50% ──
         x_vals = [_coerce_float(v) for v in x]
         x_pairs = [v for v in x_vals if v is not None]
+        underlying = pack_store.get("underlying") if isinstance(pack_store, dict) else {}
+        spot = None
+        if isinstance(underlying, dict):
+            spot = _coerce_float(underlying.get("spot"))
+
+        strike_vals = _numeric_list(payoff.get("strikes"))
+        be_vals = _numeric_list(payoff.get("breakevens"))
+
         if x_pairs:
             x_min_data = min(x_pairs)
             x_max_data = max(x_pairs)
-            anchors = []
-            strikes = payoff.get("strikes") or []
-            breakevens = payoff.get("breakevens") or []
-            for item in strikes + breakevens:
-                num = _coerce_float(item)
-                if num is not None:
-                    anchors.append(num)
-            underlying = pack_store.get("underlying") if isinstance(pack_store, dict) else {}
-            spot = None
-            if isinstance(underlying, dict):
-                spot = _coerce_float(underlying.get("spot"))
-            if spot is not None:
-                anchors.append(spot)
-            if anchors:
-                anchor_min = min(anchors)
-                anchor_max = max(anchors)
-                pad = 0.25 * spot if spot else 0.25 * (anchor_max - anchor_min or 1.0)
-                x_min_req = anchor_min - pad
-                x_max_req = anchor_max + pad
+            if spot and spot > 0:
+                key_prices = [spot] + strike_vals + be_vals
+                x_min_req = max(0, min(key_prices) * 0.7)
+                x_max_req = max(key_prices) * 1.15
             else:
-                x_min_req = 0.0
+                x_min_req = x_min_data
                 x_max_req = x_max_data
             x_min_req = max(x_min_req, x_min_data)
             x_max_req = min(x_max_req, x_max_data)
             x_step = _nice_step(x_min_req, x_max_req)
             x_min, x_max = _snap_range(x_min_req, x_max_req, x_step)
+            x_range_span = x_max - x_min if x_max > x_min else 1.0
 
+            # ── Annotations: strikes below chart, breakevens above ──
+            ann_x_positions = []
+
+            def _offset_x(xpos):
+                """Nudge annotation if too close to an existing one."""
+                for existing in ann_x_positions:
+                    if abs(xpos - existing) / x_range_span < 0.05:
+                        xpos += 0.03 * x_range_span
+                        break
+                ann_x_positions.append(xpos)
+                return xpos
+
+            if show_strikes:
+                for strike in strike_vals:
+                    fig.add_vline(
+                        x=strike, line_dash="dot",
+                        line_color="#EF4444", line_width=1, opacity=0.5,
+                    )
+                    fig.add_annotation(
+                        x=_offset_x(strike), yref="paper", y=-0.03,
+                        yanchor="top", text=f"K ${strike:,.0f}",
+                        showarrow=False, font={"size": 10, "color": "#EF4444"},
+                    )
+            if show_breakevens:
+                for be in be_vals:
+                    fig.add_vline(
+                        x=be, line_dash="dash",
+                        line_color="#22D3EE", line_width=1.5, opacity=0.7,
+                    )
+                    fig.add_annotation(
+                        x=_offset_x(be), yref="paper", y=1.03,
+                        yanchor="bottom", text=f"BE ${be:,.2f}",
+                        showarrow=False, font={"size": 10, "color": "#22D3EE"},
+                    )
+
+            # ── Y-axis scaling: only visible x-range data, 15% padding ──
             y_vals = []
 
             def _add_visible(series):
@@ -1748,8 +1771,8 @@ def register_v2_callbacks(
                     span = abs(y_max_req) * 0.1
                 if span == 0:
                     span = 100.0
-                y_min_req -= 0.10 * span
-                y_max_req += 0.10 * span
+                y_min_req -= 0.15 * span
+                y_max_req += 0.15 * span
                 y_step = _nice_step(y_min_req, y_max_req)
                 y_min, y_max = _snap_range(y_min_req, y_max_req, y_step)
                 fig.update_layout(
@@ -1765,12 +1788,29 @@ def register_v2_callbacks(
             xaxis_title="Stock Price at Expiry",
             yaxis_title="Profit / Loss ($)",
             xaxis_gridcolor=_grid_color,
+            xaxis_fixedrange=False,
             yaxis_gridcolor=_grid_color,
             yaxis_zeroline=True,
-            yaxis_zerolinecolor=_zero_line_color,
-            margin={"l": 50, "r": 20, "t": 30, "b": 60},
-            height=400,
-            showlegend=False,
+            yaxis_zerolinecolor="gray",
+            yaxis_zerolinewidth=0.5,
+            yaxis_fixedrange=False,
+            hovermode="x unified",
+            hoverlabel=dict(
+                bgcolor="#161B22",
+                font_size=12,
+                font_color="#E6EDF3",
+                bordercolor="#30363D",
+            ),
+            margin={"l": 50, "r": 20, "t": 30, "b": 80},
+            height=520,
+            showlegend=True,
+            legend=dict(
+                orientation="h", yanchor="top", y=-0.18,
+                xanchor="center", x=0.5,
+                font=dict(size=12),
+            ),
+            legend_itemclick="toggle",
+            legend_itemdoubleclick="toggleothers",
         )
         return fig
 

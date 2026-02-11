@@ -546,7 +546,14 @@ def _card_payoff():
             dcc.Graph(
                 id=ID.PAYOFF_CHART,
                 figure=fig,
-                config={"responsive": True, "displayModeBar": False},
+                config={
+                    "responsive": True,
+                    "displayModeBar": True,
+                    "displaylogo": False,
+                    "scrollZoom": True,
+                    "modeBarButtonsToAdd": ["toggleSpikelines"],
+                    "modeBarButtonsToRemove": ["lasso2d", "select2d", "autoScale2d"],
+                },
             ),
             dmc.Group(
                 mt="sm",

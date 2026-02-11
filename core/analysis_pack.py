@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime
 from typing import Dict, Iterable, List, Mapping, Optional
 
 import math
+
+logger = logging.getLogger(__name__)
 
 import pandas as pd
 
@@ -536,6 +539,7 @@ def build_analysis_pack(
             t=t,
         )
     except Exception:
+        logger.exception("Probability computation failed")
         pop = 0.0
 
     pop_text = f"{pop * 100:.1f}%"

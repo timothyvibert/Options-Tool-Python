@@ -121,7 +121,7 @@ def effective_sigma(
     if atm_value is None:
         atm_value = _fallback_atm(per_leg_iv)
 
-    if mode_key == "ATM":
+    if mode_key in ("ATM", "SURFACE_ATM"):
         if atm_value is None:
             raise ValueError("ATM volatility is required.")
         return max(atm_value, 1e-6)

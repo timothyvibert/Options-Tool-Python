@@ -2,14 +2,8 @@ from __future__ import annotations
 
 import base64
 import os
-import platform
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
-
-if platform.system() == "Windows":
-    _conda_lib_bin = os.path.join(os.environ.get("CONDA_PREFIX", ""), "Library", "bin")
-    if os.path.isdir(_conda_lib_bin):
-        os.add_dll_directory(_conda_lib_bin)
 
 from reporting.contract_v1.adapter import build_report_contract_v1
 from reporting.contract_v1.validate import validate_report_contract_v1

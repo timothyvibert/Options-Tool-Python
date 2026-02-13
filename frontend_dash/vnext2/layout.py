@@ -558,6 +558,18 @@ def _card_payoff():
                     ),
                 ],
             ),
+            dmc.Group(
+                gap="lg",
+                mb="xs",
+                children=[
+                    dmc.Checkbox(id=ID.CHK_OPTIONS, label="Options PnL", checked=True, size="xs",
+                                 styles={"label": {"color": "#E6EDF3", "fontSize": "12px"}}),
+                    dmc.Checkbox(id=ID.CHK_STOCK, label="Stock PnL", checked=True, size="xs",
+                                 styles={"label": {"color": "#E6EDF3", "fontSize": "12px"}}),
+                    dmc.Checkbox(id=ID.CHK_COMBINED, label="Combined PnL", checked=True, size="xs",
+                                 styles={"label": {"color": "#E6EDF3", "fontSize": "12px"}}),
+                ],
+            ),
             dcc.Graph(
                 id=ID.PAYOFF_CHART,
                 figure=fig,
@@ -569,17 +581,6 @@ def _card_payoff():
                     "modeBarButtonsToAdd": ["toggleSpikelines"],
                     "modeBarButtonsToRemove": ["lasso2d", "select2d", "autoScale2d"],
                 },
-            ),
-            dmc.Group(
-                mt="sm",
-                gap="lg",
-                children=[
-                    _legend_dot("#2563EB", "OPTIONS"),
-                    _legend_dot("#D1D5DB", "STOCK"),
-                    _legend_dot("#7C3AED", "COMBINED"),
-                    _legend_line("#EF4444", "STRIKES"),
-                    _legend_line("#22D3EE", "BREAKEVENS", dashed=True),
-                ],
             ),
         ],
     )

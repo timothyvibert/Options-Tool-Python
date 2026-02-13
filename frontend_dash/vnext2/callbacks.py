@@ -1588,15 +1588,18 @@ def register_v2_callbacks(
         Input(ID.STORE_ANALYSIS_KEY, "data"),
         Input(ID.TABS, "value"),
         Input(ID.THEME_TOGGLE, "checked"),
+        Input(ID.CHK_OPTIONS, "checked"),
+        Input(ID.CHK_STOCK, "checked"),
+        Input(ID.CHK_COMBINED, "checked"),
     )
-    def _v2_render_chart(key_payload, tab_value, checked):
+    def _v2_render_chart(key_payload, tab_value, checked, chk_options, chk_stock, chk_combined):
         if tab_value != "dashboard":
             raise PreventUpdate
         fig = go.Figure()
-        # v2 defaults: show all series (no toggle controls)
-        show_options = True
-        show_stock = True
-        show_combined = True
+        # Trace visibility from checkboxes
+        show_options = bool(chk_options)
+        show_stock = bool(chk_stock)
+        show_combined = bool(chk_combined)
         show_strikes = True
         show_breakevens = True
 
@@ -1616,7 +1619,7 @@ def register_v2_callbacks(
             _grid_color = "#21262D"
             _zero_line_color = "#8B949E"
             _template = "plotly_dark"
-        _stock_color = "#9CA3AF" if is_light else "#D1D5DB"
+
 
         def _empty_chart(title=None, annotation=None):
             """Return an empty themed figure for early-return cases."""
@@ -1708,7 +1711,7 @@ def register_v2_callbacks(
         if show_stock and len(stock) == len(x):
             fig.add_trace(go.Scatter(
                 x=x, y=stock, name="Stock PnL",
-                line={"color": _stock_color, "width": 1.5},
+                line={"color": "#6E7681", "width": 1.5, "dash": "dash"},
             ))
         if show_options and len(options) == len(x):
             fig.add_trace(go.Scatter(
@@ -1759,8 +1762,7 @@ def register_v2_callbacks(
                         showarrow=False, font={"size": 10, "color": "#22D3EE"},
                     )
 
-            # ── Y-axis scaling: VBA-style — combined when stock, options when not ──
-            # Compute from data within the visible x-window only
+            # ── Y-axis scaling: visible (checked) traces only ──
             vis_mask = [v is not None and x_min <= v <= x_max for v in x_vals]
 
             def _visible_y(series):
@@ -1769,45 +1771,33 @@ def register_v2_callbacks(
                 return [_coerce_float(yv) for yv, m in zip(series, vis_mask)
                         if m and _coerce_float(yv) is not None]
 
-            y_options = _visible_y(options)
-            y_stock = _visible_y(stock)
-            y_combined = _visible_y(combined)
+            y_vals = []
+            if show_combined and len(combined) == len(x):
+                y_vals.extend(_visible_y(combined))
+            if show_options and len(options) == len(x):
+                y_vals.extend(_visible_y(options))
+            if show_stock and len(stock) == len(x):
+                y_vals.extend(_visible_y(stock))
 
-            has_stock = bool(y_stock) and any(v != 0 for v in y_stock)
+            if not y_vals:
+                y_vals = [0]
 
-            if has_stock:
-                # Scale to combined trace (the full position view)
-                y_vals = y_combined or y_options or y_stock
-            else:
-                # Options-only: scale to options trace
-                y_vals = y_options or y_combined or y_stock
+            y_min_req = min(y_vals)
+            y_max_req = max(y_vals)
 
-            if y_vals:
-                y_min_req = min(y_vals)
-                y_max_req = max(y_vals)
+            # 10% padding
+            span = y_max_req - y_min_req
+            if span == 0:
+                span = abs(y_max_req) * 0.1 if y_max_req != 0 else 100.0
+            y_min_req -= span * 0.10
+            y_max_req += span * 0.10
+            y_step = _nice_step(y_min_req, y_max_req)
+            y_min, y_max = _snap_range(y_min_req, y_max_req, y_step)
 
-                # If stock overlay, also include options P&L when significant
-                if has_stock and y_options and y_vals is not y_options:
-                    opt_min, opt_max = min(y_options), max(y_options)
-                    combined_range = y_max_req - y_min_req
-                    opt_range = opt_max - opt_min
-                    if combined_range > 0 and opt_range / combined_range > 0.05:
-                        y_min_req = min(y_min_req, opt_min)
-                        y_max_req = max(y_max_req, opt_max)
-
-                # 10% padding (matching VBA)
-                span = y_max_req - y_min_req
-                if span == 0:
-                    span = abs(y_max_req) * 0.1 if y_max_req != 0 else 100.0
-                y_min_req -= span * 0.10
-                y_max_req += span * 0.10
-                y_step = _nice_step(y_min_req, y_max_req)
-                y_min, y_max = _snap_range(y_min_req, y_max_req, y_step)
-
-                fig.update_layout(
-                    xaxis={"range": [x_min, x_max], "tickmode": "auto", "nticks": 10},
-                    yaxis={"range": [y_min, y_max], "tickmode": "auto", "nticks": 10},
-                )
+            fig.update_layout(
+                xaxis={"range": [x_min, x_max], "tickmode": "auto", "nticks": 10},
+                yaxis={"range": [y_min, y_max], "tickmode": "auto", "nticks": 10},
+            )
 
         fig.update_layout(
             template=_template,
@@ -1834,14 +1824,7 @@ def register_v2_callbacks(
             ),
             margin={"l": 50, "r": 20, "t": 30, "b": 80},
             height=520,
-            showlegend=True,
-            legend=dict(
-                orientation="h", yanchor="top", y=-0.18,
-                xanchor="center", x=0.5,
-                font=dict(size=12),
-            ),
-            legend_itemclick="toggle",
-            legend_itemdoubleclick="toggleothers",
+            showlegend=False,
         )
         return fig
 

@@ -49,6 +49,11 @@ SCENARIO_SELECT = "v2-scenario-select"
 DOWNSIDE_TARGET = "v2-downside-target"
 UPSIDE_TARGET = "v2-upside-target"
 
+# ─── Payoff chart trace toggles ─────────────────────────
+CHK_OPTIONS = "v2-chk-options-pnl"
+CHK_STOCK = "v2-chk-stock-pnl"
+CHK_COMBINED = "v2-chk-combined-pnl"
+
 # ─── Outputs ─────────────────────────────────────────────
 PAYOFF_CHART = "v2-payoff-chart"
 METRICS_TABLE = "v2-metrics-table"

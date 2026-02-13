@@ -1613,7 +1613,7 @@ def register_v2_callbacks(
             _zero_line_color = "#656D76"
             _template = "plotly_white"
         else:
-            _paper_bg = "#0D1117"
+            _paper_bg = "#1C2128"
             _plot_bg = "#1C2128"
             _font_color = "#E6EDF3"
             _grid_color = "#21262D"
@@ -1750,16 +1750,14 @@ def register_v2_callbacks(
                     )
             if show_breakevens:
                 for be in be_vals:
-                    if be < x_min or be > x_max:
-                        continue
                     fig.add_vline(
                         x=be, line_dash="dash",
-                        line_color="#22D3EE", line_width=1.5, opacity=0.7,
+                        line_color="#2DD4BF", line_width=1,
                     )
                     fig.add_annotation(
-                        x=_offset_x(be), yref="paper", y=1.03,
+                        x=_offset_x(be), yref="paper", y=1.02,
                         yanchor="bottom", text=f"BE ${be:,.2f}",
-                        showarrow=False, font={"size": 10, "color": "#22D3EE"},
+                        showarrow=False, font={"size": 10, "color": "#2DD4BF"},
                     )
 
             # ── Y-axis scaling: visible (checked) traces only ──

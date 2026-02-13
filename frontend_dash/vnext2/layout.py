@@ -515,7 +515,7 @@ def _card_payoff():
     fig = go.Figure()
     fig.update_layout(
         template="plotly_dark",
-        paper_bgcolor="#0D1117",
+        paper_bgcolor="#1C2128",
         plot_bgcolor="#1C2128",
         font={"color": "#E6EDF3"},
         xaxis={

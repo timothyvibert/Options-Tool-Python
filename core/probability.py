@@ -194,6 +194,9 @@ def strategy_pop(
         pnl = payoff_fn(input, S0)
         return 1.0 if pnl > 0.0 else 0.0
 
+    if S0 <= 0:
+        return 0.0
+
     mu = r - q
     log_std = eff_sigma * math.sqrt(t)
     log_mean = math.log(S0) + (mu - 0.5 * eff_sigma ** 2) * t

@@ -1,2 +1,2 @@
 Project name: "Options Strategy Builder (Python)"
-One sentence: "Streamlit-based options strategy builder ported from Excel. Do not modify any other files."
+One sentence: "Plotly-based options strategy builder rebuilt from Excel. Do not modify any other files."

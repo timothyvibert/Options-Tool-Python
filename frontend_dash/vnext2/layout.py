@@ -515,8 +515,8 @@ def _card_payoff():
     fig = go.Figure()
     fig.update_layout(
         template="plotly_dark",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(13,17,23,0.6)",
+        paper_bgcolor="#0D1117",
+        plot_bgcolor="#1C2128",
         font={"color": "#E6EDF3"},
         xaxis={
             "title": "Stock Price at Expiry",
@@ -558,18 +558,6 @@ def _card_payoff():
                     ),
                 ],
             ),
-            dmc.Group(
-                gap="lg",
-                mb="xs",
-                children=[
-                    dmc.Checkbox(id=ID.CHK_OPTIONS, label="Options PnL", checked=True, size="xs",
-                                 styles={"label": {"color": "#E6EDF3", "fontSize": "12px"}}),
-                    dmc.Checkbox(id=ID.CHK_STOCK, label="Stock PnL", checked=True, size="xs",
-                                 styles={"label": {"color": "#E6EDF3", "fontSize": "12px"}}),
-                    dmc.Checkbox(id=ID.CHK_COMBINED, label="Combined PnL", checked=True, size="xs",
-                                 styles={"label": {"color": "#E6EDF3", "fontSize": "12px"}}),
-                ],
-            ),
             dcc.Graph(
                 id=ID.PAYOFF_CHART,
                 figure=fig,
@@ -581,6 +569,18 @@ def _card_payoff():
                     "modeBarButtonsToAdd": ["toggleSpikelines"],
                     "modeBarButtonsToRemove": ["lasso2d", "select2d", "autoScale2d"],
                 },
+            ),
+            dmc.Group(
+                gap="lg",
+                mt="xs",
+                children=[
+                    dmc.Checkbox(id=ID.CHK_STOCK, label="Stock PnL", checked=True, size="xs",
+                                 styles={"label": {"color": "#E6EDF3", "fontSize": "12px"}}),
+                    dmc.Checkbox(id=ID.CHK_OPTIONS, label="Options PnL", checked=True, size="xs",
+                                 styles={"label": {"color": "#E6EDF3", "fontSize": "12px"}}),
+                    dmc.Checkbox(id=ID.CHK_COMBINED, label="Combined PnL", checked=True, size="xs",
+                                 styles={"label": {"color": "#E6EDF3", "fontSize": "12px"}}),
+                ],
             ),
         ],
     )

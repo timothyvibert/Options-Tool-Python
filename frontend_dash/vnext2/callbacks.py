@@ -1613,8 +1613,8 @@ def register_v2_callbacks(
             _zero_line_color = "#656D76"
             _template = "plotly_white"
         else:
-            _paper_bg = "rgba(0,0,0,0)"
-            _plot_bg = "rgba(13,17,23,0.6)"
+            _paper_bg = "#0D1117"
+            _plot_bg = "#1C2128"
             _font_color = "#E6EDF3"
             _grid_color = "#21262D"
             _zero_line_color = "#8B949E"

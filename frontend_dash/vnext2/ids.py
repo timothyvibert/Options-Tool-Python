@@ -53,6 +53,8 @@ UPSIDE_TARGET = "v2-upside-target"
 CHK_OPTIONS = "v2-chk-options-pnl"
 CHK_STOCK = "v2-chk-stock-pnl"
 CHK_COMBINED = "v2-chk-combined-pnl"
+CHK_BE_OPTIONS = "v2-chk-be-options"
+CHK_BE_COMBINED = "v2-chk-be-combined"
 
 # ─── Outputs ─────────────────────────────────────────────
 PAYOFF_CHART = "v2-payoff-chart"

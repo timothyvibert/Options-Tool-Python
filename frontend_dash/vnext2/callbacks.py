@@ -19,6 +19,7 @@ from dash.exceptions import PreventUpdate
 
 from core.analysis_pack import build_analysis_pack
 from core.models import OptionLeg, StrategyInput
+from core.payoff import _detect_breakevens
 from core.strategy_map import get_strategy, list_strategies
 from frontend_dash.analysis_adapter import (
     analysis_pack_to_store,
@@ -1591,8 +1592,10 @@ def register_v2_callbacks(
         Input(ID.CHK_OPTIONS, "checked"),
         Input(ID.CHK_STOCK, "checked"),
         Input(ID.CHK_COMBINED, "checked"),
+        Input(ID.CHK_BE_OPTIONS, "checked"),
+        Input(ID.CHK_BE_COMBINED, "checked"),
     )
-    def _v2_render_chart(key_payload, tab_value, checked, chk_options, chk_stock, chk_combined):
+    def _v2_render_chart(key_payload, tab_value, checked, chk_options, chk_stock, chk_combined, chk_be_options, chk_be_combined):
         if tab_value != "dashboard":
             raise PreventUpdate
         fig = go.Figure()
@@ -1601,7 +1604,6 @@ def register_v2_callbacks(
         show_stock = bool(chk_stock)
         show_combined = bool(chk_combined)
         show_strikes = True
-        show_breakevens = True
 
         # Theme-aware chart colors
         is_light = bool(checked)
@@ -1748,16 +1750,31 @@ def register_v2_callbacks(
                         yanchor="top", text=f"K ${strike:,.0f}",
                         showarrow=False, font={"size": 10, "color": "#EF4444"},
                     )
-            if show_breakevens:
-                for be in be_vals:
+            # Options-only breakevens (computed from options_pnl)
+            if chk_be_options:
+                opt_be_vals = _detect_breakevens(
+                    [v for v in x if isinstance(v, (int, float))],
+                    [v for v in options if isinstance(v, (int, float))],
+                ) if len(options) == len(x) else []
+                for be in opt_be_vals:
                     fig.add_vline(
                         x=be, line_dash="dash",
                         line_color="#2DD4BF", line_width=1,
+                        annotation_text=f"OBE ${be:,.2f}",
+                        annotation_position="top",
+                        annotation_font_color="#2DD4BF",
+                        annotation_font_size=11,
                     )
-                    fig.add_annotation(
-                        x=_offset_x(be), yref="paper", y=1.02,
-                        yanchor="bottom", text=f"BE ${be:,.2f}",
-                        showarrow=False, font={"size": 10, "color": "#2DD4BF"},
+            # Combined breakevens (from analysis pack)
+            if chk_be_combined:
+                for be in be_vals:
+                    fig.add_vline(
+                        x=be, line_dash="dash",
+                        line_color="#F0B429", line_width=1,
+                        annotation_text=f"BE ${be:,.2f}",
+                        annotation_position="top",
+                        annotation_font_color="#F0B429",
+                        annotation_font_size=11,
                     )
 
             # ── Y-axis scaling: visible (checked) traces only ──
@@ -1793,8 +1810,8 @@ def register_v2_callbacks(
             y_min, y_max = _snap_range(y_min_req, y_max_req, y_step)
 
             fig.update_layout(
-                xaxis={"range": [x_min, x_max], "tickmode": "auto", "nticks": 10},
-                yaxis={"range": [y_min, y_max], "tickmode": "auto", "nticks": 10},
+                xaxis={"range": [x_min, x_max], "autorange": False, "tickmode": "auto", "nticks": 10},
+                yaxis={"range": [y_min, y_max], "autorange": False, "tickmode": "auto", "nticks": 10},
             )
 
         fig.update_layout(
@@ -1820,7 +1837,7 @@ def register_v2_callbacks(
                 font_color="#E6EDF3",
                 bordercolor="#30363D",
             ),
-            margin={"l": 50, "r": 20, "t": 30, "b": 80},
+            margin={"l": 50, "r": 20, "t": 50, "b": 80},
             height=520,
             showlegend=False,
         )

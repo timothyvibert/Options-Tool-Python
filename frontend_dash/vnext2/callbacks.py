@@ -1681,7 +1681,7 @@ def register_v2_callbacks(
                     items.append(num)
             return sorted(set(items))
 
-        # ── X-axis scaling: center on spot, default ±50% ──
+        # ── X-axis scaling: tight focus on key price levels ──
         x_vals = [_coerce_float(v) for v in x]
         x_pairs = [v for v in x_vals if v is not None]
         underlying = pack_store.get("underlying") if isinstance(pack_store, dict) else {}
@@ -1693,17 +1693,29 @@ def register_v2_callbacks(
         be_vals = _numeric_list(payoff.get("breakevens"))
 
         if x_pairs:
-            x_min_data = min(x_pairs)
-            x_max_data = max(x_pairs)
             if spot and spot > 0:
-                key_prices = [spot] + strike_vals + be_vals
-                x_min_req = max(0, min(key_prices) * 0.7)
-                x_max_req = max(key_prices) * 1.15
+                key_prices = [p for p in [spot] + strike_vals + be_vals if p and p > 0]
+                if not key_prices:
+                    key_prices = [spot]
+                price_min = min(key_prices)
+                price_max = max(key_prices)
+                price_spread = price_max - price_min
+
+                # Ensure minimum spread of 20% of spot
+                min_spread = spot * 0.20
+                if price_spread < min_spread:
+                    mid = (price_min + price_max) / 2
+                    price_min = mid - min_spread / 2
+                    price_max = mid + min_spread / 2
+                    price_spread = min_spread
+
+                # Add 30% padding around key price range
+                padding = price_spread * 0.30
+                x_min_req = max(0, price_min - padding)
+                x_max_req = price_max + padding
             else:
-                x_min_req = x_min_data
-                x_max_req = x_max_data
-            x_min_req = max(x_min_req, x_min_data)
-            x_max_req = min(x_max_req, x_max_data)
+                x_min_req = min(x_pairs)
+                x_max_req = max(x_pairs)
             x_step = _nice_step(x_min_req, x_max_req)
             x_min, x_max = _snap_range(x_min_req, x_max_req, x_step)
             x_range_span = x_max - x_min if x_max > x_min else 1.0
@@ -1802,48 +1814,9 @@ def register_v2_callbacks(
                 y_step = _nice_step(y_min_req, y_max_req)
                 y_min, y_max = _snap_range(y_min_req, y_max_req, y_step)
 
-                # Precompute per-trace ranges for zoom buttons
-                def _padded_range(vals):
-                    if not vals:
-                        return y_min, y_max
-                    lo, hi = min(vals), max(vals)
-                    s = hi - lo
-                    if s == 0:
-                        s = abs(hi) * 0.1 or 100.0
-                    lo -= 0.15 * s
-                    hi += 0.15 * s
-                    st = _nice_step(lo, hi)
-                    return _snap_range(lo, hi, st)
-
-                y_all_vals = y_combined + y_options + y_stock
-                fit_all = _snap_range(
-                    min(y_all_vals) - 0.15 * (max(y_all_vals) - min(y_all_vals) or 100),
-                    max(y_all_vals) + 0.15 * (max(y_all_vals) - min(y_all_vals) or 100),
-                    _nice_step(min(y_all_vals), max(y_all_vals)),
-                ) if y_all_vals else (y_min, y_max)
-                fit_opts = _padded_range(y_options)
-                fit_comb = _padded_range(y_combined)
-
                 fig.update_layout(
                     xaxis={"range": [x_min, x_max], "tickmode": "auto", "nticks": 10},
                     yaxis={"range": [y_min, y_max], "tickmode": "auto", "nticks": 10},
-                    updatemenus=[dict(
-                        type="buttons",
-                        direction="right",
-                        x=0.0, y=1.12,
-                        xanchor="left", yanchor="top",
-                        bgcolor="#161B22",
-                        font=dict(color="#E6EDF3", size=11),
-                        bordercolor="#30363D",
-                        buttons=[
-                            dict(label="Fit All", method="relayout",
-                                 args=[{"yaxis.range": list(fit_all)}]),
-                            dict(label="Fit Options", method="relayout",
-                                 args=[{"yaxis.range": list(fit_opts)}]),
-                            dict(label="Fit Combined", method="relayout",
-                                 args=[{"yaxis.range": list(fit_comb)}]),
-                        ],
-                    )],
                 )
 
         fig.update_layout(

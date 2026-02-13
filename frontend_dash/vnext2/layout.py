@@ -260,15 +260,31 @@ def _legend_line(color, label, dashed=False):
 # ROW 1 Cards
 # ───────────────────────────────────────────────────────────
 
+def _stock_stat(label, id):
+    """Compact label-on-top / value-below stat cell."""
+    return dmc.Stack(gap=0, align="center", children=[
+        dmc.Text(label, size="xs", c="dimmed"),
+        dmc.Text("--", id=id, size="sm", fw=600),
+    ])
+
+
 def _card_market():
     return dmc.Card(
         withBorder=True, shadow="sm",
         children=[
             _section_title("MARKET"),
-            dmc.TextInput(id=ID.TICKER_INPUT, label="Ticker", placeholder="e.g. AAPL US Equity", size="sm", mb="xs"),
-            dmc.Text(id=ID.SPOT_DISPLAY, children="Spot: —", size="sm", c="dimmed", mb="xs"),
+            dmc.Group(grow=True, align="flex-end", mb="xs", children=[
+                dmc.TextInput(id=ID.TICKER_INPUT, label="Ticker", placeholder="e.g. AAPL US Equity", size="sm", w="200px"),
+                dmc.Text(id=ID.SPOT_DISPLAY, children="Spot: —", size="sm", c="dimmed"),
+            ]),
             dmc.Text(id=ID.SPOT_STATUS, size="xs", c="dimmed", mb="xs"),
             dmc.DatePickerInput(id=ID.EXPIRY_SELECT, label="Expiration", placeholder="Select expiry", valueFormat="YYYY-MM-DD", clearable=True, w="100%", size="sm"),
+            dmc.SimpleGrid(cols=4, spacing="xs", mt="sm", id=ID.STOCK_INFO_ROW, children=[
+                _stock_stat("YTD", id=ID.STAT_YTD),
+                _stock_stat("52wk Low", id=ID.STAT_52WK_LOW),
+                _stock_stat("52wk High", id=ID.STAT_52WK_HIGH),
+                _stock_stat("3M IV", id=ID.STAT_3M_IV),
+            ]),
         ],
     )
 

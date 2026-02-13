@@ -96,6 +96,13 @@ EXCEL_STATUS = "v2-excel-status"
 
 # ─── Status displays ────────────────────────────────────
 SPOT_STATUS = "v2-spot-status"
+
+# ─── Stock info stats ─────────────────────────────────
+STOCK_INFO_ROW = "v2-stock-info-row"
+STAT_YTD = "v2-stat-ytd"
+STAT_52WK_LOW = "v2-stat-52wk-low"
+STAT_52WK_HIGH = "v2-stat-52wk-high"
+STAT_3M_IV = "v2-stat-3m-iv"
 REFRESH_STATUS = "v2-refresh-status"
 REPORT_STATUS = "v2-report-status"
 

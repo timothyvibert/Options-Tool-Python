@@ -2550,6 +2550,69 @@ def register_v2_callbacks(
             return False
         raise PreventUpdate
 
+    # ── #25 Stock info stats row ────────────────────────────────
+    @app.callback(
+        Output(ID.STAT_YTD, "children"),
+        Output(ID.STAT_52WK_LOW, "children"),
+        Output(ID.STAT_52WK_HIGH, "children"),
+        Output(ID.STAT_3M_IV, "children"),
+        Input(ID.STORE_ANALYSIS_KEY, "data"),
+        prevent_initial_call=True,
+    )
+    def _v2_render_stock_info(key_payload):
+        """Populate Market Card stock info stats from analysis pack."""
+        if not isinstance(key_payload, dict) or key_payload.get("error"):
+            raise PreventUpdate
+        pack = cache_get(key_payload.get("key"))
+        if not pack:
+            raise PreventUpdate
+        underlying = pack.get("underlying") or {}
+
+        # YTD %
+        ytd_raw = underlying.get("chg_pct_ytd")
+        if ytd_raw is not None:
+            try:
+                ytd_val = float(ytd_raw)
+                sign = "+" if ytd_val >= 0 else ""
+                color = "green" if ytd_val >= 0 else "red"
+                ytd_out = dmc.Text(f"{sign}{ytd_val:.1f}%", size="sm", fw=600, c=color)
+            except (TypeError, ValueError):
+                ytd_out = "--"
+        else:
+            ytd_out = "--"
+
+        # 52wk Low
+        low_raw = underlying.get("low_52week")
+        if low_raw is not None:
+            try:
+                low_out = f"${float(low_raw):,.2f}"
+            except (TypeError, ValueError):
+                low_out = "--"
+        else:
+            low_out = "--"
+
+        # 52wk High
+        high_raw = underlying.get("high_52week")
+        if high_raw is not None:
+            try:
+                high_out = f"${float(high_raw):,.2f}"
+            except (TypeError, ValueError):
+                high_out = "--"
+        else:
+            high_out = "--"
+
+        # 3M IV
+        iv_raw = underlying.get("impvol_3m_atm")
+        if iv_raw is not None:
+            try:
+                iv_out = f"{float(iv_raw):.1f}%"
+            except (TypeError, ValueError):
+                iv_out = "--"
+        else:
+            iv_out = "--"
+
+        return ytd_out, low_out, high_out, iv_out
+
     # ── Shutdown callbacks ─────────────────────────────────────
 
     @app.callback(

@@ -1743,12 +1743,12 @@ def register_v2_callbacks(
                         showarrow=False, font={"size": 10, "color": "#22D3EE"},
                     )
 
-            # ── Y-axis scaling: only visible x-range data, 15% padding ──
-            y_vals = []
-
-            def _add_visible(series):
+            # ── Y-axis scaling: prioritize combined, protect options visibility ──
+            def _visible_y(series):
+                """Collect y-values within visible x-range."""
+                out = []
                 if not isinstance(series, list):
-                    return
+                    return out
                 for xv, yv in zip(x_vals, series):
                     if xv is None:
                         continue
@@ -1756,18 +1756,42 @@ def register_v2_callbacks(
                         continue
                     y_num = _coerce_float(yv)
                     if y_num is not None:
-                        y_vals.append(y_num)
+                        out.append(y_num)
+                return out
 
-            if show_options:
-                _add_visible(options)
-            if show_stock:
-                _add_visible(stock)
-            if show_combined:
-                _add_visible(combined)
+            y_combined = _visible_y(combined) if show_combined else []
+            y_options = _visible_y(options) if show_options else []
+            y_stock = _visible_y(stock) if show_stock else []
 
-            if y_vals:
-                y_min_req = min(y_vals)
-                y_max_req = max(y_vals)
+            # Primary range: combined trace (the hero). Fallback: options.
+            y_primary = y_combined or y_options or y_stock
+            if y_primary:
+                y_min_req = min(y_primary)
+                y_max_req = max(y_primary)
+
+                # Expand to include options if within similar magnitude
+                if y_options and y_primary is not y_options:
+                    opt_min, opt_max = min(y_options), max(y_options)
+                    primary_span = y_max_req - y_min_req
+                    if primary_span > 0:
+                        opt_span = opt_max - opt_min
+                        # Include options range if within 50% of combined range
+                        if opt_span <= primary_span * 1.5:
+                            y_min_req = min(y_min_req, opt_min)
+                            y_max_req = max(y_max_req, opt_max)
+
+                # Safety net: cap y-axis to 20x options range so options
+                # curve is never an invisible flat line
+                if y_options:
+                    opt_span = max(y_options) - min(y_options)
+                    if opt_span > 0:
+                        total_span = y_max_req - y_min_req
+                        if total_span > 0 and opt_span < total_span * 0.05:
+                            cap = opt_span * 20
+                            mid = (max(y_options) + min(y_options)) / 2
+                            y_min_req = max(y_min_req, mid - cap / 2)
+                            y_max_req = min(y_max_req, mid + cap / 2)
+
                 span = y_max_req - y_min_req
                 if span == 0:
                     span = abs(y_max_req) * 0.1
@@ -1777,9 +1801,49 @@ def register_v2_callbacks(
                 y_max_req += 0.15 * span
                 y_step = _nice_step(y_min_req, y_max_req)
                 y_min, y_max = _snap_range(y_min_req, y_max_req, y_step)
+
+                # Precompute per-trace ranges for zoom buttons
+                def _padded_range(vals):
+                    if not vals:
+                        return y_min, y_max
+                    lo, hi = min(vals), max(vals)
+                    s = hi - lo
+                    if s == 0:
+                        s = abs(hi) * 0.1 or 100.0
+                    lo -= 0.15 * s
+                    hi += 0.15 * s
+                    st = _nice_step(lo, hi)
+                    return _snap_range(lo, hi, st)
+
+                y_all_vals = y_combined + y_options + y_stock
+                fit_all = _snap_range(
+                    min(y_all_vals) - 0.15 * (max(y_all_vals) - min(y_all_vals) or 100),
+                    max(y_all_vals) + 0.15 * (max(y_all_vals) - min(y_all_vals) or 100),
+                    _nice_step(min(y_all_vals), max(y_all_vals)),
+                ) if y_all_vals else (y_min, y_max)
+                fit_opts = _padded_range(y_options)
+                fit_comb = _padded_range(y_combined)
+
                 fig.update_layout(
-                    xaxis={"range": [x_min, x_max], "dtick": x_step},
-                    yaxis={"range": [y_min, y_max], "dtick": y_step},
+                    xaxis={"range": [x_min, x_max], "tickmode": "auto", "nticks": 10},
+                    yaxis={"range": [y_min, y_max], "tickmode": "auto", "nticks": 10},
+                    updatemenus=[dict(
+                        type="buttons",
+                        direction="right",
+                        x=0.0, y=1.12,
+                        xanchor="left", yanchor="top",
+                        bgcolor="#161B22",
+                        font=dict(color="#E6EDF3", size=11),
+                        bordercolor="#30363D",
+                        buttons=[
+                            dict(label="Fit All", method="relayout",
+                                 args=[{"yaxis.range": list(fit_all)}]),
+                            dict(label="Fit Options", method="relayout",
+                                 args=[{"yaxis.range": list(fit_opts)}]),
+                            dict(label="Fit Combined", method="relayout",
+                                 args=[{"yaxis.range": list(fit_comb)}]),
+                        ],
+                    )],
                 )
 
         fig.update_layout(

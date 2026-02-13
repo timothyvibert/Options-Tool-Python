@@ -811,8 +811,9 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
     }
 
     commentary_source = (
-        analysis_pack.get("commentary_blocks") if analysis_pack else None
-    )
+        analysis_pack.get("commentary_blocks_v2")
+        or analysis_pack.get("commentary_blocks")
+    ) if analysis_pack else None
     if commentary_source is None:
         commentary_source = state.get("commentary_blocks")
     if isinstance(commentary_source, list):
@@ -823,7 +824,10 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         commentary_blocks = {}
 
     scenario_analysis_cards: List[Dict[str, str]] = []
-    narrative_scenarios = analysis_pack.get("narrative_scenarios") if analysis_pack else None
+    narrative_scenarios = (
+        analysis_pack.get("commentary_v2")
+        or analysis_pack.get("narrative_scenarios")
+    ) if analysis_pack else None
     scenario_map: Dict[str, Mapping[str, object]] = {}
     scenario_list: List[Mapping[str, object]] = []
     if isinstance(narrative_scenarios, list):
@@ -848,6 +852,7 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
             scenario.get("title")
             or scenario.get("name")
             or scenario.get("label")
+            or scenario.get("kind")
         )
         normalized_key = _normalize_scenario_key(title_value)
         if normalized_key and normalized_key not in scenario_map:

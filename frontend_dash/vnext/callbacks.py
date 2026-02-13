@@ -384,6 +384,21 @@ def _sort_key_levels(levels: list[dict]) -> list[dict]:
     return sorted(levels, key=_sort_key)
 
 
+def _v2_to_scenario_dict(pack):
+    """Convert commentary_v2 list to the dict format the dashboard expects."""
+    v2 = pack.get("commentary_v2")
+    if not isinstance(v2, list) or not v2:
+        return None
+    _kind_map = {"bearish": "bear", "stagnant": "base", "bullish": "bull"}
+    out = {}
+    for item in v2:
+        if isinstance(item, dict):
+            key = _kind_map.get(item.get("kind", ""))
+            if key:
+                out[key] = item
+    return out if out else None
+
+
 def register_callbacks(
     app,
     cache_get,
@@ -1702,7 +1717,8 @@ def register_callbacks(
         pack = cache_get(key_payload.get("key"))
         if not pack or not isinstance(pack, dict):
             return html.Div("Run Analysis to view scenario commentary.")
-        narrative = pack.get("narrative_scenarios")
+        # Prefer v2 commentary engine, fall back to v1
+        narrative = _v2_to_scenario_dict(pack) or pack.get("narrative_scenarios")
         if not isinstance(narrative, dict):
             return html.Div("Run Analysis to view scenario commentary.")
 

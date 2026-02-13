@@ -1665,7 +1665,7 @@ def register_v2_callbacks(
                     items.append(num)
             return sorted(set(items))
 
-        # ── X-axis scaling: tight focus on key price levels ──
+        # ── X-axis scaling: spot + strikes only (not breakevens) ──
         x_vals = [_coerce_float(v) for v in x]
         x_pairs = [v for v in x_vals if v is not None]
         underlying = pack_store.get("underlying") if isinstance(pack_store, dict) else {}
@@ -1678,24 +1678,23 @@ def register_v2_callbacks(
 
         if x_pairs:
             if spot and spot > 0:
-                key_prices = [p for p in [spot] + strike_vals + be_vals if p and p > 0]
-                if not key_prices:
-                    key_prices = [spot]
-                price_min = min(key_prices)
-                price_max = max(key_prices)
+                range_prices = [p for p in [spot] + strike_vals if p and p > 0]
+                if not range_prices:
+                    range_prices = [spot]
+                price_min = min(range_prices)
+                price_max = max(range_prices)
                 price_spread = price_max - price_min
 
-                # Ensure minimum spread of 20% of spot
-                min_spread = spot * 0.20
+                # Minimum spread: 10% of spot
+                min_spread = spot * 0.10
                 if price_spread < min_spread:
                     mid = (price_min + price_max) / 2
                     price_min = mid - min_spread / 2
                     price_max = mid + min_spread / 2
                     price_spread = min_spread
 
-                # Padding proportional to spread, with min/max bounds
-                padding = max(price_spread * 0.25, spot * 0.03)
-                padding = min(padding, spot * 0.25)
+                # Padding: 15% each side
+                padding = price_spread * 0.15
                 x_min_req = max(0, price_min - padding)
                 x_max_req = price_max + padding
             else:
@@ -1734,6 +1733,7 @@ def register_v2_callbacks(
                 line={"color": "#7C3AED", "width": 3},
             ))
 
+        if x_pairs:
             # ── Annotations: strikes below chart, breakevens above ──
             ann_x_positions = []
 
@@ -1759,6 +1759,8 @@ def register_v2_callbacks(
                     )
             if show_breakevens:
                 for be in be_vals:
+                    if be < x_min or be > x_max:
+                        continue
                     fig.add_vline(
                         x=be, line_dash="dash",
                         line_color="#22D3EE", line_width=1.5, opacity=0.7,
@@ -1769,50 +1771,42 @@ def register_v2_callbacks(
                         showarrow=False, font={"size": 10, "color": "#22D3EE"},
                     )
 
-            # ── Y-axis scaling: prioritize combined, protect options visibility ──
+            # ── Y-axis scaling: VBA-style — combined when stock, options when not ──
             def _coerce_y(series):
                 return [v for v in (_coerce_float(yv) for yv in series) if v is not None]
 
-            y_combined = _coerce_y(plot_combined) if show_combined and plot_combined else []
-            y_options = _coerce_y(plot_options) if show_options and plot_options else []
-            y_stock = _coerce_y(plot_stock) if show_stock and plot_stock else []
+            y_options = _coerce_y(plot_options) if plot_options else []
+            y_stock = _coerce_y(plot_stock) if plot_stock else []
+            y_combined = _coerce_y(plot_combined) if plot_combined else []
 
-            # Primary range: combined trace (the hero). Fallback: options.
-            y_primary = y_combined or y_options or y_stock
-            if y_primary:
-                y_min_req = min(y_primary)
-                y_max_req = max(y_primary)
+            has_stock = bool(y_stock) and any(v != 0 for v in y_stock)
 
-                # Expand to include options if within similar magnitude
-                if y_options and y_primary is not y_options:
+            if has_stock:
+                # Scale to combined trace (the full position view)
+                y_vals = y_combined or y_options or y_stock
+            else:
+                # Options-only: scale to options trace
+                y_vals = y_options or y_combined or y_stock
+
+            if y_vals:
+                y_min_req = min(y_vals)
+                y_max_req = max(y_vals)
+
+                # If stock overlay, also include options P&L when significant
+                if has_stock and y_options and y_vals is not y_options:
                     opt_min, opt_max = min(y_options), max(y_options)
-                    primary_span = y_max_req - y_min_req
-                    if primary_span > 0:
-                        opt_span = opt_max - opt_min
-                        # Include options range if within 50% of combined range
-                        if opt_span <= primary_span * 1.5:
-                            y_min_req = min(y_min_req, opt_min)
-                            y_max_req = max(y_max_req, opt_max)
+                    combined_range = y_max_req - y_min_req
+                    opt_range = opt_max - opt_min
+                    if combined_range > 0 and opt_range / combined_range > 0.05:
+                        y_min_req = min(y_min_req, opt_min)
+                        y_max_req = max(y_max_req, opt_max)
 
-                # Safety net: cap y-axis to 20x options range so options
-                # curve is never an invisible flat line
-                if y_options:
-                    opt_span = max(y_options) - min(y_options)
-                    if opt_span > 0:
-                        total_span = y_max_req - y_min_req
-                        if total_span > 0 and opt_span < total_span * 0.05:
-                            cap = opt_span * 20
-                            mid = (max(y_options) + min(y_options)) / 2
-                            y_min_req = max(y_min_req, mid - cap / 2)
-                            y_max_req = min(y_max_req, mid + cap / 2)
-
+                # 10% padding (matching VBA)
                 span = y_max_req - y_min_req
                 if span == 0:
-                    span = abs(y_max_req) * 0.1
-                if span == 0:
-                    span = 100.0
-                y_min_req -= 0.15 * span
-                y_max_req += 0.15 * span
+                    span = abs(y_max_req) * 0.1 if y_max_req != 0 else 100.0
+                y_min_req -= span * 0.10
+                y_max_req += span * 0.10
                 y_step = _nice_step(y_min_req, y_max_req)
                 y_min, y_max = _snap_range(y_min_req, y_max_req, y_step)
 

@@ -659,7 +659,6 @@ def register_v2_callbacks(
     # ── #9 Ping spot on ticker commit ────────────────────────
     @app.callback(
         Output(ID.STORE_REF, "data"),
-        Output(ID.SPOT_STATUS, "children"),
         Input(ID.TICKER_INPUT, "n_submit"),
         Input(ID.TICKER_INPUT, "n_blur"),
         State(ID.TICKER_INPUT, "value"),
@@ -669,16 +668,16 @@ def register_v2_callbacks(
     def _v2_ping_spot(n_submit, n_blur, ticker_value, ref_data):
         raw_ticker = (ticker_value or "").strip()
         if not raw_ticker:
-            return no_update, "Enter a ticker"
+            return no_update
         trigger = ctx.triggered[0]["prop_id"] if ctx and ctx.triggered else ""
         is_submit = trigger.endswith(".n_submit")
         last_ticker = None
         if isinstance(ref_data, dict):
             last_ticker = ref_data.get("raw_ticker")
         if not is_submit and last_ticker == raw_ticker:
-            return no_update, no_update
+            return no_update
         if not bloomberg_available or bbg_resolve_security is None or bbg_fetch_spot is None:
-            return no_update, "Bloomberg unavailable (offline mode)"
+            return no_update
         try:
             resolved = bbg_resolve_security(raw_ticker)
             spot_result = bbg_fetch_spot(resolved)
@@ -692,7 +691,7 @@ def register_v2_callbacks(
                 "status": "ok",
                 "error": None,
             }
-            return to_jsonable(store_ref), f"Spot updated ({as_of_text})"
+            return to_jsonable(store_ref)
         except Exception as exc:
             store_ref = {
                 "raw_ticker": raw_ticker,
@@ -702,7 +701,7 @@ def register_v2_callbacks(
                 "status": "error",
                 "error": str(exc),
             }
-            return to_jsonable(store_ref), f"Spot fetch failed for {raw_ticker}"
+            return to_jsonable(store_ref)
 
     # ── #10 Display spot from STORE_REF ──────────────────────
     @app.callback(
@@ -714,11 +713,10 @@ def register_v2_callbacks(
         if not isinstance(ref_data, dict):
             return no_update
         spot = ref_data.get("spot")
-        ticker = ref_data.get("raw_ticker") or ""
         if spot is None:
-            return f"Spot: — ({ticker})"
+            return "Spot: —"
         try:
-            return f"Spot: {float(spot):,.2f} ({ticker})"
+            return f"Spot: {float(spot):,.2f}"
         except (TypeError, ValueError):
             return no_update
 
@@ -2556,17 +2554,14 @@ def register_v2_callbacks(
         Output(ID.STAT_52WK_LOW, "children"),
         Output(ID.STAT_52WK_HIGH, "children"),
         Output(ID.STAT_3M_IV, "children"),
-        Input(ID.STORE_ANALYSIS_KEY, "data"),
+        Input(ID.STORE_MARKET, "data"),
         prevent_initial_call=True,
     )
-    def _v2_render_stock_info(key_payload):
-        """Populate Market Card stock info stats from analysis pack."""
-        if not isinstance(key_payload, dict) or key_payload.get("error"):
+    def _v2_render_stock_info(market_data):
+        """Populate Market Card stock info stats from market snapshot."""
+        if not isinstance(market_data, dict):
             raise PreventUpdate
-        pack = cache_get(key_payload.get("key"))
-        if not pack:
-            raise PreventUpdate
-        underlying = pack.get("underlying") or {}
+        underlying = market_data.get("underlying_profile") or {}
 
         # YTD %
         ytd_raw = underlying.get("chg_pct_ytd")

@@ -277,7 +277,6 @@ def _card_market():
                 dmc.TextInput(id=ID.TICKER_INPUT, label="Ticker", placeholder="e.g. AAPL US Equity", size="sm", w="200px"),
                 dmc.Text(id=ID.SPOT_DISPLAY, children="Spot: —", size="sm", c="dimmed"),
             ]),
-            dmc.Text(id=ID.SPOT_STATUS, size="xs", c="dimmed", mb="xs"),
             dmc.DatePickerInput(id=ID.EXPIRY_SELECT, label="Expiration", placeholder="Select expiry", valueFormat="YYYY-MM-DD", clearable=True, w="100%", size="sm"),
             dmc.SimpleGrid(cols=4, spacing="xs", mt="sm", id=ID.STOCK_INFO_ROW, children=[
                 _stock_stat("YTD", id=ID.STAT_YTD),

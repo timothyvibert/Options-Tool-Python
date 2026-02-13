@@ -19,27 +19,16 @@ def _fmt_price(v: float) -> str:
     return f"${v:,.2f}"
 
 
-def _fmt_pnl(v: float, bold: bool = True) -> str:
-    # Issue 5: suppress sign on near-zero values
+def _fmt_pnl(v: float) -> str:
     if abs(v) < 0.005:
-        s = "$0.00"
-    elif v >= 0:
-        s = f"+${v:,.2f}"
-    else:
-        s = f"{_MINUS}${abs(v):,.2f}"
-    return f"**{s}**" if bold else s
+        return "$0.00"
+    if v >= 0:
+        return f"+${v:,.2f}"
+    return f"{_MINUS}${abs(v):,.2f}"
 
 
 def _fmt_pct(v: float) -> str:
     return f"{v:.1f}%"
-
-
-def _a_or_an(number_str: str) -> str:
-    """Return 'an' for numbers starting with vowel sounds (8, 11, 18, 80, 800...)."""
-    s = number_str.lstrip('-').lstrip('+')
-    if s.startswith('8') or s.startswith('11') or s.startswith('18'):
-        return 'an'
-    return 'a'
 
 
 # ── Data extraction ─────────────────────────────────────────────────────
@@ -125,10 +114,6 @@ def _extract(pack: dict) -> dict:
     mp_str = _parse_metric(rows, "Max Profit", prefer)
     ml_str = _parse_metric(rows, "Max Loss", prefer)
 
-    # Issue 6: parse Capital Basis
-    cap_basis_str = _parse_metric(rows, "Capital Basis", prefer)
-    cap_basis = _parse_dollar(cap_basis_str) if cap_basis_str else None
-
     return dict(
         spot=spot, grid=grid, opt_pnl=opt_pnl, stk_pnl=stk_pnl,
         cmb_pnl=cmb_pnl, strikes=strikes, breakevens=breakevens,
@@ -139,7 +124,6 @@ def _extract(pack: dict) -> dict:
         ml_unlimited=_is_unlimited(ml_str),
         mp_val=_parse_dollar(mp_str) if not _is_unlimited(mp_str) else None,
         ml_val=_parse_dollar(ml_str) if not _is_unlimited(ml_str) else None,
-        cap_basis=cap_basis,
     )
 
 
@@ -380,19 +364,29 @@ def _mechanics(ctx: dict) -> str:
                         f", but the long {_fmt_price(lp)} put provides"
                         " a hard floor"
                     )
-                parts.append(
-                    f". Maximum loss is {pnl_txt} at any price below {edge}."
-                )
+                if flat_pnl is not None and abs(flat_pnl) >= 0.01:
+                    label = (
+                        "Maximum loss" if flat_pnl <= 0
+                        else "The worst outcome"
+                    )
+                    parts.append(
+                        f". {label} is {pnl_txt}"
+                        f" at any price below {edge}."
+                    )
                 return "".join(parts)
 
             # Simple flat region
             if flat_pnl is not None and flat_pnl >= 0:
-                subj = (
-                    "the client's gains are"
-                    if has_stock
-                    else "gains are"
+                if has_stock:
+                    return (
+                        f"At any price below {edge},"
+                        f" the minimum outcome is {pnl_txt}."
+                    )
+                return (
+                    f"At any price below {edge},"
+                    f" the position achieves its maximum gain"
+                    f" of {pnl_txt}."
                 )
-                return f"At any price below {edge}, {subj} locked in at {pnl_txt}."
 
             # Floor from long put — reference the leg
             lp_strike = _best_leg_strike(lf["long_puts"])
@@ -412,22 +406,65 @@ def _mechanics(ctx: dict) -> str:
                 f" {subj} capped at {pnl_txt}{floor_ref}."
             )
 
-        # Not flat — Issue 10: check slope direction
+        # Not flat — check slope direction
         if slope > 0.9:
             # P&L worsens as stock falls — normal long exposure
             if has_stock:
+                avg_cost = ctx.get("avg_cost")
+                breakevens = ctx["zone_breakevens"]
+                if avg_cost is not None and avg_cost < spot * 0.8:
+                    # Large profit cushion
+                    cushion_pct = _fmt_pct((spot - avg_cost) / spot * 100)
+                    if breakevens:
+                        be = min(breakevens)
+                        return (
+                            f"Below {boundary}, the client gives back"
+                            f" some unrealized gains but remains"
+                            f" profitable \u2014 the {_fmt_price(avg_cost)}"
+                            f" cost basis provides a substantial cushion."
+                            f" The stock would need to fall below"
+                            f" {_fmt_price(be)} before the position"
+                            f" loses money."
+                        )
+                    return (
+                        f"Below {boundary}, the client gives back"
+                        f" some unrealized gains but the"
+                        f" {_fmt_price(avg_cost)} cost basis means the"
+                        f" stock would need to fall {cushion_pct} before"
+                        f" the position loses money."
+                    )
+                if avg_cost is not None and avg_cost < spot * 0.95:
+                    # Moderate cushion
+                    if opt_at is not None and opt_at > 0:
+                        return (
+                            f"Below {boundary}, the client still has"
+                            f" downside exposure, though the"
+                            f" {_fmt_price(avg_cost)} cost basis provides"
+                            f" some cushion. The {_fmt_pnl(opt_at)} from"
+                            f" the options further cushions the move."
+                        )
+                    return (
+                        f"Below {boundary}, the client still has"
+                        f" downside exposure, though the"
+                        f" {_fmt_price(avg_cost)} cost basis provides"
+                        f" some cushion."
+                    )
+                # At or above spot — full downside exposure
                 if opt_at is not None and opt_at > 0:
                     return (
-                        f"Below {boundary}, the client still has full downside"
-                        f" exposure, but the"
-                        f" {_fmt_pnl(opt_at, bold=False)} from the options"
+                        f"Below {boundary}, the client still has full"
+                        f" downside exposure, but the"
+                        f" {_fmt_pnl(opt_at)} from the options"
                         " cushions the move."
                     )
                 return (
-                    f"Below {boundary}, the client still has full downside"
-                    " exposure."
+                    f"Below {boundary}, the client still has full"
+                    " downside exposure."
                 )
-            return f"Below {boundary}, the position declines with the stock."
+            return (
+                f"Below {boundary}, the position loses value"
+                " as the stock falls."
+            )
 
         if slope < -0.9:
             # P&L improves as stock falls — inverse / short exposure
@@ -491,10 +528,15 @@ def _mechanics(ctx: dict) -> str:
                         f", but the long {_fmt_price(lc)} call caps"
                         " the damage"
                     )
-                parts.append(
-                    f". Maximum loss is {pnl_txt}"
-                    f" at any price above {edge}."
-                )
+                if flat_pnl is not None and abs(flat_pnl) >= 0.01:
+                    label = (
+                        "Maximum loss" if flat_pnl <= 0
+                        else "The worst outcome"
+                    )
+                    parts.append(
+                        f". {label} is {pnl_txt}"
+                        f" at any price above {edge}."
+                    )
                 return "".join(parts)
 
             if flat_pnl is not None and flat_pnl <= 0:
@@ -685,12 +727,12 @@ def _numbers(ctx: dict) -> Optional[str]:
         if stk_at is not None:
             word = "gain" if stk_at >= 0 else "lose"
             details.append(
-                f"the shares {word} {_fmt_pnl(stk_at, bold=False)}"
+                f"the shares {word} {_fmt_pnl(stk_at)}"
             )
         if opt_at is not None:
             word = "add" if opt_at >= 0 else "cost"
             details.append(
-                f"the options {word} {_fmt_pnl(opt_at, bold=False)}"
+                f"the options {word} {_fmt_pnl(opt_at)}"
             )
         if details:
             parts.append(" \u2014 " + " and ".join(details))
@@ -745,15 +787,24 @@ def _floor_ceiling(ctx: dict) -> Optional[str]:
         if mp_unlimited and not is_flat:
             parts.append("There is no cap on upside gains.")
         elif mp_val is not None and not is_flat:
-            parts.append(f"Maximum gain is {_fmt_pnl(mp_val)}.")
+            if mp_val >= 0:
+                parts.append(f"Maximum gain is {_fmt_pnl(mp_val)}.")
+            else:
+                parts.append(f"The best outcome is {_fmt_pnl(mp_val)}.")
     if kind == "bearish":
         if ml_unlimited and not is_flat:
             parts.append("There is no cap on downside risk.")
         elif ml_val is not None and not is_flat:
-            parts.append(f"Maximum loss is {_fmt_pnl(ml_val)}.")
+            if ml_val <= 0:
+                parts.append(f"Maximum loss is {_fmt_pnl(ml_val)}.")
+            else:
+                parts.append(f"The worst outcome is {_fmt_pnl(ml_val)}.")
     if kind == "stagnant":
         if mp_val is not None and not is_flat:
-            parts.append(f"Maximum gain is {_fmt_pnl(mp_val)}.")
+            if mp_val >= 0:
+                parts.append(f"Maximum gain is {_fmt_pnl(mp_val)}.")
+            else:
+                parts.append(f"The best outcome is {_fmt_pnl(mp_val)}.")
 
     return " ".join(parts) if parts else None
 
@@ -820,32 +871,22 @@ def _tradeoff(ctx: dict) -> Optional[str]:
                 "The client bought the stock below the protection floor,"
                 " so even in a severe decline, the position is profitable."
             )
-        # Issue 7: compare vs holding stock alone
-        if impact_pct > 1.0 and overlay_impact > 1.0:
+        # Compare vs holding stock alone — only when shares have a loss
+        if impact_pct > 1.0 and overlay_impact > 1.0 and naked < -1.0:
             if lf["long_puts"]:
                 return (
                     f"Without the put, a drop to"
                     f" {_fmt_price(anchor)} would mean a"
-                    f" {_fmt_pnl(naked, bold=False)} loss"
+                    f" {_fmt_pnl(naked)} loss"
                     " on the shares alone."
                 )
             return (
                 f"Without the options, the loss would be"
-                f" {_fmt_pnl(naked, bold=False)}."
+                f" {_fmt_pnl(naked)}."
             )
 
     # ── Stagnant ──
     if kind == "stagnant":
-        # Issue 7: credit enhancement
-        if net_prem < -1.0 and impact_pct > 1.0 and opt_at is not None:
-            enhancement_pct = (
-                abs(opt_at) / stock_value * 100 if stock_value > 0 else 0
-            )
-            if enhancement_pct > 0.1:
-                return (
-                    f"The premium adds a {_fmt_pct(enhancement_pct)}"
-                    " enhancement over holding the stock alone."
-                )
         # Issue 8: protective put cost framing
         if net_prem > 1.0 and lf["long_puts"]:
             prem_fmt = _fmt_price(net_prem)
@@ -892,31 +933,6 @@ def _tradeoff(ctx: dict) -> Optional[str]:
             )
 
     return None
-
-
-def _return_context(ctx: dict) -> Optional[str]:
-    """Issue 6: return-on-capital sentence when cap basis is known."""
-    kind = ctx["kind"]
-    if kind not in ("stagnant", "bullish"):
-        return None
-    mp_val = ctx["mp_val"]
-    cap_basis = ctx.get("cap_basis")
-    if mp_val is None or mp_val <= 0:
-        return None
-    if cap_basis is None or cap_basis <= 0:
-        return None
-    return_pct = mp_val / cap_basis * 100
-    if return_pct > 500:
-        return (
-            f"That represents significant leverage"
-            f" on the {_fmt_price(cap_basis)} capital at risk."
-        )
-    pct_str = _fmt_pct(return_pct)
-    article = _a_or_an(pct_str)
-    return (
-        f"That represents {article} {pct_str} return"
-        f" on the {_fmt_price(cap_basis)} capital at risk."
-    )
 
 
 # ── Scenario builder ────────────────────────────────────────────────────
@@ -981,7 +997,6 @@ def _build_scenario(kind: str, zones: tuple, d: dict) -> dict:
         mp_val=d["mp_val"], ml_val=d["ml_val"],
         ticker=d["ticker"],
         zone_lo=zone_lo, zone_hi=zone_hi,
-        cap_basis=d.get("cap_basis"),
         grid=grid, cmb_pnl=cmb_pnl,
     )
 
@@ -995,10 +1010,6 @@ def _build_scenario(kind: str, zones: tuple, d: dict) -> dict:
     s4 = _tradeoff(ctx)
     if s4:
         sentences.append(s4)
-    s5 = _return_context(ctx)
-    if s5:
-        sentences.append(s5)
-
     body = " ".join(sentences)
 
     # Condition string
@@ -1033,9 +1044,9 @@ def _block_at_price(
     if abs(pnl) < 0.01:
         desc = "the position is near breakeven"
     elif pnl > 0:
-        desc = f"the position gains {_fmt_pnl(pnl, bold=False)}"
+        desc = f"the position gains {_fmt_pnl(pnl)}"
     else:
-        desc = f"the position loses {_fmt_pnl(pnl, bold=False)}"
+        desc = f"the position loses {_fmt_pnl(pnl)}"
     return {"level": label, "text": f"At {_fmt_price(price)}, {desc}."}
 
 
@@ -1055,7 +1066,7 @@ def _build_commentary_blocks(d: dict) -> list[dict]:
     for s in strikes:
         pnl = float(np.interp(s, grid, cmb_pnl)) if len(grid) else 0
         strike_texts.append(
-            f"At strike {_fmt_price(s)}, P&L is {_fmt_pnl(pnl, bold=False)}."
+            f"At strike {_fmt_price(s)}, P&L is {_fmt_pnl(pnl)}."
         )
     blocks.append({
         "level": "Strikes",
@@ -1086,7 +1097,7 @@ def _build_commentary_blocks(d: dict) -> list[dict]:
                 "level": "Low",
                 "text": (
                     f"Below {_fmt_price(fp)}, losses are capped at "
-                    f"{_fmt_pnl(fv, bold=False)}."
+                    f"{_fmt_pnl(fv)}."
                 ),
             })
         else:
@@ -1094,7 +1105,7 @@ def _build_commentary_blocks(d: dict) -> list[dict]:
                 "level": "Low",
                 "text": (
                     f"As the stock falls toward zero, P&L reaches "
-                    f"{_fmt_pnl(low_pnl, bold=False)}."
+                    f"{_fmt_pnl(low_pnl)}."
                 ),
             })
     else:
@@ -1110,7 +1121,7 @@ def _build_commentary_blocks(d: dict) -> list[dict]:
                 "level": "High",
                 "text": (
                     f"Above {_fmt_price(fp)}, gains are capped at "
-                    f"{_fmt_pnl(fv, bold=False)}."
+                    f"{_fmt_pnl(fv)}."
                 ),
             })
         else:
@@ -1118,7 +1129,7 @@ def _build_commentary_blocks(d: dict) -> list[dict]:
                 "level": "High",
                 "text": (
                     f"As the stock rises, P&L reaches "
-                    f"{_fmt_pnl(high_pnl, bold=False)} at "
+                    f"{_fmt_pnl(high_pnl)} at "
                     f"{_fmt_price(high_price)}."
                 ),
             })

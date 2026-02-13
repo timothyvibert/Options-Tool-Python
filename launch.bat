@@ -42,6 +42,7 @@ if exist "%_LIBBIN%\pangocairo-1.0-0.dll" if not exist "%_LIBBIN%\libpangocairo-
 if exist "%_LIBBIN%\harfbuzz.dll"       if not exist "%_LIBBIN%\libharfbuzz-0.dll"      copy /Y "%_LIBBIN%\harfbuzz.dll"       "%_LIBBIN%\libharfbuzz-0.dll"       >nul 2>nul
 if exist "%_LIBBIN%\cairo-2.dll"        if not exist "%_LIBBIN%\libcairo-2.dll"         copy /Y "%_LIBBIN%\cairo-2.dll"        "%_LIBBIN%\libcairo-2.dll"          >nul 2>nul
 if exist "%_LIBBIN%\glib-2.0-0.dll"     if not exist "%_LIBBIN%\libglib-2.0-0.dll"      copy /Y "%_LIBBIN%\glib-2.0-0.dll"     "%_LIBBIN%\libglib-2.0-0.dll"      >nul 2>nul
+if exist "%_LIBBIN%\expat.dll"          if not exist "%_LIBBIN%\libexpat.dll"           copy /Y "%_LIBBIN%\expat.dll"          "%_LIBBIN%\libexpat.dll"            >nul 2>nul
 python -m frontend_dash.run_vnext
 echo.
 echo Server stopped. You can close this window.

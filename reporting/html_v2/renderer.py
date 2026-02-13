@@ -2,8 +2,48 @@ from __future__ import annotations
 
 import base64
 import os
+import platform
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
+
+
+def _fix_pango_dll() -> None:
+    """Fix WeasyPrint Pango DLL discovery on Windows conda environments."""
+    if platform.system() != "Windows":
+        return
+
+    conda_prefix = os.environ.get("CONDA_PREFIX", "")
+    if not conda_prefix:
+        return
+
+    lib_bin = os.path.join(conda_prefix, "Library", "bin")
+    if not os.path.isdir(lib_bin):
+        return
+
+    # Add to DLL search path (Python 3.8+)
+    try:
+        os.add_dll_directory(lib_bin)
+    except (OSError, AttributeError):
+        pass
+
+    # Also add to PATH as fallback
+    if lib_bin not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = lib_bin + os.pathsep + os.environ.get("PATH", "")
+
+    # Create copies for lib-prefixed names if they don't exist
+    for dll in os.listdir(lib_bin):
+        if dll.endswith(".dll") and not dll.startswith("lib"):
+            lib_name = "lib" + dll
+            lib_path = os.path.join(lib_bin, lib_name)
+            if not os.path.exists(lib_path):
+                try:
+                    import shutil
+                    shutil.copy2(os.path.join(lib_bin, dll), lib_path)
+                except (OSError, PermissionError):
+                    pass
+
+
+_fix_pango_dll()
 
 from reporting.contract_v1.adapter import build_report_contract_v1
 from reporting.contract_v1.validate import validate_report_contract_v1

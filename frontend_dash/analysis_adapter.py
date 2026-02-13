@@ -213,7 +213,7 @@ def fetch_bloomberg_snapshot(
                         "iv": to_jsonable(iv),
                     }
                     quotes[idx] = quote
-                    per_leg_iv[idx] = to_jsonable(iv)
+                    per_leg_iv[idx] = to_jsonable(iv / 100.0) if iv is not None else None
         except Exception as exc:
             errors.append(f"Option snapshot failed: {exc}")
 

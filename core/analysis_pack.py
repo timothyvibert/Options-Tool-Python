@@ -1103,4 +1103,16 @@ def build_analysis_pack(
         payoff_result=payoff_result,
         summary_rows=summary_rows,
     )
+
+    # New payoff-driven commentary (v2) — runs alongside the old engine
+    try:
+        from core.commentary_v2 import build_commentary_v2
+        commentary_v2 = build_commentary_v2(analysis_pack)
+        analysis_pack["commentary_v2"] = commentary_v2.get("narrative_scenarios", [])
+        analysis_pack["commentary_blocks_v2"] = commentary_v2.get("commentary_blocks", [])
+    except Exception:
+        logger.exception("Commentary v2 failed")
+        analysis_pack["commentary_v2"] = []
+        analysis_pack["commentary_blocks_v2"] = []
+
     return analysis_pack

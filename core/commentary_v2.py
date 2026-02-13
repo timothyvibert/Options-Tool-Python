@@ -34,6 +34,14 @@ def _fmt_pct(v: float) -> str:
     return f"{v:.1f}%"
 
 
+def _a_or_an(number_str: str) -> str:
+    """Return 'an' for numbers starting with vowel sounds (8, 11, 18, 80, 800...)."""
+    s = number_str.lstrip('-').lstrip('+')
+    if s.startswith('8') or s.startswith('11') or s.startswith('18'):
+        return 'an'
+    return 'a'
+
+
 # ── Data extraction ─────────────────────────────────────────────────────
 
 
@@ -706,24 +714,31 @@ def _floor_ceiling(ctx: dict) -> Optional[str]:
     parts: list[str] = []
 
     # Issue 9: combine breakevens into one sentence
+    # Cap degenerate strategies (e.g. Conversion) at 2 closest to spot
+    if len(breakevens) > 3:
+        breakevens = sorted(breakevens, key=lambda be: abs(be - spot))[:2]
+        be_note = " (among multiple breakevens)"
+    else:
+        be_note = ""
+
     if len(breakevens) == 1:
         be = breakevens[0]
         dist = (be - spot) / spot * 100 if spot else 0
         direction = "above" if dist >= 0 else "below"
         parts.append(
             f"Breakeven is {_fmt_price(be)}"
-            f" ({_fmt_pct(abs(dist))} {direction} spot)."
+            f" ({_fmt_pct(abs(dist))} {direction} spot){be_note}."
         )
     elif len(breakevens) >= 2:
         be_strs = []
-        for be in breakevens:
+        for be in sorted(breakevens):
             dist = (be - spot) / spot * 100 if spot else 0
             direction = "above" if dist >= 0 else "below"
             be_strs.append(
                 f"{_fmt_price(be)} ({_fmt_pct(abs(dist))}"
                 f" {direction} spot)"
             )
-        parts.append(f"Breakevens are {' and '.join(be_strs)}.")
+        parts.append(f"Breakevens are {' and '.join(be_strs)}{be_note}.")
 
     # Issue 3: check flat region before claiming "no cap"
     if kind == "bullish":
@@ -891,8 +906,15 @@ def _return_context(ctx: dict) -> Optional[str]:
     if cap_basis is None or cap_basis <= 0:
         return None
     return_pct = mp_val / cap_basis * 100
+    if return_pct > 500:
+        return (
+            f"That represents significant leverage"
+            f" on the {_fmt_price(cap_basis)} capital at risk."
+        )
+    pct_str = _fmt_pct(return_pct)
+    article = _a_or_an(pct_str)
     return (
-        f"That represents a {_fmt_pct(return_pct)} return"
+        f"That represents {article} {pct_str} return"
         f" on the {_fmt_price(cap_basis)} capital at risk."
     )
 

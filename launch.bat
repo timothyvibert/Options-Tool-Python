@@ -30,6 +30,8 @@ if errorlevel 1 (
 echo Opening browser...
 start "" http://127.0.0.1:8051/v2
 echo Starting server...
+set WEASYPRINT_DLL_DIRECTORIES=%CONDA_PREFIX%\Library\bin
+copy /Y "%CONDA_PREFIX%\Library\bin\expat.dll" "%CONDA_PREFIX%\DLLs\expat.dll" >nul 2>nul
 python -m frontend_dash.run_vnext
 echo.
 echo Server stopped. You can close this window.

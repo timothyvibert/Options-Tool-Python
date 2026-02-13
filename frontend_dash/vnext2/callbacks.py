@@ -1728,25 +1728,30 @@ def register_v2_callbacks(
 
         if x_pairs:
             # ── Annotations: strikes below chart, breakevens above ──
-            ann_x_positions = []
-
-            def _offset_x(xpos):
-                """Nudge annotation if too close to an existing one."""
-                for existing in ann_x_positions:
-                    if abs(xpos - existing) / x_range_span < 0.05:
-                        xpos += 0.03 * x_range_span
-                        break
-                ann_x_positions.append(xpos)
-                return xpos
+            # Sort strikes and assign staggered y-levels to avoid label overlap
+            sorted_strikes = sorted(strike_vals)
+            strike_y_levels = []
+            y_top = -0.03
+            y_low = -0.10
+            for i, s in enumerate(sorted_strikes):
+                if i == 0:
+                    strike_y_levels.append(y_top)
+                else:
+                    prev_s = sorted_strikes[i - 1]
+                    prev_y = strike_y_levels[i - 1]
+                    if abs(s - prev_s) / x_range_span < 0.06:
+                        strike_y_levels.append(y_low if prev_y == y_top else y_top)
+                    else:
+                        strike_y_levels.append(y_top)
 
             if show_strikes:
-                for strike in strike_vals:
+                for strike, y_level in zip(sorted_strikes, strike_y_levels):
                     fig.add_vline(
                         x=strike, line_dash="dot",
                         line_color="#EF4444", line_width=1, opacity=0.5,
                     )
                     fig.add_annotation(
-                        x=_offset_x(strike), yref="paper", y=-0.03,
+                        x=strike, yref="paper", y=y_level,
                         yanchor="top", text=f"K ${strike:,.0f}",
                         showarrow=False, font={"size": 10, "color": "#EF4444"},
                     )

@@ -1704,32 +1704,20 @@ def register_v2_callbacks(
             x_min, x_max = _snap_range(x_min_req, x_max_req, x_step)
             x_range_span = x_max - x_min if x_max > x_min else 1.0
 
-            # Trim trace data to visible range so double-click reset works
-            mask = [v is not None and x_min <= v <= x_max for v in x_vals]
-            plot_x = [v for v, m in zip(x, mask) if m]
-            plot_stock = [v for v, m in zip(stock, mask) if m] if len(stock) == len(x) else []
-            plot_options = [v for v, m in zip(options, mask) if m] if len(options) == len(x) else []
-            plot_combined = [v for v, m in zip(combined, mask) if m] if len(combined) == len(x) else []
-        else:
-            plot_x = list(x)
-            plot_stock = list(stock)
-            plot_options = list(options)
-            plot_combined = list(combined)
-
-        # Add traces: stock first (back), options middle, combined last (front)
-        if show_stock and len(plot_stock) == len(plot_x):
+        # Add traces with full data range (0 to 3×spot) — user can pan/zoom
+        if show_stock and len(stock) == len(x):
             fig.add_trace(go.Scatter(
-                x=plot_x, y=plot_stock, name="Stock PnL",
+                x=x, y=stock, name="Stock PnL",
                 line={"color": _stock_color, "width": 1.5},
             ))
-        if show_options and len(plot_options) == len(plot_x):
+        if show_options and len(options) == len(x):
             fig.add_trace(go.Scatter(
-                x=plot_x, y=plot_options, name="Options PnL",
+                x=x, y=options, name="Options PnL",
                 line={"color": "#2563EB", "width": 2.5},
             ))
-        if show_combined and len(plot_combined) == len(plot_x):
+        if show_combined and len(combined) == len(x):
             fig.add_trace(go.Scatter(
-                x=plot_x, y=plot_combined, name="Combined PnL",
+                x=x, y=combined, name="Combined PnL",
                 line={"color": "#7C3AED", "width": 3},
             ))
 
@@ -1772,12 +1760,18 @@ def register_v2_callbacks(
                     )
 
             # ── Y-axis scaling: VBA-style — combined when stock, options when not ──
-            def _coerce_y(series):
-                return [v for v in (_coerce_float(yv) for yv in series) if v is not None]
+            # Compute from data within the visible x-window only
+            vis_mask = [v is not None and x_min <= v <= x_max for v in x_vals]
 
-            y_options = _coerce_y(plot_options) if plot_options else []
-            y_stock = _coerce_y(plot_stock) if plot_stock else []
-            y_combined = _coerce_y(plot_combined) if plot_combined else []
+            def _visible_y(series):
+                if not isinstance(series, list) or len(series) != len(x):
+                    return []
+                return [_coerce_float(yv) for yv, m in zip(series, vis_mask)
+                        if m and _coerce_float(yv) is not None]
+
+            y_options = _visible_y(options)
+            y_stock = _visible_y(stock)
+            y_combined = _visible_y(combined)
 
             has_stock = bool(y_stock) and any(v != 0 for v in y_stock)
 
@@ -1811,6 +1805,7 @@ def register_v2_callbacks(
                 y_min, y_max = _snap_range(y_min_req, y_max_req, y_step)
 
                 fig.update_layout(
+                    xaxis={"range": [x_min, x_max], "tickmode": "auto", "nticks": 10},
                     yaxis={"range": [y_min, y_max], "tickmode": "auto", "nticks": 10},
                 )
 

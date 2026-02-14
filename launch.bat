@@ -28,7 +28,7 @@ if errorlevel 1 (
 )
 
 echo Opening browser...
-start "" http://127.0.0.1:8051/v2
+start "" http://127.0.0.1:8051/
 echo Starting server...
 set WEASYPRINT_DLL_DIRECTORIES=%CONDA_PREFIX%\Library\bin
 set FONTCONFIG_FILE=%CONDA_PREFIX%\Library\etc\fonts\fonts.conf

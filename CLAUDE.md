@@ -70,9 +70,9 @@ Goal: Make generated PDF visually match Figma using the exported HTML template a
 - Replace ad-hoc Dash HTML with Dash Mantine Components
 
 ## Directory structure (key areas)
-- `core/` — Deterministic analytics engine (payoff, scenarios, ROI, margin, narrative)
+- `core/` — Deterministic analytics engine (payoff, scenarios, ROI, margin, commentary_v2)
 - `adapters/` — Bloomberg and Excel adapters
-- `frontend_dash/` — Dash vNext UI (layout, callbacks)
+- `frontend_dash/` — Dash UI (vnext2: DMC layout + callbacks)
 - `reporting/` — Report model, contract_v1, HTML v2 renderer, ReportLab fallback
 - `Design/` — Figma assets, spec, sample contracts, logos
 - `tests/` — Unit and integration tests

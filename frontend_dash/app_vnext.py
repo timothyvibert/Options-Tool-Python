@@ -1012,8 +1012,7 @@ def _render_scenario_cards(key_payload):
     pack = _cache_get(key_payload.get("key"))
     if not pack or not isinstance(pack, dict):
         return html.Div("Run Analysis to view scenario commentary.")
-    # Prefer v2 commentary engine, fall back to v1
-    narrative = _v2_to_scenario_dict(pack) or pack.get("narrative_scenarios")
+    narrative = _v2_to_scenario_dict(pack)
     if not isinstance(narrative, dict):
         return html.Div("Run Analysis to view scenario commentary.")
     def _card(label, block):

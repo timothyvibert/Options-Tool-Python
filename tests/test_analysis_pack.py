@@ -51,7 +51,6 @@ def test_build_analysis_pack_minimal():
         "summary",
         "margin",
         "scenario",
-        "commentary_blocks",
     ]:
         assert key in pack
 

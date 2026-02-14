@@ -72,7 +72,7 @@ def _assert_required_scenarios(scenario_df):
 
 
 def _assert_pack_keys(pack):
-    for key in ["payoff", "summary", "scenario", "key_levels", "narrative_scenarios"]:
+    for key in ["payoff", "summary", "scenario", "key_levels"]:
         assert key in pack
 
 

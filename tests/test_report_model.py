@@ -111,23 +111,26 @@ def test_report_model_no_dividend_warning():
 def test_report_model_scenario_analysis_cards():
     state = {
         "analysis_pack": {
-            "narrative_scenarios": {
-                "Bearish": {
+            "commentary_v2": [
+                {
+                    "kind": "bearish",
                     "title": "Bearish Case",
                     "condition": "If stock falls",
                     "body": "Downside narrative.",
                 },
-                "Stagnant": {
+                {
+                    "kind": "stagnant",
                     "title": "Stagnant Case",
                     "condition": "If stock stays",
                     "body": "Neutral narrative.",
                 },
-                "Bullish": {
+                {
+                    "kind": "bullish",
                     "title": "Bullish Case",
                     "condition": "If stock rises",
                     "body": "Upside narrative.",
                 },
-            }
+            ]
         }
     }
     model = build_report_model(state)
@@ -489,7 +492,7 @@ def test_report_model_option_roi_with_stock_missing_basis():
 def test_report_model_scenario_analysis_cards_list_shape():
     state = {
         "analysis_pack": {
-            "narrative_scenarios": [
+            "commentary_v2": [
                 {
                     "title": "Bearish Case",
                     "condition": "If stock falls",

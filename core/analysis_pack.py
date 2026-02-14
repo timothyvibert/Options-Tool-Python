@@ -13,7 +13,6 @@ import pandas as pd
 from core.eligibility import determine_strategy_code, get_account_eligibility
 from core.margin import classify_strategy, compute_margin_proxy, compute_margin_full
 from core.models import StrategyInput
-from core.narrative import build_narrative_scenarios
 from core.payoff import _compute_pnl_for_price, _detect_breakevens, _detect_unlimited, compute_payoff
 from core.probability import strategy_pop, compute_all_probabilities
 from core.roi import capital_basis, combined_capital_basis, compute_net_premium
@@ -135,16 +134,6 @@ def _key_row(label: str, row: Optional[pd.Series], spot: float) -> Dict[str, obj
         "Net PnL": row.get("combined_pnl"),
         "Net ROI": row.get("net_roi"),
     }
-
-
-def _extract_commentary(row: Optional[pd.Series]) -> Optional[str]:
-    if row is None:
-        return None
-    text = row.get("commentary")
-    if text is None or (isinstance(text, float) and math.isnan(text)):
-        return None
-    text_value = str(text).strip()
-    return text_value if text_value else None
 
 
 def _label_from_row(row: Optional[pd.Series], fallback: str) -> str:
@@ -818,38 +807,6 @@ def build_analysis_pack(
         key_rows.append(_key_row(low_label, low_row, spot))
         key_rows.append(_key_row(high_label, high_row, spot))
 
-    spot_texts = [text for text in [_extract_commentary(spot_row)] if text]
-    strike_texts = []
-    for strike in strikes:
-        text = _extract_commentary(_closest_row(scenario_df, strike))
-        if text:
-            strike_texts.append(text)
-    breakeven_texts = []
-    for breakeven in breakevens:
-        text = _extract_commentary(_closest_row(scenario_df, breakeven))
-        if text:
-            breakeven_texts.append(text)
-    low_text = _extract_commentary(
-        _closest_row(scenario_df, float(price_values.min()))
-    ) if not price_values.empty else None
-    high_text = _extract_commentary(
-        _closest_row(scenario_df, float(price_values.max()))
-    ) if not price_values.empty else None
-
-    commentary_blocks = [
-        {"level": "Spot", "text": " ".join(spot_texts) if spot_texts else "--"},
-        {
-            "level": "Strikes",
-            "text": " ".join(strike_texts) if strike_texts else "--",
-        },
-        {
-            "level": "Breakevens",
-            "text": " ".join(breakeven_texts) if breakeven_texts else "--",
-        },
-        {"level": "Low", "text": low_text or "--"},
-        {"level": "High", "text": high_text or "--"},
-    ]
-
     key_levels = {
         "meta": {
             "as_of": as_of_date,
@@ -1086,7 +1043,6 @@ def build_analysis_pack(
             "table": eligibility_df,
             "error": eligibility_error,
         },
-        "commentary_blocks": commentary_blocks,
     }
     # Bug 2A: Deduplicate key levels that share the same price
     key_levels["levels"] = _dedup_key_levels(key_levels["levels"])
@@ -1097,14 +1053,6 @@ def build_analysis_pack(
         "atm_iv_at_expiry": None,  # populated by callback layer
         "source": "IVOL_SURFACE_STRIKE" if vol_mode == "surface_atm" else "3M_ATM_BDP",
     }
-    analysis_pack["narrative_scenarios"] = build_narrative_scenarios(
-        strategy_input=strategy_input,
-        key_levels=key_levels,
-        payoff_result=payoff_result,
-        summary_rows=summary_rows,
-    )
-
-    # New payoff-driven commentary (v2) — runs alongside the old engine
     try:
         from core.commentary_v2 import build_commentary_v2
         commentary_v2 = build_commentary_v2(analysis_pack)

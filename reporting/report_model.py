@@ -812,10 +812,7 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
 
     commentary_source = (
         analysis_pack.get("commentary_blocks_v2")
-        or analysis_pack.get("commentary_blocks")
     ) if analysis_pack else None
-    if commentary_source is None:
-        commentary_source = state.get("commentary_blocks")
     if isinstance(commentary_source, list):
         commentary_blocks = {"blocks": commentary_source}
     elif isinstance(commentary_source, dict):
@@ -826,7 +823,6 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
     scenario_analysis_cards: List[Dict[str, str]] = []
     narrative_scenarios = (
         analysis_pack.get("commentary_v2")
-        or analysis_pack.get("narrative_scenarios")
     ) if analysis_pack else None
     scenario_map: Dict[str, Mapping[str, object]] = {}
     scenario_list: List[Mapping[str, object]] = []

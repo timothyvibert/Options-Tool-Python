@@ -147,11 +147,136 @@ class CheckResult:
 
 
 results: list[CheckResult] = []
+numerical_snapshots: list[dict] = []  # raw computed values for fact-checking
 
 
 def check(check_id: str, condition: bool, message: str,
           strategy: str = "", scenario: str = ""):
     results.append(CheckResult(check_id, condition, message, strategy, scenario))
+
+
+def capture_numerical_snapshot(pack: dict, si: StrategyInput,
+                                name: str, sid: str, scen: str):
+    """Extract all key numerical values from the analysis pack for fact-checking."""
+    payoff = pack.get("payoff", {})
+    summary = pack.get("summary", {})
+    summary_rows = summary.get("rows", [])
+    probs = pack.get("probabilities", {})
+    key_levels = pack.get("key_levels", {})
+    scenario_data = pack.get("scenario", {})
+    scenario_df = scenario_data.get("df")
+
+    def find_metric(m):
+        for row in summary_rows:
+            if row.get("metric") == m:
+                return row
+        return None
+
+    # Leg details
+    leg_details = []
+    for leg in si.legs:
+        leg_details.append({
+            "kind": leg.kind,
+            "position": leg.position,
+            "strike": leg.strike,
+            "premium": leg.premium,
+            "multiplier": leg.multiplier,
+        })
+
+    # Breakevens
+    breakevens = payoff.get("breakevens", [])
+
+    # Max/min from PnL arrays
+    options_pnl = payoff.get("options_pnl", [])
+    combined_pnl = payoff.get("combined_pnl", [])
+    options_max = max(options_pnl) if options_pnl else None
+    options_min = min(options_pnl) if options_pnl else None
+    combined_max = max(combined_pnl) if combined_pnl else None
+    combined_min = min(combined_pnl) if combined_pnl else None
+
+    # Net premium
+    net_prem_per_share = compute_net_premium(si)
+    net_prem_total = sum(l.position * l.premium * l.multiplier for l in si.legs)
+
+    # Summary metrics
+    def metric_val(m):
+        row = find_metric(m)
+        if row:
+            return {"options": row.get("options"), "combined": row.get("combined")}
+        return None
+
+    # Scenario table extract
+    scenario_rows_out = []
+    if scenario_df is not None and not scenario_df.empty:
+        for _, row in scenario_df.iterrows():
+            scenario_rows_out.append({
+                "price": float(row.get("price", 0)),
+                "scenario": str(row.get("scenario", "")),
+                "option_pnl": round(float(row.get("option_pnl", 0)), 4),
+                "stock_pnl": round(float(row.get("stock_pnl", 0)), 4),
+                "combined_pnl": round(float(row.get("combined_pnl", 0)), 4),
+                "option_roi": round(float(row.get("option_roi", 0)), 6),
+                "net_roi": round(float(row.get("net_roi", 0)), 6),
+            })
+
+    # Key levels extract
+    def _safe_round(val, digits):
+        if val is None:
+            return None
+        if isinstance(val, str):
+            return val
+        try:
+            return round(float(val), digits)
+        except (TypeError, ValueError):
+            return val
+
+    kl_out = []
+    for lv in key_levels.get("levels", []):
+        kl_out.append({
+            "id": lv.get("id"),
+            "label": lv.get("label"),
+            "price": lv.get("price"),
+            "move_pct": _safe_round(lv.get("move_pct"), 4),
+            "option_pnl": _safe_round(lv.get("option_pnl"), 4),
+            "net_pnl": _safe_round(lv.get("net_pnl"), 4),
+            "net_roi": _safe_round(lv.get("net_roi"), 6),
+        })
+
+    numerical_snapshots.append({
+        "sid": sid,
+        "name": name,
+        "scenario": scen,
+        "spot": si.spot,
+        "stock_position": si.stock_position,
+        "avg_cost": si.avg_cost,
+        "legs": leg_details,
+        "grid_size": len(payoff.get("price_grid", [])),
+        "strikes": payoff.get("strikes", []),
+        "breakevens": [round(b, 6) for b in breakevens],
+        "options_max_pnl": round(options_max, 4) if options_max is not None else None,
+        "options_min_pnl": round(options_min, 4) if options_min is not None else None,
+        "combined_max_pnl": round(combined_max, 4) if combined_max is not None else None,
+        "combined_min_pnl": round(combined_min, 4) if combined_min is not None else None,
+        "net_premium_per_share": round(net_prem_per_share, 6),
+        "net_premium_total": round(net_prem_total, 4),
+        "max_profit": metric_val("Max Profit"),
+        "max_loss": metric_val("Max Loss"),
+        "risk_reward": metric_val("Risk/Reward"),
+        "capital_basis": metric_val("Capital Basis"),
+        "cost_credit": metric_val("Cost/Credit"),
+        "pop": metric_val("PoP"),
+        "pop_raw": round(probs.get("pop", 0), 6) if probs.get("pop") is not None else None,
+        "assignment_prob": round(probs.get("assignment_prob", 0), 6) if probs.get("assignment_prob") is not None else None,
+        "prob_25_profit": round(probs.get("prob_25_profit", 0), 6) if probs.get("prob_25_profit") is not None else None,
+        "prob_50_profit": round(probs.get("prob_50_profit", 0), 6) if probs.get("prob_50_profit") is not None else None,
+        "prob_100_profit": round(probs.get("prob_100_profit", 0), 6) if probs.get("prob_100_profit") is not None else None,
+        "iv_used": probs.get("iv_used"),
+        "margin_classification": pack.get("margin", {}).get("classification"),
+        "margin_proxy": round(pack.get("margin", {}).get("margin_proxy", 0), 4),
+        "strategy_code": pack.get("strategy", {}).get("strategy_code"),
+        "scenario_table": scenario_rows_out,
+        "key_levels": kl_out,
+    })
 
 
 # ══════════════════════════════════════════════════════════
@@ -877,6 +1002,12 @@ def run_one(row: dict, scen_idx: int) -> dict | None:
     except Exception as e:
         check("J_ERR", False, f"Category J crashed: {e}", name, scen_label)
 
+    # Capture raw numerical values for fact-checking appendix
+    try:
+        capture_numerical_snapshot(pack, si, name, sid, scen_label)
+    except Exception:
+        pass  # don't let snapshot capture block the audit
+
     checks_run = len(results) - before
     return {"sid": sid, "name": name, "scenario": scen_label, "error": None, "checks": checks_run}
 
@@ -1082,6 +1213,102 @@ def main():
                 for fail in fails:
                     f.write(f"- **{fail.check_id}**: {fail.message}\n")
                 f.write("\n")
+
+        # ── Numerical Results Appendix ──
+        f.write("## Numerical Results (Fact-Check Data)\n\n")
+        f.write("Every computed value for each strategy × scenario run.\n\n")
+
+        for snap in numerical_snapshots:
+            f.write(f"### {snap['name']} (ID={snap['sid']}) — {snap['scenario']}\n\n")
+
+            # Inputs
+            f.write("**Inputs:**\n\n")
+            f.write(f"- Spot: {snap['spot']}\n")
+            f.write(f"- Stock Position: {snap['stock_position']}\n")
+            f.write(f"- Avg Cost: {snap['avg_cost']}\n")
+            f.write(f"- Strategy Code: {snap['strategy_code']}\n")
+            f.write(f"- Margin Classification: {snap['margin_classification']}\n\n")
+
+            # Legs table
+            if snap["legs"]:
+                f.write("**Legs:**\n\n")
+                f.write("| # | Kind | Position | Strike | Premium | Multiplier |\n")
+                f.write("|---|------|----------|--------|---------|------------|\n")
+                for i, leg in enumerate(snap["legs"], 1):
+                    side = "Long" if leg["position"] > 0 else "Short"
+                    f.write(f"| {i} | {leg['kind'].upper()} | {side} {abs(leg['position']):.0f} | "
+                            f"{leg['strike']:.2f} | {leg['premium']:.2f} | {leg['multiplier']} |\n")
+                f.write("\n")
+
+            # Core payoff values
+            f.write("**Payoff:**\n\n")
+            f.write(f"- Grid Size: {snap['grid_size']} points\n")
+            f.write(f"- Strikes: {snap['strikes']}\n")
+            f.write(f"- Breakevens: {snap['breakevens']}\n")
+            f.write(f"- Options Max PnL: {snap['options_max_pnl']}\n")
+            f.write(f"- Options Min PnL: {snap['options_min_pnl']}\n")
+            f.write(f"- Combined Max PnL: {snap['combined_max_pnl']}\n")
+            f.write(f"- Combined Min PnL: {snap['combined_min_pnl']}\n\n")
+
+            # Premium
+            f.write("**Net Premium:**\n\n")
+            f.write(f"- Per Share: {snap['net_premium_per_share']}\n")
+            f.write(f"- Total: {snap['net_premium_total']}\n\n")
+
+            # Summary metrics
+            f.write("**Summary Metrics:**\n\n")
+            f.write("| Metric | Options | Combined |\n")
+            f.write("|--------|---------|----------|\n")
+            for metric_key in ["max_profit", "max_loss", "risk_reward", "capital_basis", "cost_credit", "pop"]:
+                mv = snap.get(metric_key)
+                if mv:
+                    f.write(f"| {metric_key.replace('_', ' ').title()} | {mv.get('options', '--')} | {mv.get('combined', '--')} |\n")
+            f.write(f"| Margin Proxy | {snap['margin_proxy']} | — |\n")
+            f.write("\n")
+
+            # Probabilities
+            f.write("**Probabilities:**\n\n")
+            f.write(f"- PoP (raw): {snap['pop_raw']}\n")
+            f.write(f"- Assignment Prob: {snap['assignment_prob']}\n")
+            f.write(f"- P(25% Max Profit): {snap['prob_25_profit']}\n")
+            f.write(f"- P(50% Max Profit): {snap['prob_50_profit']}\n")
+            f.write(f"- P(100% Max Profit): {snap['prob_100_profit']}\n")
+            f.write(f"- IV Used: {snap['iv_used']}\n\n")
+
+            # Scenario table
+            if snap["scenario_table"]:
+                f.write("**Scenario Table:**\n\n")
+                f.write("| Price | Scenario | Opt PnL | Stock PnL | Combined PnL | Opt ROI | Net ROI |\n")
+                f.write("|-------|----------|---------|-----------|--------------|---------|--------|\n")
+                for sr in snap["scenario_table"]:
+                    f.write(f"| {sr['price']:.2f} | {sr['scenario']} | "
+                            f"{sr['option_pnl']:.2f} | {sr['stock_pnl']:.2f} | "
+                            f"{sr['combined_pnl']:.2f} | {sr['option_roi']:.4f} | "
+                            f"{sr['net_roi']:.4f} |\n")
+                f.write("\n")
+
+            # Key levels
+            if snap["key_levels"]:
+                f.write("**Key Levels:**\n\n")
+                f.write("| ID | Label | Price | Move % | Opt PnL | Net PnL | Net ROI |\n")
+                f.write("|----|-------|-------|--------|---------|---------|--------|\n")
+                for kl in snap["key_levels"]:
+                    def _fmt(val, fmt_str=".2f"):
+                        if val is None:
+                            return "—"
+                        if isinstance(val, str):
+                            return val
+                        return f"{val:{fmt_str}}"
+                    price_str = _fmt(kl["price"])
+                    move_str = (_fmt(kl["move_pct"]) + "%") if kl["move_pct"] is not None else "—"
+                    opt_str = _fmt(kl["option_pnl"])
+                    net_str = _fmt(kl["net_pnl"])
+                    roi_str = _fmt(kl["net_roi"], ".4f")
+                    f.write(f"| {kl['id']} | {kl['label']} | {price_str} | {move_str} | "
+                            f"{opt_str} | {net_str} | {roi_str} |\n")
+                f.write("\n")
+
+            f.write("---\n\n")
 
     print(f"\n{'='*60}")
     print(f"AUDIT COMPLETE")

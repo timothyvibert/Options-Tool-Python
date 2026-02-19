@@ -510,11 +510,11 @@ def test_net_prem_per_share_no_stock():
     assert prem_share["options"] == "-$300.00"
 
 
-# ── Fix 1B: Net Prem % Spot cascades from 1A ──
+# ── Fix 1B: Premium % of Spot cascades from 1A ──
 
 
 def test_net_prem_pct_spot():
-    """Fix 1B: Net Prem % Spot uses net_prem_per_share, not raw compute_net_premium."""
+    """Fix 1B: Premium % of Spot uses net_prem_per_share, not raw compute_net_premium."""
     strategy_input = StrategyInput(
         spot=100.0,
         stock_position=0.0,
@@ -534,7 +534,7 @@ def test_net_prem_pct_spot():
         downside_tgt=0.9,
         upside_tgt=1.1,
     )
-    pct = _summary_row(pack, "Net Prem % Spot")
+    pct = _summary_row(pack, "Premium % of Spot")
     assert pct is not None
     # net_premium (per-share, no multiplier) = 1 * 5.0 = 5.0
     # display pct = -(5.0 / 100 * 100) = -5.00% (debit = negative display)
@@ -597,7 +597,7 @@ def test_capital_basis_credit_uncovered_uses_margin():
         downside_tgt=0.8,
         upside_tgt=1.2,
     )
-    cap_basis = _summary_row(pack, "Capital Basis")
+    cap_basis = _summary_row(pack, "Capital at Risk")
     assert cap_basis is not None
     margin_proxy = pack["margin"]["margin_proxy"]
     # Capital basis should equal margin proxy for credit + unlimited loss

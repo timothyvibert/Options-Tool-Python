@@ -463,7 +463,7 @@ def test_report_model_option_roi_with_stock_basis():
     state = {
         "analysis_pack": {
             "key_levels": {"levels": levels, "meta": {"has_stock_position": True}},
-            "summary": {"rows": [{"metric": "Capital Basis", "options": 1000.0}]},
+            "summary": {"rows": [{"metric": "Capital at Risk", "options": 1000.0}]},
         }
     }
     model = build_report_model(state)

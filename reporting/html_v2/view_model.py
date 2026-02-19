@@ -213,9 +213,9 @@ def _build_metrics(rows: List[Mapping[str, object]]) -> Dict[str, Dict[str, obje
             "options": metric_value("Min ROI", "options"),
         },
         "capital_basis": {
-            "label": "Capital Basis",
-            "combined": metric_value("Capital Basis", "combined"),
-            "options": metric_value("Capital Basis", "options"),
+            "label": "Capital at Risk",
+            "combined": metric_value("Capital at Risk", "combined"),
+            "options": metric_value("Capital at Risk", "options"),
         },
         "cost_credit": {
             "label": "Net Cost",
@@ -229,8 +229,8 @@ def _build_metrics(rows: List[Mapping[str, object]]) -> Dict[str, Dict[str, obje
         },
         "net_prem_percent": {
             "label": "Yield %",
-            "combined": metric_value("Net Prem % Spot", "combined"),
-            "options": metric_value("Net Prem % Spot", "options"),
+            "combined": metric_value("Premium % of Spot", "combined"),
+            "options": metric_value("Premium % of Spot", "options"),
         },
     }
 
@@ -620,7 +620,7 @@ def build_view_model_from_contract(contract: Mapping[str, object]) -> Dict[str, 
         "reward_risk": metric_entry("R/R Ratio", metrics.get("reward_risk"), "ratio", metrics.get("reward_risk_options")),
         "max_roi": metric_entry("Max ROI", metrics.get("max_roi"), "percent", metrics.get("max_roi_options")),
         "min_roi": metric_entry("Min ROI", metrics.get("min_roi"), "percent", metrics.get("min_roi_options")),
-        "capital_basis": metric_entry("Capital Basis", metrics.get("capital_basis"), "currency", metrics.get("capital_basis_options")),
+        "capital_basis": metric_entry("Capital at Risk", metrics.get("capital_basis"), "currency", metrics.get("capital_basis_options")),
         "cost_credit": metric_entry("Net Cost", metrics.get("net_cost"), "currency", metrics.get("net_cost_options")),
         "net_prem_per_share": metric_entry(
             "Net Prem/Share", metrics.get("net_premium_per_share"), "currency"

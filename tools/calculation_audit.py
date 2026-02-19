@@ -18,7 +18,7 @@ Check Categories:
   D: Net Premium & Cost/Credit (NP_*)
   E: Stock P&L (SP_*)
   F: Cross-Scenario Consistency (CS_*)
-  G: Capital Basis & ROI (CB_*, ROI_*)
+  G: Capital at Risk & ROI (CB_*, ROI_*)
   H: Key Levels (KL_*)
   I: Pipeline Map Issue Checks (PI_*)
   J: Known Bug Checks (BUG_*)
@@ -262,7 +262,7 @@ def capture_numerical_snapshot(pack: dict, si: StrategyInput,
         "max_profit": metric_val("Max Profit"),
         "max_loss": metric_val("Max Loss"),
         "risk_reward": metric_val("Risk/Reward"),
-        "capital_basis": metric_val("Capital Basis"),
+        "capital_basis": metric_val("Capital at Risk"),
         "cost_credit": metric_val("Cost/Credit"),
         "pop": metric_val("PoP"),
         "pop_raw": round(probs.get("pop", 0), 6) if probs.get("pop") is not None else None,
@@ -623,7 +623,7 @@ def run_checks_F(pack: dict, si: StrategyInput, name: str, scen: str):
 
 
 def run_checks_G(pack: dict, si: StrategyInput, name: str, scen: str):
-    """G: Capital Basis & ROI (CB_*, ROI_*)"""
+    """G: Capital at Risk & ROI (CB_*, ROI_*)"""
     summary_rows = pack.get("summary", {}).get("rows", [])
     scenario = pack.get("scenario", {})
     scenario_df = scenario.get("df")
@@ -635,7 +635,7 @@ def run_checks_G(pack: dict, si: StrategyInput, name: str, scen: str):
                 return row
         return None
 
-    cb_row = find_metric("Capital Basis")
+    cb_row = find_metric("Capital at Risk")
 
     # CB_01: Capital basis > 0
     if cb_row:
@@ -649,7 +649,7 @@ def run_checks_G(pack: dict, si: StrategyInput, name: str, scen: str):
               f"Option capital basis = {opt_text}",
               name, scen)
     elif si.legs:
-        check("CB_01", False, "Capital Basis row missing", name, scen)
+        check("CB_01", False, "Capital at Risk row missing", name, scen)
 
     # CB_02: Combined capital basis >= option capital basis when stock exists
     if cb_row and si.stock_position != 0:
@@ -825,7 +825,7 @@ def run_checks_J(pack: dict, si: StrategyInput, name: str, scen: str):
                 if row.get("metric") == m:
                     return row
             return None
-        cb_row = find_metric("Capital Basis")
+        cb_row = find_metric("Capital at Risk")
         if cb_row:
             opt_text = cb_row.get("options", "")
             try:
@@ -836,7 +836,7 @@ def run_checks_J(pack: dict, si: StrategyInput, name: str, scen: str):
                   f"All-short strategy capital basis = {opt_text}",
                   name, scen)
         else:
-            check("BUG_02", False, "Capital Basis row missing for all-short strategy", name, scen)
+            check("BUG_02", False, "Capital at Risk row missing for all-short strategy", name, scen)
     else:
         check("BUG_02", True, "Not all-short — skip", name, scen)
 
@@ -919,9 +919,10 @@ def run_one(row: dict, scen_idx: int) -> dict | None:
             side = _row_stock_side(row)
             stock_position = abs(stock_position) if side == "LONG" else -abs(stock_position)
 
-    # Skip if no legs and no stock (e.g., custom strategy)
+    # No legs and no stock (e.g., custom strategy options_only):
+    # build_analysis_pack returns a valid empty pack — let it run through checks.
     if not legs and stock_position == 0:
-        return {"sid": sid, "name": name, "scenario": scen_label, "error": "No legs and no stock", "checks": 0}
+        pass  # proceed with empty StrategyInput
 
     si = StrategyInput(
         spot=SPOT,
@@ -1063,7 +1064,7 @@ def main():
         "D": ("Net Premium & Cost/Credit", ["NP_", "D_"]),
         "E": ("Stock P&L", ["SP_", "E_"]),
         "F": ("Cross-Scenario Consistency", ["CS_", "F_"]),
-        "G": ("Capital Basis & ROI", ["CB_", "ROI_", "G_"]),
+        "G": ("Capital at Risk & ROI", ["CB_", "ROI_", "G_"]),
         "H": ("Key Levels", ["KL_", "H_"]),
         "I": ("Pipeline Map Issues", ["PI_", "I_"]),
         "J": ("Known Bugs", ["BUG_", "J_"]),
@@ -1259,10 +1260,14 @@ def main():
             f.write("**Summary Metrics:**\n\n")
             f.write("| Metric | Options | Combined |\n")
             f.write("|--------|---------|----------|\n")
+            _metric_display_names = {
+                "capital_basis": "Capital at Risk",
+            }
             for metric_key in ["max_profit", "max_loss", "risk_reward", "capital_basis", "cost_credit", "pop"]:
                 mv = snap.get(metric_key)
                 if mv:
-                    f.write(f"| {metric_key.replace('_', ' ').title()} | {mv.get('options', '--')} | {mv.get('combined', '--')} |\n")
+                    display = _metric_display_names.get(metric_key, metric_key.replace('_', ' ').title())
+                    f.write(f"| {display} | {mv.get('options', '--')} | {mv.get('combined', '--')} |\n")
             f.write(f"| Margin Proxy | {snap['margin_proxy']} | — |\n")
             f.write("\n")
 

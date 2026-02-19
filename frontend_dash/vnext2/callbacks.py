@@ -2024,11 +2024,11 @@ def register_v2_callbacks(
             metric_key = str(metric_label or "").strip().lower()
             if metric_key in {"max profit", "max loss"}:
                 return _fmt_money_signed(raw_value) if _coerce_float(raw_value) is not None else text
-            if metric_key in {"capital basis", "capital at risk", "notional exposure"}:
+            if metric_key in {"capital at risk", "notional exposure"}:
                 return _fmt_money(raw_value) if _coerce_float(raw_value) is not None else text
             if metric_key in {"max roi", "min roi"}:
                 return _fmt_percent_ratio(raw_value) if _coerce_float(raw_value) is not None else text
-            if metric_key in {"net prem % spot", "premium % of spot"}:
+            if metric_key == "premium % of spot":
                 if "%" in text:
                     return text
                 return _fmt_percent_point(raw_value) if _coerce_float(raw_value) is not None else text
@@ -2111,13 +2111,7 @@ def register_v2_callbacks(
                 pass
             return "dimmed"
 
-        _no_color_metrics = {"net prem % spot", "be distance %", "closest breakeven"}
-
-        # Display-time label renames (pack labels stay stable for tests/audit)
-        _display_labels = {
-            "Capital Basis": "Capital at Risk",
-            "Net Prem % Spot": "Premium % of Spot",
-        }
+        _no_color_metrics = {"premium % of spot", "be distance %", "closest breakeven"}
 
         for row in summary_rows or []:
             if not isinstance(row, dict):
@@ -2128,8 +2122,6 @@ def register_v2_callbacks(
             # Skip redundant rows
             if _metric_key in _skip_metrics:
                 continue
-
-            display_label = _display_labels.get(metric, metric)
 
             options_raw = _pick_value(row, ["options", "Options"])
             combined_raw = _pick_value(row, ["combined", "Combined", "net"])
@@ -2157,7 +2149,7 @@ def register_v2_callbacks(
 
             metrics_rows.append(
                 [
-                    display_label,
+                    metric,
                     options_formatted,
                     combined_formatted,
                 ]

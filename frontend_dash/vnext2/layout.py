@@ -447,7 +447,7 @@ def _settings_panel():
                                         dmc.Select(id=ID.PRICING_MODE, label="Pricing Mode", data=[{"value": "mid", "label": "Mid"}, {"value": "bid_ask", "label": "Bid/Ask"}], value="mid", size="sm"),
                                     ]),
                                     dmc.GridCol(span=2, children=[
-                                        dmc.Select(id=ID.PREMIUM_MODE, label="Capital Basis", data=[{"value": "premium", "label": "Premium"}, {"value": "max_loss", "label": "Max Loss"}, {"value": "cash_secured", "label": "Cash Secured"}, {"value": "margin", "label": "Margin Proxy"}], value="premium", size="sm"),
+                                        dmc.Select(id=ID.PREMIUM_MODE, label="Capital at Risk", data=[{"value": "premium", "label": "Premium"}, {"value": "max_loss", "label": "Max Loss"}, {"value": "cash_secured", "label": "Cash Secured"}, {"value": "margin", "label": "Margin Proxy"}], value="premium", size="sm"),
                                     ]),
                                     dmc.GridCol(span=2, children=[
                                         dmc.Select(id=ID.SCENARIO_MODE, label="Scenario Mode", data=[{"value": "targets", "label": "Targets"}, {"value": "infinity", "label": "Infinity"}], value="targets", size="sm"),
@@ -655,13 +655,12 @@ def _card_metrics():
                     "body": [
                         ["Max Profit", "\u2014", "\u2014"],
                         ["Max Loss", "\u2014", "\u2014"],
-                        ["Capital Basis", "\u2014", "\u2014"],
+                        ["Capital at Risk", "\u2014", "\u2014"],
                         ["Max ROI", "\u2014", "\u2014"],
                         ["Min ROI", "\u2014", "\u2014"],
                         ["Cost/Credit", "\u2014", "\u2014"],
                         ["Notional Exposure", "\u2014", "\u2014"],
-                        ["Net Prem/Share", "\u2014", "\u2014"],
-                        ["Net Prem % Spot", "\u2014", "\u2014"],
+                        ["Premium % of Spot", "\u2014", "\u2014"],
                     ],
                 },
                 striped=True,

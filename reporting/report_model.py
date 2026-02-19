@@ -389,7 +389,7 @@ def _get_option_basis(
             for metric_row in rows:
                 if not isinstance(metric_row, Mapping):
                     continue
-                if metric_row.get("metric") == "Capital Basis":
+                if metric_row.get("metric") == "Capital at Risk":
                     value = _coerce_float(metric_row.get("options"))
                     if value is not None:
                         return value
@@ -411,6 +411,8 @@ def _fmt_move_pct(value: object) -> str:
 
 
 def _fmt_pnl(value: object) -> str:
+    if isinstance(value, str) and value.strip() == "Unlimited":
+        return "Unlimited"
     numeric = _coerce_float(value)
     if numeric is None:
         return MISSING
@@ -423,6 +425,8 @@ def _fmt_roi(value: object) -> str:
     # ROI values are ratios. Display multiplies by 100. Do not apply heuristics.
     if value is None:
         return MISSING
+    if isinstance(value, str) and value.strip() == "Unlimited":
+        return "Unlimited"
     if isinstance(value, str):
         text = value.strip()
         if text == "":
@@ -744,13 +748,13 @@ def build_report_model(state: Dict[str, object]) -> Dict[str, object]:
         metrics_map = [
             ("Max Profit", "max_profit_options", "max_profit_combined"),
             ("Max Loss", "max_loss_options", "max_loss_combined"),
-            ("Capital Basis", "capital_basis_options", "capital_basis_combined"),
+            ("Capital at Risk", "capital_basis_options", "capital_basis_combined"),
             ("Max ROI", "max_roi_options", "max_roi_combined"),
             ("Min ROI", "min_roi_options", "min_roi_combined"),
             ("Cost/Credit", "cost_credit_options", "cost_credit_combined"),
             ("Notional Exposure", "notional_options", "notional_combined"),
             ("Net Prem/Share", "net_prem_per_share", "net_prem_per_share"),
-            ("Net Prem % Spot", "net_prem_pct_spot", "net_prem_pct_spot"),
+            ("Premium % of Spot", "net_prem_pct_spot", "net_prem_pct_spot"),
             ("PoP", "pop_options", "pop_combined"),
         ]
         for label, opt_key, comb_key in metrics_map:

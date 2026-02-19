@@ -12,6 +12,7 @@ LOG_FILE = LOG_DIR / "activity_log.csv"
 FIELDNAMES = [
     "timestamp",
     "fa_name",
+    "fa_id",
     "acct_number",
     "ticker",
     "strategy",

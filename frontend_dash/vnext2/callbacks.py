@@ -1185,33 +1185,38 @@ def register_v2_callbacks(
     @app.callback(
         Output(ID.DL_EXCEL_PDF, "data"),
         Output(ID.EXCEL_STATUS, "children"),
+        Output(ID.LOG_STORE, "data", allow_duplicate=True),
         Input(ID.BTN_EXCEL_PDF, "n_clicks"),
         State(ID.EXCEL_TEMPLATE_SELECT, "value"),
         State(ID.STORE_ANALYSIS_KEY, "data"),
         State(ID.STORE_INPUTS, "data"),
         State(ID.STORE_MARKET, "data"),
         State(ID.STORE_UI, "data"),
+        State(ID.FA_NAME_INPUT, "value"),
+        State(ID.ACCT_NUMBER_INPUT, "value"),
+        State(ID.FA_ID_INPUT, "value"),
         prevent_initial_call=True,
     )
     def _v2_generate_excel_pdf(
         n_clicks, template_key, key_payload, inputs_state, market_data, ui_state,
+        fa_name_val, acct_number_val, fa_id_val,
     ):
         import os
 
         if not n_clicks:
-            return no_update, no_update
+            return no_update, no_update, no_update
 
         # ── Validate prerequisites ──
         if not template_key:
-            return no_update, "Select an Excel template first."
+            return no_update, "Select an Excel template first.", no_update
 
         if not isinstance(key_payload, dict) or key_payload.get("error"):
-            return no_update, "Run Analysis first."
+            return no_update, "Run Analysis first.", no_update
 
         key = key_payload.get("key")
         pack = cache_get(key) if key else None
         if not pack:
-            return no_update, "Run Analysis first."
+            return no_update, "Run Analysis first.", no_update
 
         inputs_store = inputs_state if isinstance(inputs_state, dict) else {}
         ui_store = ui_state if isinstance(ui_state, dict) else {}
@@ -1266,7 +1271,7 @@ def register_v2_callbacks(
             from reporting.excel_templates.filler import fill_template
             filled_path = fill_template(template_key, pack, meta)
             if not filled_path:
-                return no_update, "Template fill failed — check template file exists."
+                return no_update, "Template fill failed — check template file exists.", no_update
 
             # ── Step 2: Export PDF via Excel ──
             from reporting.excel_templates.pdf_exporter import export_pdf
@@ -1282,7 +1287,7 @@ def register_v2_callbacks(
             )
 
             if not pdf_path or not os.path.isfile(pdf_path):
-                return no_update, "PDF export failed — is Excel installed?"
+                return no_update, "PDF export failed — is Excel installed?", no_update
 
             # ── Step 3: Return as download ──
             # Build filename: "2026-02-09_MSFT US Equity_Covered Call.pdf"
@@ -1317,15 +1322,44 @@ def register_v2_callbacks(
             except OSError:
                 pass
 
-            return dcc.send_bytes(pdf_bytes, filename=filename), f"Excel PDF generated: {filename}"
+            # Log activity entry
+            try:
+                _log_summary = pack.get("summary") or {}
+                _log_rows = _log_summary.get("rows") or []
+                _max_profit = _log_rows[0].get("options", "--") if len(_log_rows) > 0 else "--"
+                _max_loss = _log_rows[1].get("options", "--") if len(_log_rows) > 1 else "--"
+                _net_premium = _log_summary.get("net_premium_total", "--")
+
+                _log_legs = inputs_store.get("legs") or []
+                _contracts = sum(
+                    abs(float(lg.get("position", 0))) for lg in _log_legs if isinstance(lg, dict)
+                )
+
+                append_entry({
+                    "fa_name": fa_name_val or "",
+                    "acct_number": acct_number_val or "",
+                    "fa_id": fa_id_val or "",
+                    "ticker": inputs_store.get("resolved_ticker") or inputs_store.get("ticker") or "",
+                    "strategy": strategy_name,
+                    "expiry": inputs_store.get("expiry") or ui_store.get("expiry") or "",
+                    "contracts": str(int(_contracts)) if _contracts else "",
+                    "net_premium": str(_net_premium),
+                    "max_profit": str(_max_profit),
+                    "max_loss": str(_max_loss),
+                })
+            except Exception:
+                pass  # never fail PDF delivery due to logging
+
+            _log_trigger = {"ts": _utc_now_str()}
+            return dcc.send_bytes(pdf_bytes, filename=filename), f"Excel PDF generated: {filename}", _log_trigger
 
         except ImportError as exc:
-            return no_update, f"Missing dependency: {exc} (requires Windows + Excel)"
+            return no_update, f"Missing dependency: {exc} (requires Windows + Excel)", no_update
         except FileNotFoundError as exc:
-            return no_update, f"Template not found: {exc}"
+            return no_update, f"Template not found: {exc}", no_update
         except Exception as exc:
             traceback.print_exc()
-            return no_update, f"Excel PDF error: {type(exc).__name__}: {exc}"
+            return no_update, f"Excel PDF error: {type(exc).__name__}: {exc}", no_update
 
     # ── #16 Run analysis ─────────────────────────────────────
     @app.callback(

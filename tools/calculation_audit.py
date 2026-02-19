@@ -404,8 +404,10 @@ def run_checks_C(pack: dict, si: StrategyInput, name: str, scen: str):
         opt_mp = max_profit_row.get("options", "")
         comb_mp = max_profit_row.get("combined", "")
 
-        # MP_01: "Unlimited" iff unlimited_upside flag
-        if opt_unlimited.get("unlimited_upside"):
+        # MP_01: "Unlimited" iff unlimited_profit_upside or unlimited_profit_downside
+        opt_profit_unl = (opt_unlimited.get("unlimited_profit_upside", opt_unlimited.get("unlimited_upside", False))
+                          or opt_unlimited.get("unlimited_profit_downside", False))
+        if opt_profit_unl:
             check("MP_01", opt_mp == "Unlimited",
                   f"Options max profit should be 'Unlimited' but got '{opt_mp}'",
                   name, scen)
@@ -416,7 +418,9 @@ def run_checks_C(pack: dict, si: StrategyInput, name: str, scen: str):
                   f"Options max profit not unlimited: {opt_mp}", name, scen)
 
         # MP_02: Combined unlimited check
-        if comb_unlimited.get("unlimited_upside"):
+        comb_profit_unl = (comb_unlimited.get("unlimited_profit_upside", comb_unlimited.get("unlimited_upside", False))
+                           or comb_unlimited.get("unlimited_profit_downside", False))
+        if comb_profit_unl:
             check("MP_02", comb_mp == "Unlimited",
                   f"Combined max profit should be 'Unlimited' but got '{comb_mp}'",
                   name, scen)
@@ -428,8 +432,8 @@ def run_checks_C(pack: dict, si: StrategyInput, name: str, scen: str):
         opt_ml = max_loss_row.get("options", "")
         comb_ml = max_loss_row.get("combined", "")
 
-        # ML_01: "Unlimited" iff unlimited_downside or unlimited_loss_upside
-        opt_unl_loss = (opt_unlimited.get("unlimited_downside", False) or
+        # ML_01: "Unlimited" iff unlimited_loss_downside or unlimited_loss_upside
+        opt_unl_loss = (opt_unlimited.get("unlimited_loss_downside", False) or
                         opt_unlimited.get("unlimited_loss_upside", False))
         if opt_unl_loss:
             check("ML_01", opt_ml == "Unlimited",
@@ -440,7 +444,7 @@ def run_checks_C(pack: dict, si: StrategyInput, name: str, scen: str):
                   f"Options max loss not unlimited: {opt_ml}", name, scen)
 
         # ML_02: Combined unlimited loss check
-        comb_unl_loss = (comb_unlimited.get("unlimited_downside", False) or
+        comb_unl_loss = (comb_unlimited.get("unlimited_loss_downside", False) or
                          comb_unlimited.get("unlimited_loss_upside", False))
         if comb_unl_loss:
             check("ML_02", comb_ml == "Unlimited",
@@ -793,7 +797,9 @@ def run_checks_I(pack: dict, si: StrategyInput, name: str, scen: str):
     mp_row = find_metric("Max Profit")
     if mp_row:
         opt_text = mp_row.get("options", "")
-        expected_unlimited = opt_unlimited_recomputed.get("unlimited_upside", False)
+        expected_unlimited = (opt_unlimited_recomputed.get("unlimited_profit_upside",
+                                                           opt_unlimited_recomputed.get("unlimited_upside", False))
+                              or opt_unlimited_recomputed.get("unlimited_profit_downside", False))
         check("PI_03",
               (opt_text == "Unlimited") == expected_unlimited,
               f"Options max profit unlimited consistency: text='{opt_text}', flag={expected_unlimited}",

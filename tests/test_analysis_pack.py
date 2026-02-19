@@ -261,6 +261,38 @@ def test_long_call_max_profit_unlimited():
     assert max_loss["combined"] != "Unlimited"
 
 
+def test_long_put_max_loss_finite():
+    """Long put max loss is the premium paid, NOT unlimited."""
+    strategy_input = StrategyInput(
+        spot=100.0,
+        stock_position=0.0,
+        avg_cost=0.0,
+        legs=[OptionLeg(kind="put", position=1.0, strike=95.0, premium=2.50)],
+    )
+    pack = build_analysis_pack(
+        strategy_input=strategy_input,
+        strategy_meta={"strategy_name": "Long Put", "as_of": "2026-01-18", "expiry": "2026-03-20"},
+        pricing_mode="MID",
+        roi_policy=NET_PREMIUM,
+        vol_mode="ATM",
+        atm_iv=0.2,
+        underlying_profile=None,
+        bbg_leg_snapshots=None,
+        scenario_mode="STANDARD",
+        downside_tgt=0.9,
+        upside_tgt=1.1,
+    )
+    max_loss = _summary_row(pack, "Max Loss")
+    assert max_loss is not None
+    # Long put max loss = premium × multiplier = 2.50 × 100 = $250
+    assert max_loss["options"] == "-$250.00"
+    assert max_loss["combined"] == "-$250.00"
+    # Max profit should be unlimited (profit grows as stock drops toward 0)
+    max_profit = _summary_row(pack, "Max Profit")
+    assert max_profit["options"] == "Unlimited"
+    assert max_profit["combined"] == "Unlimited"
+
+
 def test_cost_credit_with_multiplier():
     """Bug 1B: Cost/Credit should show total (with multiplier), not per-share."""
     strategy_input = StrategyInput(

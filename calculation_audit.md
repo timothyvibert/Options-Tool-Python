@@ -677,9 +677,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $0.00 | $10,000.00 |
+| Max Profit | $0.00 | Unlimited |
 | Max Loss | $0.00 | Unlimited |
-| Risk Reward | N/A | 0.50x |
+| Risk Reward | N/A | N/A |
 | Capital at Risk | $1.00 | $10,001.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 52.1% | 52.1% |
@@ -744,9 +744,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $0.00 | $10,000.00 |
+| Max Profit | $0.00 | Unlimited |
 | Max Loss | $0.00 | Unlimited |
-| Risk Reward | N/A | 0.50x |
+| Risk Reward | N/A | N/A |
 | Capital at Risk | $1.00 | $10,001.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 52.1% | 52.1% |
@@ -811,9 +811,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $0.00 | $5,000.00 |
+| Max Profit | $0.00 | Unlimited |
 | Max Loss | $0.00 | Unlimited |
-| Risk Reward | N/A | 0.20x |
+| Risk Reward | N/A | N/A |
 | Capital at Risk | $1.00 | $5,001.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 0.0% | 0.0% |
@@ -879,9 +879,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $0.00 | $11,500.00 |
+| Max Profit | $0.00 | Unlimited |
 | Max Loss | $0.00 | Unlimited |
-| Risk Reward | N/A | 0.62x |
+| Risk Reward | N/A | N/A |
 | Capital at Risk | $1.00 | $11,501.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 91.9% | 91.9% |
@@ -1553,9 +1553,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $9,750.00 | $9,750.00 |
-| Max Loss | Unlimited | Unlimited |
-| Risk Reward | 39.00x | 39.00x |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$250.00 | -$250.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $250.00 | $250.00 |
 | Cost Credit | Debit $250.00 | Debit $250.00 |
 | Pop | 42.4% | 42.4% |
@@ -1628,9 +1628,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $9,750.00 | Unlimited |
-| Max Loss | Unlimited | -$250.00 |
-| Risk Reward | 39.00x | Unlimited |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$250.00 | -$250.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $5,250.00 | $15,250.00 |
 | Cost Credit | Debit $250.00 | Debit $250.00 |
 | Pop | 38.6% | 38.6% |
@@ -1703,9 +1703,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $9,750.00 | Unlimited |
-| Max Loss | Unlimited | $4,750.00 |
-| Risk Reward | 39.00x | Unlimited |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$250.00 | $4,750.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $5,250.00 | $10,250.00 |
 | Cost Credit | Debit $250.00 | Debit $250.00 |
 | Pop | 100.0% | 100.0% |
@@ -1777,9 +1777,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $9,750.00 | Unlimited |
-| Max Loss | Unlimited | -$1,750.00 |
-| Risk Reward | 39.00x | Unlimited |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$250.00 | -$1,750.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $5,250.00 | $16,750.00 |
 | Cost Credit | Debit $250.00 | Debit $250.00 |
 | Pop | 5.4% | 5.4% |
@@ -2759,9 +2759,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | Unlimited | $9,810.00 |
-| Max Loss | -$190.00 | Unlimited |
-| Risk Reward | Unlimited | 9.91x |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$190.00 | -$990.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $190.00 | $10,190.00 |
 | Cost Credit | Debit $190.00 | Debit $190.00 |
 | Pop | 44.7% | 44.7% |
@@ -2835,9 +2835,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | Unlimited | $9,810.00 |
-| Max Loss | -$190.00 | Unlimited |
-| Risk Reward | Unlimited | 9.91x |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$190.00 | -$990.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $190.00 | $10,190.00 |
 | Cost Credit | Debit $190.00 | Debit $190.00 |
 | Pop | 44.7% | 44.7% |
@@ -2911,9 +2911,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | Unlimited | $4,810.00 |
-| Max Loss | -$190.00 | Unlimited |
-| Risk Reward | Unlimited | 0.80x |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$190.00 | -$5,990.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $190.00 | $5,190.00 |
 | Cost Credit | Debit $190.00 | Debit $190.00 |
 | Pop | 0.0% | 0.0% |
@@ -2988,9 +2988,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | Unlimited | $11,310.00 |
-| Max Loss | -$190.00 | Unlimited |
-| Risk Reward | Unlimited | 22.18x |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$190.00 | $510.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $190.00 | $11,690.00 |
 | Cost Credit | Debit $190.00 | Debit $190.00 |
 | Pop | 100.0% | 100.0% |
@@ -3062,9 +3062,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $9,010.00 | Unlimited |
-| Max Loss | Unlimited | -$990.00 |
-| Risk Reward | 47.42x | Unlimited |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$190.00 | -$990.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $5,190.00 | $15,190.00 |
 | Cost Credit | Debit $190.00 | Debit $190.00 |
 | Pop | 40.8% | 40.8% |
@@ -3138,9 +3138,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $9,010.00 | Unlimited |
-| Max Loss | Unlimited | -$990.00 |
-| Risk Reward | 47.42x | Unlimited |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$190.00 | -$990.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $5,190.00 | $15,190.00 |
 | Cost Credit | Debit $190.00 | Debit $190.00 |
 | Pop | 40.8% | 40.8% |
@@ -3214,9 +3214,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $9,010.00 | Unlimited |
-| Max Loss | Unlimited | $4,010.00 |
-| Risk Reward | 47.42x | Unlimited |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$190.00 | $4,010.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $5,190.00 | $10,190.00 |
 | Cost Credit | Debit $190.00 | Debit $190.00 |
 | Pop | 100.0% | 100.0% |
@@ -3289,9 +3289,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $9,010.00 | Unlimited |
-| Max Loss | Unlimited | -$2,490.00 |
-| Risk Reward | 47.42x | Unlimited |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$190.00 | -$2,490.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $5,190.00 | $16,690.00 |
 | Cost Credit | Debit $190.00 | Debit $190.00 |
 | Pop | 6.0% | 6.0% |
@@ -3366,9 +3366,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $9,200.00 | $800.00 |
+| Max Profit | Unlimited | $800.00 |
 | Max Loss | Unlimited | -$800.00 |
-| Risk Reward | 0.48x | 1.00x |
+| Risk Reward | N/A | 1.00x |
 | Capital at Risk | $5,190.00 | $15,190.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 47.9% | 47.9% |
@@ -3444,9 +3444,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $9,200.00 | $800.00 |
+| Max Profit | Unlimited | $800.00 |
 | Max Loss | Unlimited | -$800.00 |
-| Risk Reward | 0.48x | 1.00x |
+| Risk Reward | N/A | 1.00x |
 | Capital at Risk | $5,190.00 | $15,190.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 47.9% | 47.9% |
@@ -3522,9 +3522,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $9,200.00 | $5,800.00 |
+| Max Profit | Unlimited | $5,800.00 |
 | Max Loss | Unlimited | $4,200.00 |
-| Risk Reward | 0.48x | 1.38x |
+| Risk Reward | N/A | 1.38x |
 | Capital at Risk | $5,190.00 | $10,190.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 100.0% | 100.0% |
@@ -3600,9 +3600,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $9,200.00 | -$700.00 |
+| Max Profit | Unlimited | -$700.00 |
 | Max Loss | Unlimited | -$2,300.00 |
-| Risk Reward | 0.48x | 0.30x |
+| Risk Reward | N/A | 0.30x |
 | Capital at Risk | $5,190.00 | $16,690.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 0.0% | 0.0% |
@@ -5256,9 +5256,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $8,210.00 | $8,210.00 |
-| Max Loss | Unlimited | Unlimited |
-| Risk Reward | 8.29x | 8.29x |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$990.00 | -$990.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $2,990.00 | $2,990.00 |
 | Cost Credit | Credit $610.00 | Credit $610.00 |
 | Pop | 44.0% | 44.0% |
@@ -5337,9 +5337,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $8,210.00 | Unlimited |
-| Max Loss | Unlimited | -$1,790.00 |
-| Risk Reward | 8.29x | Unlimited |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$990.00 | -$1,790.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $2,990.00 | $12,990.00 |
 | Cost Credit | Credit $610.00 | Credit $610.00 |
 | Pop | 44.3% | 44.3% |
@@ -5416,9 +5416,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $8,210.00 | Unlimited |
-| Max Loss | Unlimited | $3,210.00 |
-| Risk Reward | 8.29x | Unlimited |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$990.00 | $3,210.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $2,990.00 | $7,990.00 |
 | Cost Credit | Credit $610.00 | Credit $610.00 |
 | Pop | 100.0% | 100.0% |
@@ -5494,9 +5494,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $8,210.00 | Unlimited |
-| Max Loss | Unlimited | -$3,290.00 |
-| Risk Reward | 8.29x | Unlimited |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$990.00 | -$3,290.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $2,990.00 | $14,490.00 |
 | Cost Credit | Credit $610.00 | Credit $610.00 |
 | Pop | 19.1% | 19.1% |
@@ -7181,9 +7181,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $8,250.00 | $8,250.00 |
-| Max Loss | Unlimited | Unlimited |
-| Risk Reward | 33.00x | 33.00x |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$250.00 | -$250.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $3,638.00 | $3,638.00 |
 | Cost Credit | Credit $1,250.00 | Credit $1,250.00 |
 | Pop | 42.2% | 42.2% |
@@ -7263,9 +7263,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $8,250.00 | Unlimited |
-| Max Loss | Unlimited | -$1,750.00 |
-| Risk Reward | 33.00x | Unlimited |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$250.00 | -$1,750.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $3,638.00 | $13,638.00 |
 | Cost Credit | Credit $1,250.00 | Credit $1,250.00 |
 | Pop | 43.2% | 43.2% |
@@ -7343,9 +7343,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $8,250.00 | Unlimited |
-| Max Loss | Unlimited | $3,250.00 |
-| Risk Reward | 33.00x | Unlimited |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$250.00 | $3,250.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $3,638.00 | $8,638.00 |
 | Cost Credit | Credit $1,250.00 | Credit $1,250.00 |
 | Pop | 100.0% | 100.0% |
@@ -7422,9 +7422,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $8,250.00 | Unlimited |
-| Max Loss | Unlimited | -$3,250.00 |
-| Risk Reward | 33.00x | Unlimited |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$250.00 | -$3,250.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $3,638.00 | $15,138.00 |
 | Cost Credit | Credit $1,250.00 | Credit $1,250.00 |
 | Pop | 19.5% | 19.5% |
@@ -11506,8 +11506,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | Unlimited |
-| Risk Reward | N/A | N/A |
+| Max Loss | -$500.00 | -$500.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $500.00 | $500.00 |
 | Cost Credit | Debit $500.00 | Debit $500.00 |
 | Pop | 63.0% | 63.0% |
@@ -11584,8 +11584,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | -$500.00 |
-| Risk Reward | N/A | Unlimited |
+| Max Loss | -$500.00 | -$500.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $500.00 | $10,500.00 |
 | Cost Credit | Debit $500.00 | Debit $500.00 |
 | Pop | 38.6% | 38.6% |
@@ -11660,8 +11660,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | $4,500.00 |
-| Risk Reward | N/A | Unlimited |
+| Max Loss | -$500.00 | $4,500.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $500.00 | $5,500.00 |
 | Cost Credit | Debit $500.00 | Debit $500.00 |
 | Pop | 100.0% | 100.0% |
@@ -11735,8 +11735,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | -$2,000.00 |
-| Risk Reward | N/A | Unlimited |
+| Max Loss | -$500.00 | -$2,000.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $500.00 | $12,000.00 |
 | Cost Credit | Debit $500.00 | Debit $500.00 |
 | Pop | 16.6% | 16.6% |
@@ -12116,8 +12116,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | Unlimited |
-| Risk Reward | N/A | N/A |
+| Max Loss | -$380.00 | -$380.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $380.00 | $380.00 |
 | Cost Credit | Debit $380.00 | Debit $380.00 |
 | Pop | 25.4% | 25.4% |
@@ -12197,8 +12197,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | -$1,180.00 |
-| Risk Reward | N/A | Unlimited |
+| Max Loss | -$380.00 | -$1,180.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $380.00 | $10,380.00 |
 | Cost Credit | Debit $380.00 | Debit $380.00 |
 | Pop | 34.1% | 34.1% |
@@ -12276,8 +12276,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | $3,820.00 |
-| Risk Reward | N/A | Unlimited |
+| Max Loss | -$380.00 | $3,820.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $380.00 | $5,380.00 |
 | Cost Credit | Debit $380.00 | Debit $380.00 |
 | Pop | 100.0% | 100.0% |
@@ -12354,8 +12354,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | -$2,680.00 |
-| Risk Reward | N/A | Unlimited |
+| Max Loss | -$380.00 | -$2,680.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $380.00 | $11,880.00 |
 | Cost Credit | Debit $380.00 | Debit $380.00 |
 | Pop | 10.3% | 10.3% |
@@ -12750,8 +12750,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | Unlimited |
-| Risk Reward | N/A | N/A |
+| Max Loss | -$380.00 | -$380.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $1,980.00 | $1,980.00 |
 | Cost Credit | Debit $1,980.00 | Debit $1,980.00 |
 | Pop | 25.4% | 25.4% |
@@ -12831,8 +12831,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | -$1,180.00 |
-| Risk Reward | N/A | Unlimited |
+| Max Loss | -$380.00 | -$1,180.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $1,980.00 | $11,980.00 |
 | Cost Credit | Debit $1,980.00 | Debit $1,980.00 |
 | Pop | 34.1% | 34.1% |
@@ -12910,8 +12910,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | $3,820.00 |
-| Risk Reward | N/A | Unlimited |
+| Max Loss | -$380.00 | $3,820.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $1,980.00 | $6,980.00 |
 | Cost Credit | Debit $1,980.00 | Debit $1,980.00 |
 | Pop | 100.0% | 100.0% |
@@ -12988,8 +12988,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | -$2,680.00 |
-| Risk Reward | N/A | Unlimited |
+| Max Loss | -$380.00 | -$2,680.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $1,980.00 | $13,480.00 |
 | Cost Credit | Debit $1,980.00 | Debit $1,980.00 |
 | Pop | 10.3% | 10.3% |
@@ -13384,8 +13384,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | Unlimited |
-| Risk Reward | N/A | N/A |
+| Max Loss | -$750.00 | -$750.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $750.00 | $750.00 |
 | Cost Credit | Debit $750.00 | Debit $750.00 |
 | Pop | 60.3% | 60.3% |
@@ -13462,8 +13462,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | Unlimited |
-| Risk Reward | N/A | N/A |
+| Max Loss | -$750.00 | -$750.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $750.00 | $10,750.00 |
 | Cost Credit | Debit $750.00 | Debit $750.00 |
 | Pop | 58.5% | 58.5% |
@@ -13540,8 +13540,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | Unlimited |
-| Risk Reward | N/A | N/A |
+| Max Loss | -$750.00 | $4,250.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $750.00 | $5,750.00 |
 | Cost Credit | Debit $750.00 | Debit $750.00 |
 | Pop | 100.0% | 100.0% |
@@ -13615,8 +13615,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | Unlimited |
-| Risk Reward | N/A | N/A |
+| Max Loss | -$750.00 | -$2,250.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $750.00 | $12,250.00 |
 | Cost Credit | Debit $750.00 | Debit $750.00 |
 | Pop | 14.9% | 14.9% |
@@ -13693,8 +13693,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | Unlimited |
-| Risk Reward | N/A | N/A |
+| Max Loss | -$750.00 | -$750.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $750.00 | $750.00 |
 | Cost Credit | Debit $750.00 | Debit $750.00 |
 | Pop | 58.5% | 58.5% |
@@ -13771,8 +13771,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | -$750.00 |
-| Risk Reward | N/A | Unlimited |
+| Max Loss | -$750.00 | -$750.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $750.00 | $10,750.00 |
 | Cost Credit | Debit $750.00 | Debit $750.00 |
 | Pop | 38.6% | 38.6% |
@@ -13847,8 +13847,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | $4,250.00 |
-| Risk Reward | N/A | Unlimited |
+| Max Loss | -$750.00 | $4,250.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $750.00 | $5,750.00 |
 | Cost Credit | Debit $750.00 | Debit $750.00 |
 | Pop | 100.0% | 100.0% |
@@ -13922,8 +13922,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | Unlimited | -$2,250.00 |
-| Risk Reward | N/A | Unlimited |
+| Max Loss | -$750.00 | -$2,250.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $750.00 | $12,250.00 |
 | Cost Credit | Debit $750.00 | Debit $750.00 |
 | Pop | 22.7% | 22.7% |
@@ -15560,9 +15560,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $10,000.00 | $10,000.00 |
+| Max Profit | Unlimited | Unlimited |
 | Max Loss | Unlimited | Unlimited |
-| Risk Reward | 0.50x | 0.50x |
+| Risk Reward | N/A | N/A |
 | Capital at Risk | $2,250.00 | $2,250.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 52.1% | 52.1% |
@@ -15635,9 +15635,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $10,000.00 | $0.00 |
+| Max Profit | Unlimited | $0.00 |
 | Max Loss | Unlimited | $0.00 |
-| Risk Reward | 0.50x | N/A |
+| Risk Reward | N/A | N/A |
 | Capital at Risk | $5,250.00 | $15,250.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 0.0% | 0.0% |
@@ -15709,9 +15709,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $10,000.00 | $5,000.00 |
+| Max Profit | Unlimited | $5,000.00 |
 | Max Loss | Unlimited | $5,000.00 |
-| Risk Reward | 0.50x | 1.00x |
+| Risk Reward | N/A | 1.00x |
 | Capital at Risk | $5,250.00 | $10,250.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 100.0% | 100.0% |
@@ -15784,9 +15784,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $10,000.00 | -$1,500.00 |
+| Max Profit | Unlimited | -$1,500.00 |
 | Max Loss | Unlimited | -$1,500.00 |
-| Risk Reward | 0.50x | 1.00x |
+| Risk Reward | N/A | 1.00x |
 | Capital at Risk | $5,250.00 | $16,750.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 0.0% | 0.0% |
@@ -16173,9 +16173,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $9,200.00 | $9,200.00 |
+| Max Profit | Unlimited | Unlimited |
 | Max Loss | Unlimited | Unlimited |
-| Risk Reward | 0.48x | 0.48x |
+| Risk Reward | N/A | N/A |
 | Capital at Risk | $1,390.00 | $1,390.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 22.6% | 22.6% |
@@ -16251,9 +16251,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $9,200.00 | $800.00 |
+| Max Profit | Unlimited | $800.00 |
 | Max Loss | Unlimited | -$800.00 |
-| Risk Reward | 0.48x | 1.00x |
+| Risk Reward | N/A | 1.00x |
 | Capital at Risk | $5,190.00 | $15,190.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 47.9% | 47.9% |
@@ -16329,9 +16329,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $9,200.00 | $5,800.00 |
+| Max Profit | Unlimited | $5,800.00 |
 | Max Loss | Unlimited | $4,200.00 |
-| Risk Reward | 0.48x | 1.38x |
+| Risk Reward | N/A | 1.38x |
 | Capital at Risk | $5,190.00 | $10,190.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 100.0% | 100.0% |
@@ -16407,9 +16407,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $9,200.00 | -$700.00 |
+| Max Profit | Unlimited | -$700.00 |
 | Max Loss | Unlimited | -$2,300.00 |
-| Risk Reward | 0.48x | 0.30x |
+| Risk Reward | N/A | 0.30x |
 | Capital at Risk | $5,190.00 | $16,690.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 0.0% | 0.0% |
@@ -16484,8 +16484,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | -$500.00 | Unlimited |
-| Risk Reward | Unlimited | N/A |
+| Max Loss | -$500.00 | -$500.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $500.00 | $10,500.00 |
 | Cost Credit | Debit $500.00 | Debit $500.00 |
 | Pop | 63.0% | 63.0% |
@@ -16561,8 +16561,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | -$500.00 | Unlimited |
-| Risk Reward | Unlimited | N/A |
+| Max Loss | -$500.00 | -$500.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $500.00 | $10,500.00 |
 | Cost Credit | Debit $500.00 | Debit $500.00 |
 | Pop | 63.0% | 63.0% |
@@ -16638,8 +16638,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | -$500.00 | Unlimited |
-| Risk Reward | Unlimited | N/A |
+| Max Loss | -$500.00 | -$5,500.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $500.00 | $5,500.00 |
 | Cost Credit | Debit $500.00 | Debit $500.00 |
 | Pop | 0.0% | 0.0% |
@@ -16716,8 +16716,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | -$500.00 | Unlimited |
-| Risk Reward | Unlimited | N/A |
+| Max Loss | -$500.00 | $1,000.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $500.00 | $12,000.00 |
 | Cost Credit | Debit $500.00 | Debit $500.00 |
 | Pop | 100.0% | 100.0% |
@@ -16788,9 +16788,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $19,500.00 | Unlimited |
-| Max Loss | Unlimited | Unlimited |
-| Risk Reward | 39.00x | N/A |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$500.00 | -$500.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $5,500.00 | $15,500.00 |
 | Cost Credit | Debit $500.00 | Debit $500.00 |
 | Pop | 63.0% | 63.0% |
@@ -16865,9 +16865,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $19,500.00 | Unlimited |
-| Max Loss | Unlimited | Unlimited |
-| Risk Reward | 39.00x | N/A |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$500.00 | -$500.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $5,500.00 | $15,500.00 |
 | Cost Credit | Debit $500.00 | Debit $500.00 |
 | Pop | 63.0% | 63.0% |
@@ -16942,9 +16942,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $19,500.00 | Unlimited |
-| Max Loss | Unlimited | Unlimited |
-| Risk Reward | 39.00x | N/A |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$500.00 | $4,500.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $5,500.00 | $10,500.00 |
 | Cost Credit | Debit $500.00 | Debit $500.00 |
 | Pop | 100.0% | 100.0% |
@@ -17016,9 +17016,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $19,500.00 | Unlimited |
-| Max Loss | Unlimited | Unlimited |
-| Risk Reward | 39.00x | N/A |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$500.00 | -$2,000.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $5,500.00 | $17,000.00 |
 | Cost Credit | Debit $500.00 | Debit $500.00 |
 | Pop | 5.3% | 5.3% |
@@ -17705,8 +17705,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | -$1,180.00 | Unlimited |
-| Risk Reward | Unlimited | N/A |
+| Max Loss | -$1,180.00 | -$380.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $1,180.00 | $11,180.00 |
 | Cost Credit | Debit $1,180.00 | Debit $1,180.00 |
 | Pop | 25.4% | 25.4% |
@@ -17786,8 +17786,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | -$1,180.00 | Unlimited |
-| Risk Reward | Unlimited | N/A |
+| Max Loss | -$1,180.00 | -$380.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $1,180.00 | $11,180.00 |
 | Cost Credit | Debit $1,180.00 | Debit $1,180.00 |
 | Pop | 25.4% | 25.4% |
@@ -17867,8 +17867,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | -$1,180.00 | Unlimited |
-| Risk Reward | Unlimited | N/A |
+| Max Loss | -$1,180.00 | -$5,380.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $1,180.00 | $6,180.00 |
 | Cost Credit | Debit $1,180.00 | Debit $1,180.00 |
 | Pop | 0.0% | 0.0% |
@@ -17949,8 +17949,8 @@ Every computed value for each strategy × scenario run.
 | Metric | Options | Combined |
 |--------|---------|----------|
 | Max Profit | Unlimited | Unlimited |
-| Max Loss | -$1,180.00 | Unlimited |
-| Risk Reward | Unlimited | N/A |
+| Max Loss | -$1,180.00 | $1,120.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $1,180.00 | $12,680.00 |
 | Cost Credit | Debit $1,180.00 | Debit $1,180.00 |
 | Pop | 100.0% | 100.0% |
@@ -18025,9 +18025,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $18,820.00 | Unlimited |
-| Max Loss | Unlimited | Unlimited |
-| Risk Reward | 15.95x | N/A |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$1,180.00 | -$380.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $6,180.00 | $16,180.00 |
 | Cost Credit | Debit $1,180.00 | Debit $1,180.00 |
 | Pop | 25.4% | 25.4% |
@@ -18106,9 +18106,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $18,820.00 | Unlimited |
-| Max Loss | Unlimited | Unlimited |
-| Risk Reward | 15.95x | N/A |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$1,180.00 | -$380.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $6,180.00 | $16,180.00 |
 | Cost Credit | Debit $1,180.00 | Debit $1,180.00 |
 | Pop | 25.4% | 25.4% |
@@ -18187,9 +18187,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $18,820.00 | Unlimited |
-| Max Loss | Unlimited | Unlimited |
-| Risk Reward | 15.95x | N/A |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$1,180.00 | $4,620.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $6,180.00 | $11,180.00 |
 | Cost Credit | Debit $1,180.00 | Debit $1,180.00 |
 | Pop | 100.0% | 100.0% |
@@ -18265,9 +18265,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $18,820.00 | Unlimited |
-| Max Loss | Unlimited | Unlimited |
-| Risk Reward | 15.95x | N/A |
+| Max Profit | Unlimited | Unlimited |
+| Max Loss | -$1,180.00 | -$1,880.00 |
+| Risk Reward | Unlimited | Unlimited |
 | Capital at Risk | $6,180.00 | $17,680.00 |
 | Cost Credit | Debit $1,180.00 | Debit $1,180.00 |
 | Pop | 1.1% | 1.1% |
@@ -19596,9 +19596,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $10,000.00 | $0.00 |
+| Max Profit | Unlimited | $0.00 |
 | Max Loss | Unlimited | $0.00 |
-| Risk Reward | 0.50x | N/A |
+| Risk Reward | N/A | N/A |
 | Capital at Risk | $5,250.00 | $15,250.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 0.0% | 0.0% |
@@ -19670,9 +19670,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $10,000.00 | $0.00 |
+| Max Profit | Unlimited | $0.00 |
 | Max Loss | Unlimited | $0.00 |
-| Risk Reward | 0.50x | N/A |
+| Risk Reward | N/A | N/A |
 | Capital at Risk | $5,250.00 | $15,250.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 0.0% | 0.0% |
@@ -19744,9 +19744,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $10,000.00 | $5,000.00 |
+| Max Profit | Unlimited | $5,000.00 |
 | Max Loss | Unlimited | $5,000.00 |
-| Risk Reward | 0.50x | 1.00x |
+| Risk Reward | N/A | 1.00x |
 | Capital at Risk | $5,250.00 | $10,250.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 100.0% | 100.0% |
@@ -19819,9 +19819,9 @@ Every computed value for each strategy × scenario run.
 
 | Metric | Options | Combined |
 |--------|---------|----------|
-| Max Profit | $10,000.00 | -$1,500.00 |
+| Max Profit | Unlimited | -$1,500.00 |
 | Max Loss | Unlimited | -$1,500.00 |
-| Risk Reward | 0.50x | 1.00x |
+| Risk Reward | N/A | 1.00x |
 | Capital at Risk | $5,250.00 | $16,750.00 |
 | Cost Credit | $0.00 | $0.00 |
 | Pop | 0.0% | 0.0% |

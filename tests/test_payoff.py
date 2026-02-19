@@ -89,3 +89,53 @@ def test_short_put_no_unlimited():
     assert results["unlimited_upside"] is False
     assert results["unlimited_downside"] is False
     assert results["unlimited_loss_upside"] is False
+
+
+# ── Directional unlimited flags ──────────────────────────────────────────
+
+def test_directional_flags_long_call():
+    """Long call: profit rises as price → ∞, no loss at either extreme."""
+    results = compute_payoff(StrategyInput(
+        spot=100.0,
+        legs=[OptionLeg(kind="call", position=1, strike=100.0, premium=5.0)],
+    ))
+    assert results["unlimited_profit_upside"] is True
+    assert results["unlimited_profit_downside"] is False
+    assert results["unlimited_loss_upside"] is False
+    assert results["unlimited_loss_downside"] is False
+
+
+def test_directional_flags_long_put():
+    """Long put: profit grows as price → 0, max loss is premium (finite)."""
+    results = compute_payoff(StrategyInput(
+        spot=100.0,
+        legs=[OptionLeg(kind="put", position=1, strike=95.0, premium=2.50)],
+    ))
+    assert results["unlimited_profit_upside"] is False
+    assert results["unlimited_profit_downside"] is True
+    assert results["unlimited_loss_upside"] is False
+    assert results["unlimited_loss_downside"] is False
+
+
+def test_directional_flags_short_call():
+    """Short call: loss grows as price → ∞, max profit is premium (finite)."""
+    results = compute_payoff(StrategyInput(
+        spot=100.0,
+        legs=[OptionLeg(kind="call", position=-1, strike=105.0, premium=3.0)],
+    ))
+    assert results["unlimited_profit_upside"] is False
+    assert results["unlimited_profit_downside"] is False
+    assert results["unlimited_loss_upside"] is True
+    assert results["unlimited_loss_downside"] is False
+
+
+def test_directional_flags_short_put():
+    """Short put: loss is bounded (price can't go below 0), all False."""
+    results = compute_payoff(StrategyInput(
+        spot=100.0,
+        legs=[OptionLeg(kind="put", position=-1, strike=95.0, premium=2.50)],
+    ))
+    assert results["unlimited_profit_upside"] is False
+    assert results["unlimited_profit_downside"] is False
+    assert results["unlimited_loss_upside"] is False
+    assert results["unlimited_loss_downside"] is False

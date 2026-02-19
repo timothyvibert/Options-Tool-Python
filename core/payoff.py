@@ -132,17 +132,28 @@ def _detect_breakevens(grid: List[float], pnl: List[float]) -> List[float]:
 
 def _detect_unlimited(grid: List[float], pnl: List[float]) -> Dict[str, bool]:
     if len(grid) < 2:
-        return {"unlimited_upside": False, "unlimited_downside": False, "unlimited_loss_upside": False}
+        return {
+            "unlimited_upside": False, "unlimited_downside": False,
+            "unlimited_loss_upside": False,
+            "unlimited_profit_upside": False,
+            "unlimited_profit_downside": False,
+            "unlimited_loss_downside": False,
+        }
     slope_high = (pnl[-1] - pnl[-2]) / (grid[-1] - grid[-2])
     slope_low = (pnl[1] - pnl[0]) / (grid[1] - grid[0])
     # Use a small tolerance to avoid floating-point noise (e.g. -3e-12)
     # triggering unlimited flags for strategies with truly flat payoffs.
     _EPS = 1e-6
+    has_slope_low = slope_low < -_EPS
     return {
+        # Legacy flags (kept for backward compatibility)
         "unlimited_upside": slope_high > _EPS,
-        "unlimited_downside": slope_low < -_EPS,
-        # P&L drops as stock rises (naked short call) — unlimited loss on upside
+        "unlimited_downside": has_slope_low,
         "unlimited_loss_upside": slope_high < -_EPS,
+        # Directional flags — distinguish profit vs loss at each extreme
+        "unlimited_profit_upside": slope_high > _EPS,          # long call: profit rises as price → ∞
+        "unlimited_profit_downside": has_slope_low and pnl[0] > 0,  # long put: profit at price → 0
+        "unlimited_loss_downside": has_slope_low and pnl[0] < 0,    # loss grows as price → 0
     }
 
 

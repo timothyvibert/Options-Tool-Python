@@ -581,7 +581,7 @@ def build_analysis_pack(
     # (premium received is income, not capital at risk)
     is_net_credit = net_premium_total < 0
     has_unlimited = (
-        options_unlimited["unlimited_downside"]
+        options_unlimited.get("unlimited_loss_downside", False)
         or options_unlimited.get("unlimited_loss_upside", False)
     )
     if is_net_credit and has_unlimited and margin_proxy > 0:
@@ -741,31 +741,37 @@ def build_analysis_pack(
             prob_results["iv_used_pct"] = f"{eff_sigma * 100:.1f}%"
 
     # Determine Max Profit / Max Loss with unlimited detection
+    # Use directional flags: profit_upside/profit_downside for max profit,
+    # loss_upside/loss_downside for max loss.
     options_max_profit = (
-        "Unlimited" if options_unlimited["unlimited_upside"]
+        "Unlimited" if (options_unlimited.get("unlimited_profit_upside", options_unlimited["unlimited_upside"])
+                        or options_unlimited.get("unlimited_profit_downside", False))
         else _format_dollar(max(options_pnl) if options_pnl else None)
     )
     combined_max_profit = (
-        "Unlimited" if combined_unlimited["unlimited_upside"]
+        "Unlimited" if (combined_unlimited.get("unlimited_profit_upside", combined_unlimited["unlimited_upside"])
+                        or combined_unlimited.get("unlimited_profit_downside", False))
         else _format_dollar(max(combined_pnl) if combined_pnl else None)
     )
     options_max_loss = (
-        "Unlimited" if (options_unlimited["unlimited_downside"]
+        "Unlimited" if (options_unlimited.get("unlimited_loss_downside", False)
                         or options_unlimited.get("unlimited_loss_upside", False))
         else _format_dollar(min(options_pnl) if options_pnl else None)
     )
     combined_max_loss = (
-        "Unlimited" if (combined_unlimited["unlimited_downside"]
+        "Unlimited" if (combined_unlimited.get("unlimited_loss_downside", False)
                         or combined_unlimited.get("unlimited_loss_upside", False))
         else _format_dollar(min(combined_pnl) if combined_pnl else None)
     )
 
     # Convenience booleans for unlimited profit/loss (check flags, not strings)
-    opt_profit_unlimited = options_unlimited["unlimited_upside"]
-    opt_loss_unlimited = (options_unlimited["unlimited_downside"]
+    opt_profit_unlimited = (options_unlimited.get("unlimited_profit_upside", options_unlimited["unlimited_upside"])
+                            or options_unlimited.get("unlimited_profit_downside", False))
+    opt_loss_unlimited = (options_unlimited.get("unlimited_loss_downside", False)
                           or options_unlimited.get("unlimited_loss_upside", False))
-    comb_profit_unlimited = combined_unlimited["unlimited_upside"]
-    comb_loss_unlimited = (combined_unlimited["unlimited_downside"]
+    comb_profit_unlimited = (combined_unlimited.get("unlimited_profit_upside", combined_unlimited["unlimited_upside"])
+                             or combined_unlimited.get("unlimited_profit_downside", False))
+    comb_loss_unlimited = (combined_unlimited.get("unlimited_loss_downside", False)
                            or combined_unlimited.get("unlimited_loss_upside", False))
 
     # Risk/Reward Ratio

@@ -652,8 +652,9 @@ def build_analysis_pack(
         total_contracts = sum(abs(leg.position) for leg in strategy_input.legs) or 1
         net_prem_per_share = net_premium_total / total_contracts
 
+    # Premium % of Spot: use per-share net premium (no multiplier) / spot
     net_premium_pct = (
-        net_prem_per_share / strategy_input.spot * 100.0
+        net_premium / strategy_input.spot * 100.0
         if strategy_input.spot
         else 0.0
     )

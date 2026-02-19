@@ -536,10 +536,9 @@ def test_net_prem_pct_spot():
     )
     pct = _summary_row(pack, "Net Prem % Spot")
     assert pct is not None
-    # net_premium_total = 1 * 5.0 * 100 = 500
-    # net_prem_per_share = 500 / 1 = 500
-    # display pct = -(500 / 100 * 100) = -500.00% (debit = negative display)
-    assert pct["options"] == "-500.00%"
+    # net_premium (per-share, no multiplier) = 1 * 5.0 = 5.0
+    # display pct = -(5.0 / 100 * 100) = -5.00% (debit = negative display)
+    assert pct["options"] == "-5.00%"
 
 
 # ── Fix 1C: Min ROI N/A when max loss is unlimited ──

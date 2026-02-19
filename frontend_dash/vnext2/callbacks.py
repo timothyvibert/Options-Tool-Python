@@ -131,6 +131,8 @@ def _normalize_expiry(value: object) -> str | None:
 
 
 def _fmt_money(value: object) -> str:
+    if isinstance(value, str) and value == "Unlimited":
+        return "Unlimited"
     num = _coerce_float(value)
     if num is None:
         return "--"
@@ -138,6 +140,8 @@ def _fmt_money(value: object) -> str:
 
 
 def _fmt_money_signed(value: object) -> str:
+    if isinstance(value, str) and value == "Unlimited":
+        return "Unlimited"
     num = _coerce_float(value)
     if num is None:
         return "--"
@@ -145,6 +149,8 @@ def _fmt_money_signed(value: object) -> str:
 
 
 def _fmt_percent_ratio(value: object, decimals: int = 1) -> str:
+    if isinstance(value, str) and value == "Unlimited":
+        return "Unlimited"
     num = _coerce_float(value)
     if num is None:
         return "--"
@@ -1677,6 +1683,11 @@ def register_v2_callbacks(
         if not x:
             return _empty_chart(title="No payoff data in analysis_pack")
 
+        # Detect stock position — suppress combined/stock traces when no stock
+        _chart_kl = pack.get("key_levels")
+        _chart_kl_meta = _chart_kl.get("meta") or {} if isinstance(_chart_kl, dict) else {}
+        _chart_has_stock = bool(_chart_kl_meta.get("has_stock_position"))
+
         def _numeric_list(values):
             items = []
             for value in values or []:
@@ -1725,7 +1736,7 @@ def register_v2_callbacks(
             x_range_span = x_max - x_min if x_max > x_min else 1.0
 
         # Add traces with full data range (0 to 3×spot) — user can pan/zoom
-        if show_stock and len(stock) == len(x):
+        if _chart_has_stock and show_stock and len(stock) == len(x):
             fig.add_trace(go.Scatter(
                 x=x, y=stock, name="Stock PnL",
                 line={"color": "#6E7681", "width": 1.5, "dash": "dash"},
@@ -1735,7 +1746,7 @@ def register_v2_callbacks(
                 x=x, y=options, name="Options PnL",
                 line={"color": "#2563EB", "width": 2.5},
             ))
-        if show_combined and len(combined) == len(x):
+        if _chart_has_stock and show_combined and len(combined) == len(x):
             fig.add_trace(go.Scatter(
                 x=x, y=combined, name="Combined PnL",
                 line={"color": "#7C3AED", "width": 3},
@@ -1785,8 +1796,8 @@ def register_v2_callbacks(
                         annotation_font_color="#2DD4BF",
                         annotation_font_size=11,
                     )
-            # Combined breakevens (from analysis pack)
-            if chk_be_combined:
+            # Combined breakevens (from analysis pack) — only when stock overlay
+            if _chart_has_stock and chk_be_combined:
                 for be in be_vals:
                     fig.add_vline(
                         x=be, line_dash="dash",
@@ -1807,11 +1818,11 @@ def register_v2_callbacks(
                         if m and _coerce_float(yv) is not None]
 
             y_vals = []
-            if show_combined and len(combined) == len(x):
+            if _chart_has_stock and show_combined and len(combined) == len(x):
                 y_vals.extend(_visible_y(combined))
             if show_options and len(options) == len(x):
                 y_vals.extend(_visible_y(options))
-            if show_stock and len(stock) == len(x):
+            if _chart_has_stock and show_stock and len(stock) == len(x):
                 y_vals.extend(_visible_y(stock))
 
             if not y_vals:
@@ -2013,11 +2024,11 @@ def register_v2_callbacks(
             metric_key = str(metric_label or "").strip().lower()
             if metric_key in {"max profit", "max loss"}:
                 return _fmt_money_signed(raw_value) if _coerce_float(raw_value) is not None else text
-            if metric_key in {"capital basis", "notional exposure"}:
+            if metric_key in {"capital basis", "capital at risk", "notional exposure"}:
                 return _fmt_money(raw_value) if _coerce_float(raw_value) is not None else text
             if metric_key in {"max roi", "min roi"}:
                 return _fmt_percent_ratio(raw_value) if _coerce_float(raw_value) is not None else text
-            if metric_key == "net prem % spot":
+            if metric_key in {"net prem % spot", "premium % of spot"}:
                 if "%" in text:
                     return text
                 return _fmt_percent_point(raw_value) if _coerce_float(raw_value) is not None else text
@@ -2049,10 +2060,20 @@ def register_v2_callbacks(
 
         store_pack = analysis_pack_to_store(pack)
 
+        # Detect whether position has a stock component
+        _kl_meta = {}
+        _kl = pack.get("key_levels")
+        if isinstance(_kl, dict):
+            _kl_meta = _kl.get("meta") or {}
+        has_stock = bool(_kl_meta.get("has_stock_position"))
+
         # Metrics table
         summary = store_pack.get("summary", {}) if isinstance(store_pack, dict) else {}
         summary_rows = summary.get("rows") if isinstance(summary, dict) else []
         metrics_rows = []
+
+        # Rows to skip in display (redundant with other UI elements)
+        _skip_metrics = {"pop", "net prem/share"}
 
         def _pick_value(row_dict: dict, keys: list[str]):
             for key in keys:
@@ -2090,35 +2111,53 @@ def register_v2_callbacks(
                 pass
             return "dimmed"
 
-        _no_color_metrics = {"net prem % spot", "be distance %", "pop", "closest breakeven"}
+        _no_color_metrics = {"net prem % spot", "be distance %", "closest breakeven"}
+
+        # Display-time label renames (pack labels stay stable for tests/audit)
+        _display_labels = {
+            "Capital Basis": "Capital at Risk",
+            "Net Prem % Spot": "Premium % of Spot",
+        }
 
         for row in summary_rows or []:
             if not isinstance(row, dict):
                 continue
             metric = row.get("metric") or row.get("label") or row.get("Metric") or ""
+            _metric_key = str(metric).strip().lower()
+
+            # Skip redundant rows
+            if _metric_key in _skip_metrics:
+                continue
+
+            display_label = _display_labels.get(metric, metric)
+
             options_raw = _pick_value(row, ["options", "Options"])
             combined_raw = _pick_value(row, ["combined", "Combined", "net"])
 
             options_formatted = _format_summary_value(metric, options_raw)
-            combined_formatted = _format_summary_value(metric, combined_raw)
-
-            _metric_key = str(metric).strip().lower()
+            # When no stock position, show "--" for Combined column
+            if has_stock:
+                combined_formatted = _format_summary_value(metric, combined_raw)
+            else:
+                combined_formatted = "--"
 
             # Color Cost/Credit
             if _metric_key == "cost/credit":
                 options_formatted = _color_cost_credit(options_formatted)
-                combined_formatted = _color_cost_credit(combined_formatted)
+                if has_stock:
+                    combined_formatted = _color_cost_credit(combined_formatted)
             elif _metric_key not in _no_color_metrics:
                 opt_color = _value_color(str(options_formatted))
-                comb_color = _value_color(str(combined_formatted))
                 if opt_color != "dimmed":
                     options_formatted = dmc.Text(str(options_formatted), c=opt_color, size="sm")
-                if comb_color != "dimmed":
-                    combined_formatted = dmc.Text(str(combined_formatted), c=comb_color, size="sm")
+                if has_stock:
+                    comb_color = _value_color(str(combined_formatted))
+                    if comb_color != "dimmed":
+                        combined_formatted = dmc.Text(str(combined_formatted), c=comb_color, size="sm")
 
             metrics_rows.append(
                 [
-                    metric,
+                    display_label,
                     options_formatted,
                     combined_formatted,
                 ]

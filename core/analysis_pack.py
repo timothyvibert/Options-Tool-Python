@@ -74,16 +74,28 @@ def _format_net_premium(net_premium: float) -> str:
     return "$0.00"
 
 
+def _clean_neg_zero(value: float) -> float:
+    """Eliminate negative zero and near-zero values for display.
+
+    Values smaller than 0.005 in magnitude would display as '-0.00'
+    when formatted with 2 decimal places — normalise them to +0.0.
+    """
+    if isinstance(value, float) and abs(value) < 0.005:
+        return 0.0
+    return value
+
+
 def _format_number(value: Optional[float]) -> str:
     if value is None or not math.isfinite(value):
         return "--"
-    return f"{value:.2f}"
+    return f"{_clean_neg_zero(value):.2f}"
 
 
 def _format_dollar(value: Optional[float]) -> str:
     """Format numeric value with $ sign and commas."""
     if value is None or not math.isfinite(value):
         return "--"
+    value = _clean_neg_zero(value)
     if value < 0:
         return f"-${abs(value):,.2f}"
     return f"${value:,.2f}"
@@ -272,6 +284,113 @@ def _dedup_key_levels(levels: List[dict]) -> List[dict]:
     return result
 
 
+def _build_empty_pack(strategy_input: StrategyInput, strategy_meta: dict,
+                      pricing_mode: str, roi_policy: str, vol_mode: str,
+                      risk_free_rate: float, treasury_label: str) -> dict:
+    """Return a minimal valid pack when there are no legs and no stock."""
+    meta = strategy_meta if isinstance(strategy_meta, Mapping) else {}
+    spot = float(strategy_input.spot)
+    return {
+        "as_of": meta.get("as_of") or "--",
+        "underlying": {
+            "ticker": meta.get("underlying_ticker"),
+            "resolved": meta.get("resolved_underlying"),
+            "spot": spot,
+            "high_52week": None, "low_52week": None,
+            "week_52_high": None, "week_52_low": None,
+            "high_dt_52week": None, "low_dt_52week": None,
+            "chg_pct_ytd": None, "chg_pct_1yr": None,
+            "chg_pct_5d": None, "chg_pct_3m": None,
+            "eqy_trr_pct_1yr": None, "vol_percentile": None,
+            "impvol_3m_atm": None, "chg_pct_1d": None, "chg_net_1d": None,
+            "impvol_6m_atm": None, "earnings_related_implied_move": None,
+            "ubs_rating": None, "ubs_target": None, "mov_avg_200d": None,
+            "earnings_date": None,
+            "earnings_risk": {
+                "earnings_date": None, "days_to_earnings": None,
+                "before_expiry": None,
+            },
+            "profile": {},
+            "dividend_risk": {
+                "ex_div_date": None, "days_to_dividend": None,
+                "before_expiry": None, "projected_dividend": None,
+                "dividend_status": None,
+            },
+            "put_call_oi_ratio": None, "put_call_vol_ratio": None,
+            "realized_vol_3m": None, "iv_rv_spread": None,
+            "iv_skew_3m": None, "iv_term_premium": None,
+            "iv_rv_percentile": None, "iv_skew_percentile": None,
+            "iv_term_premium_percentile": None,
+        },
+        "strategy": {
+            "group": meta.get("group"),
+            "subgroup": meta.get("subgroup"),
+            "name": meta.get("strategy_name"),
+            "id": meta.get("strategy_id"),
+            "strategy_code": "CUSTOM",
+            "expiry": meta.get("expiry"),
+        },
+        "policies": {
+            "pricing_mode": pricing_mode,
+            "roi_policy": roi_policy,
+            "vol_mode": vol_mode,
+            "risk_free_rate": risk_free_rate,
+            "treasury_label": treasury_label,
+            "auto_capital_basis": {"mode": "none", "amount": 0, "label": "N/A"},
+        },
+        "legs": [],
+        "payoff": {
+            "price_grid": [],
+            "options_pnl": [],
+            "stock_pnl": [],
+            "combined_pnl": [],
+            "strikes": [],
+            "breakevens": [],
+        },
+        "summary": {
+            "rows": [
+                {"metric": "Max Profit", "options": "$0.00", "combined": "$0.00"},
+                {"metric": "Max Loss", "options": "$0.00", "combined": "$0.00"},
+                {"metric": "Risk/Reward", "options": "N/A", "combined": "N/A"},
+                {"metric": "Capital Basis", "options": "$0.00", "combined": "$0.00"},
+                {"metric": "Max ROI", "options": "--", "combined": "--"},
+                {"metric": "Min ROI", "options": "--", "combined": "--"},
+                {"metric": "Cost/Credit", "options": "$0.00", "combined": "$0.00"},
+                {"metric": "Notional Exposure", "options": "$0.00", "combined": "$0.00"},
+                {"metric": "Net Prem/Share", "options": "$0.00", "combined": "$0.00"},
+                {"metric": "Net Prem % Spot", "options": "0.00%", "combined": "0.00%"},
+                {"metric": "PoP", "options": "0.0%", "combined": "0.0%"},
+                {"metric": "Closest Breakeven", "options": "N/A", "combined": "N/A"},
+                {"metric": "BE Distance %", "options": "N/A", "combined": "N/A"},
+            ],
+            "net_premium_total": "$0.00",
+            "net_premium_total_value": 0.0,
+            "net_premium_per_share": "0.00",
+        },
+        "margin": {"classification": "unknown", "margin_proxy": 0.0, "full": {}},
+        "probabilities": {"pop": 0.0, "pop_pct": "0.0%"},
+        "scenario": {
+            "df": pd.DataFrame(),
+            "top10": pd.DataFrame(),
+            "key_levels": [],
+        },
+        "eligibility": {"strategy_code": "CUSTOM", "table": pd.DataFrame(), "error": None},
+        "key_levels": {
+            "meta": {"as_of": None, "expiry": None, "spot": spot,
+                     "has_stock_position": False, "shares": None, "avg_cost": None},
+            "levels": [
+                {"id": "spot", "label": "Current Market Price", "price": spot,
+                 "move_pct": 0.0, "stock_pnl": None, "option_pnl": None,
+                 "net_pnl": None, "net_roi": None, "source": "spot"},
+            ],
+        },
+        "dividend_schedule": None,
+        "vol_surface": {"atm_iv_at_expiry": None, "source": "none"},
+        "commentary_v2": [],
+        "commentary_blocks_v2": [],
+    }
+
+
 def build_analysis_pack(
     strategy_input: StrategyInput,
     strategy_meta: dict,
@@ -287,6 +406,15 @@ def build_analysis_pack(
     risk_free_rate: float = 0.0,
     treasury_label: str = "",
 ) -> dict:
+    # Guard: no legs and no stock → return minimal empty pack
+    if not strategy_input.legs and (
+        strategy_input.stock_position is None or strategy_input.stock_position == 0
+    ):
+        return _build_empty_pack(
+            strategy_input, strategy_meta, pricing_mode, roi_policy,
+            vol_mode, risk_free_rate, treasury_label,
+        )
+
     meta = strategy_meta if isinstance(strategy_meta, Mapping) else {}
     as_of = meta.get("as_of") or "--"
     expiry_value = meta.get("expiry")
@@ -400,11 +528,14 @@ def build_analysis_pack(
         legs=strategy_input.legs,
     )
     options_pnl = [
-        _compute_pnl_for_price(option_only, price) for price in price_grid
+        _clean_neg_zero(_compute_pnl_for_price(option_only, price))
+        for price in price_grid
     ]
     stock_pnl = [
-        combined - option for combined, option in zip(combined_pnl, options_pnl)
+        _clean_neg_zero(combined - option)
+        for combined, option in zip(combined_pnl, options_pnl)
     ]
+    combined_pnl = [_clean_neg_zero(v) for v in combined_pnl]
 
     # Detect unlimited upside/downside for both combined and options-only payoff
     combined_unlimited = _detect_unlimited(price_grid, combined_pnl)
@@ -628,22 +759,51 @@ def build_analysis_pack(
         else _format_dollar(min(combined_pnl) if combined_pnl else None)
     )
 
-    # Risk/Reward Ratio (computed before summary_rows so it can be inline)
-    options_max_profit_num = max(options_pnl) if options_pnl else 0
-    options_max_loss_num = min(options_pnl) if options_pnl else 0
-    combined_max_profit_num = max(combined_pnl) if combined_pnl else 0
-    combined_max_loss_num = min(combined_pnl) if combined_pnl else 0
+    # Convenience booleans for unlimited profit/loss (check flags, not strings)
+    opt_profit_unlimited = options_unlimited["unlimited_upside"]
+    opt_loss_unlimited = (options_unlimited["unlimited_downside"]
+                          or options_unlimited.get("unlimited_loss_upside", False))
+    comb_profit_unlimited = combined_unlimited["unlimited_upside"]
+    comb_loss_unlimited = (combined_unlimited["unlimited_downside"]
+                           or combined_unlimited.get("unlimited_loss_upside", False))
 
-    rr_options = _risk_reward(options_max_profit_num, options_max_loss_num)
-    rr_combined = _risk_reward(combined_max_profit_num, combined_max_loss_num)
+    # Risk/Reward Ratio
+    if opt_profit_unlimited and opt_loss_unlimited:
+        rr_options = "N/A"
+    elif opt_profit_unlimited:
+        rr_options = "Unlimited"
+    else:
+        options_max_profit_num = max(options_pnl) if options_pnl else 0
+        options_max_loss_num = min(options_pnl) if options_pnl else 0
+        rr_options = _risk_reward(options_max_profit_num, options_max_loss_num)
 
-    # Min ROI: show "N/A" when max loss is unlimited (huge negative is meaningless)
-    if options_max_loss == "Unlimited":
+    if comb_profit_unlimited and comb_loss_unlimited:
+        rr_combined = "N/A"
+    elif comb_profit_unlimited:
+        rr_combined = "Unlimited"
+    else:
+        combined_max_profit_num = max(combined_pnl) if combined_pnl else 0
+        combined_max_loss_num = min(combined_pnl) if combined_pnl else 0
+        rr_combined = _risk_reward(combined_max_profit_num, combined_max_loss_num)
+
+    # Max ROI: "Unlimited" when max profit is unlimited
+    if opt_profit_unlimited:
+        max_roi_options = "Unlimited"
+    else:
+        max_roi_options = _format_number(max(option_roi_values) if option_roi_values else None)
+
+    if comb_profit_unlimited:
+        max_roi_combined = "Unlimited"
+    else:
+        max_roi_combined = _format_number(max(net_roi_values) if net_roi_values else None)
+
+    # Min ROI: "N/A" when max loss is unlimited (huge negative is meaningless)
+    if opt_loss_unlimited:
         min_roi_options = "N/A"
     else:
         min_roi_options = _format_number(min(option_roi_values) if option_roi_values else None)
 
-    if combined_max_loss == "Unlimited":
+    if comb_loss_unlimited:
         min_roi_combined = "N/A"
     else:
         min_roi_combined = _format_number(min(net_roi_values) if net_roi_values else None)
@@ -671,8 +831,8 @@ def build_analysis_pack(
         },
         {
             "metric": "Max ROI",
-            "options": _format_number(max(option_roi_values) if option_roi_values else None),
-            "combined": _format_number(max(net_roi_values) if net_roi_values else None),
+            "options": max_roi_options,
+            "combined": max_roi_combined,
         },
         {
             "metric": "Min ROI",
@@ -696,8 +856,8 @@ def build_analysis_pack(
         },
         {
             "metric": "Net Prem % Spot",
-            "options": f"{-net_premium_pct:.2f}%",
-            "combined": f"{-net_premium_pct:.2f}%",
+            "options": f"{_clean_neg_zero(-net_premium_pct):.2f}%",
+            "combined": f"{_clean_neg_zero(-net_premium_pct):.2f}%",
         },
         {
             "metric": "PoP",
@@ -712,7 +872,7 @@ def build_analysis_pack(
         opt_closest_be = min(options_breakevens, key=lambda be: abs(be - spot))
         opt_closest_be_str = f"${opt_closest_be:,.2f}"
         opt_be_dist = ((opt_closest_be - spot) / spot) * 100 if spot else 0
-        opt_be_dist_str = f"{opt_be_dist:+.2f}%"
+        opt_be_dist_str = f"{_clean_neg_zero(opt_be_dist):+.2f}%"
     else:
         opt_closest_be_str = "N/A"
         opt_be_dist_str = "N/A"
@@ -720,7 +880,7 @@ def build_analysis_pack(
         comb_closest_be = min(breakevens, key=lambda be: abs(be - spot))
         comb_closest_be_str = f"${comb_closest_be:,.2f}"
         comb_be_dist = ((comb_closest_be - spot) / spot) * 100 if spot else 0
-        comb_be_dist_str = f"{comb_be_dist:+.2f}%"
+        comb_be_dist_str = f"{_clean_neg_zero(comb_be_dist):+.2f}%"
     else:
         comb_closest_be_str = "N/A"
         comb_be_dist_str = "N/A"
@@ -825,6 +985,15 @@ def build_analysis_pack(
         "levels": [],
     }
 
+    def _clean_level_val(val):
+        """Clean key-level P&L/ROI values: preserve 'Unlimited', eliminate near-zero."""
+        if val is None or isinstance(val, str):
+            return val
+        try:
+            return _clean_neg_zero(float(val))
+        except (TypeError, ValueError):
+            return val
+
     def add_level(
         level_id: str,
         label: str,
@@ -834,17 +1003,17 @@ def build_analysis_pack(
     ) -> None:
         move_pct = None
         if price is not None and spot:
-            move_pct = (float(price) / spot - 1.0) * 100.0
+            move_pct = _clean_neg_zero((float(price) / spot - 1.0) * 100.0)
         key_levels["levels"].append(
             {
                 "id": level_id,
                 "label": label,
                 "price": price,
                 "move_pct": move_pct,
-                "stock_pnl": row.get("stock_pnl") if row is not None else None,
-                "option_pnl": row.get("option_pnl") if row is not None else None,
-                "net_pnl": row.get("combined_pnl") if row is not None else None,
-                "net_roi": row.get("net_roi") if row is not None else None,
+                "stock_pnl": _clean_level_val(row.get("stock_pnl")) if row is not None else None,
+                "option_pnl": _clean_level_val(row.get("option_pnl")) if row is not None else None,
+                "net_pnl": _clean_level_val(row.get("combined_pnl")) if row is not None else None,
+                "net_roi": _clean_level_val(row.get("net_roi")) if row is not None else None,
                 "source": source,
             }
         )
@@ -914,18 +1083,28 @@ def build_analysis_pack(
     stock_pnl_inf = comb_pnl_inf - opt_pnl_inf
     opt_roi_inf = opt_pnl_inf / option_basis if option_basis else None
     net_roi_inf = comb_pnl_inf / total_basis if total_basis else None
-    # Show "Unlimited" for options-only when naked short call exists
-    opt_unlimited_up = (
-        options_unlimited["unlimited_downside"]
+    # Show "Unlimited" at infinity when the high-end slope is non-zero:
+    #   unlimited_upside   → profit increases without bound as price → ∞
+    #   unlimited_loss_upside → loss increases without bound as price → ∞
+    opt_unlimited_at_inf = (
+        options_unlimited["unlimited_upside"]
         or options_unlimited.get("unlimited_loss_upside", False)
     )
+    comb_unlimited_at_inf = (
+        combined_unlimited["unlimited_upside"]
+        or combined_unlimited.get("unlimited_loss_upside", False)
+    )
+    inf_opt_pnl = "Unlimited" if opt_unlimited_at_inf else opt_pnl_inf
+    inf_comb_pnl = "Unlimited" if comb_unlimited_at_inf else comb_pnl_inf
+    inf_opt_roi = "Unlimited" if opt_unlimited_at_inf else opt_roi_inf
+    inf_net_roi = "Unlimited" if comb_unlimited_at_inf else net_roi_inf
     infinity_row = pd.Series({
         "price": None,
-        "option_pnl": "Unlimited" if opt_unlimited_up else opt_pnl_inf,
+        "option_pnl": inf_opt_pnl,
         "stock_pnl": stock_pnl_inf,
-        "combined_pnl": comb_pnl_inf,
-        "option_roi": "Unlimited" if opt_unlimited_up else opt_roi_inf,
-        "net_roi": net_roi_inf,
+        "combined_pnl": inf_comb_pnl,
+        "option_roi": inf_opt_roi,
+        "net_roi": inf_net_roi,
     })
     add_level("infinity", "Stock to Infinity", infinity_row, None, "sentinel")
 

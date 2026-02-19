@@ -151,16 +151,24 @@ def compute_scenario_table(
         label_map[_price_key(us_price)] = _move_label("Upside", spot, us_price)
     label_map[_price_key(spot)] = "Current Market Price"
 
+    def _clean(v: float) -> float:
+        """Normalise near-zero values so they never display as -0.00."""
+        return 0.0 if abs(v) < 0.005 else v
+
+    def _clean_roi(v: float) -> float:
+        """Normalise near-zero ROI so they never display as -0.0000."""
+        return 0.0 if abs(v) < 5e-7 else v
+
     rows = []
     for price in points:
         scenario_label = label_map.get(_price_key(price))
         if not scenario_label:
             scenario_label = _scenario_fallback_label(price)
-        option_pnl = _compute_pnl_for_price(option_only, price)
-        combined_pnl = _compute_pnl_for_price(input, price)
-        stock_pnl = combined_pnl - option_pnl
-        option_roi = option_pnl / option_basis
-        net_roi = combined_pnl / total_basis
+        option_pnl = _clean(_compute_pnl_for_price(option_only, price))
+        combined_pnl = _clean(_compute_pnl_for_price(input, price))
+        stock_pnl = _clean(combined_pnl - option_pnl)
+        option_roi = _clean_roi(option_pnl / option_basis)
+        net_roi = _clean_roi(combined_pnl / total_basis)
         scenario_key = compute_scenario_key(input, payoff_result, price)
         template = select_template(archetype, scenario_key, templates_df)
         context = build_commentary_context(input, option_roi, net_roi)

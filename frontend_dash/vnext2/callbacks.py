@@ -2004,6 +2004,9 @@ def register_v2_callbacks(
     @app.callback(
         Output(ID.METRICS_TABLE, "children"),
         Output(ID.DIVIDEND_CARD, "children"),
+        Output(ID.CHK_STOCK, "checked"),
+        Output(ID.CHK_COMBINED, "checked"),
+        Output(ID.CHK_BE_COMBINED, "checked"),
         Input(ID.STORE_ANALYSIS_KEY, "data"),
         Input(ID.TABS, "value"),
     )
@@ -2048,6 +2051,7 @@ def register_v2_callbacks(
             return (
                 [_section_title("PAYOFF & METRICS"), msg],
                 [_section_title("DIVIDEND"), msg],
+                no_update, no_update, no_update,
             )
 
         pack = cache_get(key_payload.get("key"))
@@ -2056,6 +2060,7 @@ def register_v2_callbacks(
             return (
                 [_section_title("PAYOFF & METRICS"), msg],
                 [_section_title("DIVIDEND"), msg],
+                no_update, no_update, no_update,
             )
 
         store_pack = analysis_pack_to_store(pack)
@@ -2111,7 +2116,8 @@ def register_v2_callbacks(
                 pass
             return "dimmed"
 
-        _no_color_metrics = {"premium % of spot", "be distance %", "closest breakeven"}
+        _no_color_metrics = {"premium % of spot", "be distance %", "closest breakeven",
+                              "capital at risk", "notional exposure"}
 
         for row in summary_rows or []:
             if not isinstance(row, dict):
@@ -2176,7 +2182,8 @@ def register_v2_callbacks(
             _dmc_table_simple(["Field", "Value"], div_rows),
         ]
 
-        return metrics_children, dividend_children
+        return (metrics_children, dividend_children,
+                has_stock, has_stock, has_stock)
 
     # ── #20a Render probability bar ──────────────────────────
     @app.callback(

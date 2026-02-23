@@ -1,0 +1,1236 @@
+{
+  "bull_call_spread_debit": {
+    "anchors": {
+      "breakeven": [
+        102.0
+      ],
+      "lower_strike": 100.0,
+      "spot": null,
+      "upper_strike": 110.0
+    },
+    "bearish": {
+      "body": "At expiry below $100.00, both calls expire worthless and the position loses the debit paid. Maximum loss equals the debit paid: $200.00 total ($2.00 per share). ROI at $100.00 is -100.0%.",
+      "condition": "If stock falls below $100.00",
+      "rule_trace": {
+        "anchors_used": {
+          "base": [
+            "strike_1",
+            "strike_2",
+            "spot"
+          ],
+          "bear": [
+            "strike_1"
+          ],
+          "bull": [
+            "strike_2"
+          ]
+        },
+        "coverage": {
+          "contract_count": 1,
+          "coverage_clause": null,
+          "coverage_ratio": null,
+          "coverage_scope": null,
+          "has_stock_position": false,
+          "is_capped_profit": true,
+          "is_credit": false,
+          "is_debit": true,
+          "is_defined_risk": true,
+          "is_partial": false,
+          "option_structure": "call_spread",
+          "overlay_type": "none",
+          "shares": 0
+        },
+        "inputs_used": {
+          "classification": "SPR",
+          "defined_risk": true,
+          "has_long_call": true,
+          "has_long_put": false,
+          "has_short_call": true,
+          "has_short_put": false,
+          "has_stock_position": false,
+          "iron_condor": false,
+          "is_credit": false,
+          "is_debit": true,
+          "option_structure": "call_spread"
+        },
+        "matched_conditions": [
+          {
+            "actual": "SPR",
+            "field": "classification",
+            "op": "==",
+            "value": "SPR"
+          },
+          {
+            "actual": false,
+            "field": "has_stock_position",
+            "op": "==",
+            "value": false
+          },
+          {
+            "actual": true,
+            "field": "has_short_call",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": true,
+            "field": "has_long_call",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": "call_spread",
+            "field": "option_structure",
+            "op": "==",
+            "value": "call_spread"
+          },
+          {
+            "actual": true,
+            "field": "is_debit",
+            "op": "==",
+            "value": true
+          }
+        ],
+        "rule_id": "call_spread_debit_v1",
+        "version": "1.0"
+      },
+      "title": "Bearish Case"
+    },
+    "bullish": {
+      "body": "At expiry above $110.00, gains are capped at maximum profit. Maximum profit is $800.00. ROI at $110.00 is 400.0%.",
+      "condition": "If stock rises above $110.00",
+      "rule_trace": {
+        "anchors_used": {
+          "base": [
+            "strike_1",
+            "strike_2",
+            "spot"
+          ],
+          "bear": [
+            "strike_1"
+          ],
+          "bull": [
+            "strike_2"
+          ]
+        },
+        "coverage": {
+          "contract_count": 1,
+          "coverage_clause": null,
+          "coverage_ratio": null,
+          "coverage_scope": null,
+          "has_stock_position": false,
+          "is_capped_profit": true,
+          "is_credit": false,
+          "is_debit": true,
+          "is_defined_risk": true,
+          "is_partial": false,
+          "option_structure": "call_spread",
+          "overlay_type": "none",
+          "shares": 0
+        },
+        "inputs_used": {
+          "classification": "SPR",
+          "defined_risk": true,
+          "has_long_call": true,
+          "has_long_put": false,
+          "has_short_call": true,
+          "has_short_put": false,
+          "has_stock_position": false,
+          "iron_condor": false,
+          "is_credit": false,
+          "is_debit": true,
+          "option_structure": "call_spread"
+        },
+        "matched_conditions": [
+          {
+            "actual": "SPR",
+            "field": "classification",
+            "op": "==",
+            "value": "SPR"
+          },
+          {
+            "actual": false,
+            "field": "has_stock_position",
+            "op": "==",
+            "value": false
+          },
+          {
+            "actual": true,
+            "field": "has_short_call",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": true,
+            "field": "has_long_call",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": "call_spread",
+            "field": "option_structure",
+            "op": "==",
+            "value": "call_spread"
+          },
+          {
+            "actual": true,
+            "field": "is_debit",
+            "op": "==",
+            "value": true
+          }
+        ],
+        "rule_id": "call_spread_debit_v1",
+        "version": "1.0"
+      },
+      "title": "Bullish Case"
+    },
+    "case_name": "bull_call_spread_debit",
+    "coverage": {
+      "collared_shares": null,
+      "coverage_phrase": null,
+      "coverage_ratio": null,
+      "covered_shares_call": null,
+      "protected_shares_put": null
+    },
+    "stagnant": {
+      "body": "At expiry between $100.00 and $110.00, intrinsic value increases as price rises toward the upper strike. Breakeven is around $102.00. Maximum loss remains limited to the debit paid: $200.00 total ($2.00 per share). Maximum profit is $800.00.",
+      "condition": "If stock stays between $100.00 and $110.00",
+      "rule_trace": {
+        "anchors_used": {
+          "base": [
+            "strike_1",
+            "strike_2",
+            "spot"
+          ],
+          "bear": [
+            "strike_1"
+          ],
+          "bull": [
+            "strike_2"
+          ]
+        },
+        "coverage": {
+          "contract_count": 1,
+          "coverage_clause": null,
+          "coverage_ratio": null,
+          "coverage_scope": null,
+          "has_stock_position": false,
+          "is_capped_profit": true,
+          "is_credit": false,
+          "is_debit": true,
+          "is_defined_risk": true,
+          "is_partial": false,
+          "option_structure": "call_spread",
+          "overlay_type": "none",
+          "shares": 0
+        },
+        "inputs_used": {
+          "classification": "SPR",
+          "defined_risk": true,
+          "has_long_call": true,
+          "has_long_put": false,
+          "has_short_call": true,
+          "has_short_put": false,
+          "has_stock_position": false,
+          "iron_condor": false,
+          "is_credit": false,
+          "is_debit": true,
+          "option_structure": "call_spread"
+        },
+        "matched_conditions": [
+          {
+            "actual": "SPR",
+            "field": "classification",
+            "op": "==",
+            "value": "SPR"
+          },
+          {
+            "actual": false,
+            "field": "has_stock_position",
+            "op": "==",
+            "value": false
+          },
+          {
+            "actual": true,
+            "field": "has_short_call",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": true,
+            "field": "has_long_call",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": "call_spread",
+            "field": "option_structure",
+            "op": "==",
+            "value": "call_spread"
+          },
+          {
+            "actual": true,
+            "field": "is_debit",
+            "op": "==",
+            "value": true
+          }
+        ],
+        "rule_id": "call_spread_debit_v1",
+        "version": "1.0"
+      },
+      "title": "Stagnant Case"
+    }
+  },
+  "collar_partial": {
+    "anchors": {
+      "breakeven": [
+        620.8
+      ],
+      "lower_strike": 600.0,
+      "spot": 625.0,
+      "upper_strike": 650.0
+    },
+    "bearish": {
+      "body": "Below $600.00, the put sets the floor for ~80% of the position (800 of 1,000 shares). At expiry below $600.00, downside is partially protected on the collared shares. At $600.00, combined P&L would be -$20,800.00 (options contribute -$800.00; the shares contribute -$20,000.00).",
+      "condition": "If stock falls below $600.00",
+      "rule_trace": {
+        "anchors_used": {
+          "base": [
+            "spot",
+            "strike_1"
+          ],
+          "bear": [
+            "strike_1",
+            "downside",
+            "zero"
+          ],
+          "bull": [
+            "strike_1",
+            "upside",
+            "infinity"
+          ]
+        },
+        "coverage": {
+          "contract_count": 8,
+          "coverage_clause": "~80% of the position (800 of 1,000 shares)",
+          "coverage_ratio": 0.8,
+          "coverage_scope": "the collared shares",
+          "has_stock_position": true,
+          "is_capped_profit": false,
+          "is_credit": false,
+          "is_debit": true,
+          "is_defined_risk": true,
+          "is_partial": true,
+          "option_structure": "mixed",
+          "overlay_type": "collar",
+          "shares": 1000
+        },
+        "inputs_used": {
+          "classification": "COL_EQ",
+          "defined_risk": false,
+          "has_long_call": false,
+          "has_long_put": true,
+          "has_short_call": true,
+          "has_short_put": false,
+          "has_stock_position": true,
+          "iron_condor": false,
+          "is_credit": false,
+          "is_debit": true,
+          "option_structure": "mixed"
+        },
+        "matched_conditions": [
+          {
+            "actual": "COL_EQ",
+            "field": "classification",
+            "op": "==",
+            "value": "COL_EQ"
+          },
+          {
+            "actual": true,
+            "field": "has_stock_position",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": true,
+            "field": "has_long_put",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": true,
+            "field": "has_short_call",
+            "op": "==",
+            "value": true
+          }
+        ],
+        "rule_id": "collar_v3",
+        "version": "3.0"
+      },
+      "title": "Bearish Case"
+    },
+    "bullish": {
+      "body": "Above $650.00, upside is limited by the call strike for ~80% of the position (800 of 1,000 shares). At expiry above $650.00, shares may be called away at the strike and upside is partially capped on the collared shares. At $650.00, combined P&L would be +$29,200.00 (options contribute -$800.00; the shares contribute +$30,000.00).",
+      "condition": "If stock rises above $650.00",
+      "rule_trace": {
+        "anchors_used": {
+          "base": [
+            "spot",
+            "strike_1"
+          ],
+          "bear": [
+            "strike_1",
+            "downside",
+            "zero"
+          ],
+          "bull": [
+            "strike_1",
+            "upside",
+            "infinity"
+          ]
+        },
+        "coverage": {
+          "contract_count": 8,
+          "coverage_clause": "~80% of the position (800 of 1,000 shares)",
+          "coverage_ratio": 0.8,
+          "coverage_scope": "the collared shares",
+          "has_stock_position": true,
+          "is_capped_profit": false,
+          "is_credit": false,
+          "is_debit": true,
+          "is_defined_risk": true,
+          "is_partial": true,
+          "option_structure": "mixed",
+          "overlay_type": "collar",
+          "shares": 1000
+        },
+        "inputs_used": {
+          "classification": "COL_EQ",
+          "defined_risk": false,
+          "has_long_call": false,
+          "has_long_put": true,
+          "has_short_call": true,
+          "has_short_put": false,
+          "has_stock_position": true,
+          "iron_condor": false,
+          "is_credit": false,
+          "is_debit": true,
+          "option_structure": "mixed"
+        },
+        "matched_conditions": [
+          {
+            "actual": "COL_EQ",
+            "field": "classification",
+            "op": "==",
+            "value": "COL_EQ"
+          },
+          {
+            "actual": true,
+            "field": "has_stock_position",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": true,
+            "field": "has_long_put",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": true,
+            "field": "has_short_call",
+            "op": "==",
+            "value": true
+          }
+        ],
+        "rule_id": "collar_v3",
+        "version": "3.0"
+      },
+      "title": "Bullish Case"
+    },
+    "case_name": "collar_partial",
+    "coverage": {
+      "collared_shares": 800,
+      "coverage_phrase": "~80% of the position (800 of 1,000 shares)",
+      "coverage_ratio": 0.8,
+      "covered_shares_call": 800,
+      "protected_shares_put": 800
+    },
+    "stagnant": {
+      "body": "Between $600.00 and $650.00, P&L is primarily driven by the shares for ~80% of the position (800 of 1,000 shares). At expiry in this range, the collar legs expire worthless on the collared shares. Net option premium (total): $6,400.00 on 8 contracts paid \u2014 the cost of the downside floor, partially offset by call income.",
+      "condition": "If stock stays between $600.00 and $650.00",
+      "rule_trace": {
+        "anchors_used": {
+          "base": [
+            "spot",
+            "strike_1"
+          ],
+          "bear": [
+            "strike_1",
+            "downside",
+            "zero"
+          ],
+          "bull": [
+            "strike_1",
+            "upside",
+            "infinity"
+          ]
+        },
+        "coverage": {
+          "contract_count": 8,
+          "coverage_clause": "~80% of the position (800 of 1,000 shares)",
+          "coverage_ratio": 0.8,
+          "coverage_scope": "the collared shares",
+          "has_stock_position": true,
+          "is_capped_profit": false,
+          "is_credit": false,
+          "is_debit": true,
+          "is_defined_risk": true,
+          "is_partial": true,
+          "option_structure": "mixed",
+          "overlay_type": "collar",
+          "shares": 1000
+        },
+        "inputs_used": {
+          "classification": "COL_EQ",
+          "defined_risk": false,
+          "has_long_call": false,
+          "has_long_put": true,
+          "has_short_call": true,
+          "has_short_put": false,
+          "has_stock_position": true,
+          "iron_condor": false,
+          "is_credit": false,
+          "is_debit": true,
+          "option_structure": "mixed"
+        },
+        "matched_conditions": [
+          {
+            "actual": "COL_EQ",
+            "field": "classification",
+            "op": "==",
+            "value": "COL_EQ"
+          },
+          {
+            "actual": true,
+            "field": "has_stock_position",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": true,
+            "field": "has_long_put",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": true,
+            "field": "has_short_call",
+            "op": "==",
+            "value": true
+          }
+        ],
+        "rule_id": "collar_v3",
+        "version": "3.0"
+      },
+      "title": "Stagnant Case"
+    }
+  },
+  "covered_call_full": {
+    "anchors": {
+      "breakeven": [
+        33.8
+      ],
+      "lower_strike": 40.0,
+      "spot": 35.0,
+      "upper_strike": 40.0
+    },
+    "bearish": {
+      "body": "Below $40.00, downside follows the shares for the full position (1,000 of 1,000 shares). At expiry below $40.00, the call expires worthless on the covered shares. Net option premium (total): $12,000.00 on 10 contracts received.",
+      "condition": "If stock falls below $35.00",
+      "rule_trace": {
+        "anchors_used": {
+          "base": [
+            "spot",
+            "strike_1"
+          ],
+          "bear": [
+            "downside",
+            "zero"
+          ],
+          "bull": [
+            "strike_1",
+            "upside",
+            "infinity"
+          ]
+        },
+        "coverage": {
+          "contract_count": 10,
+          "coverage_clause": "the full position (1,000 of 1,000 shares)",
+          "coverage_ratio": 1.0,
+          "coverage_scope": "the covered shares",
+          "has_stock_position": true,
+          "is_capped_profit": false,
+          "is_credit": true,
+          "is_debit": false,
+          "is_defined_risk": true,
+          "is_partial": false,
+          "option_structure": "mixed",
+          "overlay_type": "covered_call",
+          "shares": 1000
+        },
+        "inputs_used": {
+          "classification": "CCOV",
+          "defined_risk": true,
+          "has_long_call": false,
+          "has_long_put": false,
+          "has_short_call": true,
+          "has_short_put": false,
+          "has_stock_position": true,
+          "iron_condor": false,
+          "is_credit": true,
+          "is_debit": false,
+          "option_structure": "mixed"
+        },
+        "matched_conditions": [
+          {
+            "actual": "CCOV",
+            "field": "classification",
+            "op": "==",
+            "value": "CCOV"
+          },
+          {
+            "actual": true,
+            "field": "has_stock_position",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": true,
+            "field": "has_short_call",
+            "op": "==",
+            "value": true
+          }
+        ],
+        "rule_id": "covered_call_v3",
+        "version": "3.0"
+      },
+      "title": "Bearish Case"
+    },
+    "bullish": {
+      "body": "Above $40.00, upside is limited by the call strike for the full position (1,000 of 1,000 shares). At expiry above $40.00, shares may be called away at the strike and upside is capped on the covered shares. Maximum combined profit (at expiry): $6,200.00.",
+      "condition": "If stock rises above $40.00",
+      "rule_trace": {
+        "anchors_used": {
+          "base": [
+            "spot",
+            "strike_1"
+          ],
+          "bear": [
+            "downside",
+            "zero"
+          ],
+          "bull": [
+            "strike_1",
+            "upside",
+            "infinity"
+          ]
+        },
+        "coverage": {
+          "contract_count": 10,
+          "coverage_clause": "the full position (1,000 of 1,000 shares)",
+          "coverage_ratio": 1.0,
+          "coverage_scope": "the covered shares",
+          "has_stock_position": true,
+          "is_capped_profit": false,
+          "is_credit": true,
+          "is_debit": false,
+          "is_defined_risk": true,
+          "is_partial": false,
+          "option_structure": "mixed",
+          "overlay_type": "covered_call",
+          "shares": 1000
+        },
+        "inputs_used": {
+          "classification": "CCOV",
+          "defined_risk": true,
+          "has_long_call": false,
+          "has_long_put": false,
+          "has_short_call": true,
+          "has_short_put": false,
+          "has_stock_position": true,
+          "iron_condor": false,
+          "is_credit": true,
+          "is_debit": false,
+          "option_structure": "mixed"
+        },
+        "matched_conditions": [
+          {
+            "actual": "CCOV",
+            "field": "classification",
+            "op": "==",
+            "value": "CCOV"
+          },
+          {
+            "actual": true,
+            "field": "has_stock_position",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": true,
+            "field": "has_short_call",
+            "op": "==",
+            "value": true
+          }
+        ],
+        "rule_id": "covered_call_v3",
+        "version": "3.0"
+      },
+      "title": "Bullish Case"
+    },
+    "case_name": "covered_call_full",
+    "coverage": {
+      "collared_shares": null,
+      "coverage_phrase": "the full position (1,000 of 1,000 shares)",
+      "coverage_ratio": 1.0,
+      "covered_shares_call": 1000,
+      "protected_shares_put": null
+    },
+    "stagnant": {
+      "body": "Between $35.00 and $40.00, gains follow the shares for the full position (1,000 of 1,000 shares). At expiry in this range, the call expires worthless on the covered shares. Net option premium (total): $12,000.00 on 10 contracts received.",
+      "condition": "If stock stays between $35.00 and $40.00",
+      "rule_trace": {
+        "anchors_used": {
+          "base": [
+            "spot",
+            "strike_1"
+          ],
+          "bear": [
+            "downside",
+            "zero"
+          ],
+          "bull": [
+            "strike_1",
+            "upside",
+            "infinity"
+          ]
+        },
+        "coverage": {
+          "contract_count": 10,
+          "coverage_clause": "the full position (1,000 of 1,000 shares)",
+          "coverage_ratio": 1.0,
+          "coverage_scope": "the covered shares",
+          "has_stock_position": true,
+          "is_capped_profit": false,
+          "is_credit": true,
+          "is_debit": false,
+          "is_defined_risk": true,
+          "is_partial": false,
+          "option_structure": "mixed",
+          "overlay_type": "covered_call",
+          "shares": 1000
+        },
+        "inputs_used": {
+          "classification": "CCOV",
+          "defined_risk": true,
+          "has_long_call": false,
+          "has_long_put": false,
+          "has_short_call": true,
+          "has_short_put": false,
+          "has_stock_position": true,
+          "iron_condor": false,
+          "is_credit": true,
+          "is_debit": false,
+          "option_structure": "mixed"
+        },
+        "matched_conditions": [
+          {
+            "actual": "CCOV",
+            "field": "classification",
+            "op": "==",
+            "value": "CCOV"
+          },
+          {
+            "actual": true,
+            "field": "has_stock_position",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": true,
+            "field": "has_short_call",
+            "op": "==",
+            "value": true
+          }
+        ],
+        "rule_id": "covered_call_v3",
+        "version": "3.0"
+      },
+      "title": "Stagnant Case"
+    }
+  },
+  "iron_condor_credit": {
+    "anchors": {
+      "breakeven": [
+        93.0,
+        107.0
+      ],
+      "lower_strike": 90.0,
+      "spot": 100.0,
+      "upper_strike": 110.0
+    },
+    "bearish": {
+      "body": "Below $95.00, losses build toward the lower hedge at $90.00. At expiry below $95.00, losses increase toward the lower hedge at $90.00. Maximum loss is $300.00.",
+      "condition": "If stock falls below $95.00",
+      "rule_trace": {
+        "anchors_used": {
+          "base": [
+            "strike_2",
+            "strike_3",
+            "spot"
+          ],
+          "bear": [
+            "strike_1",
+            "strike_2",
+            "downside",
+            "zero"
+          ],
+          "bull": [
+            "strike_3",
+            "strike_4",
+            "upside",
+            "infinity"
+          ]
+        },
+        "coverage": {
+          "contract_count": 1,
+          "coverage_clause": null,
+          "coverage_ratio": null,
+          "coverage_scope": null,
+          "has_stock_position": false,
+          "is_capped_profit": true,
+          "is_credit": true,
+          "is_debit": false,
+          "is_defined_risk": true,
+          "is_partial": false,
+          "option_structure": "condor",
+          "overlay_type": "none",
+          "shares": 0
+        },
+        "inputs_used": {
+          "classification": "SPR",
+          "defined_risk": true,
+          "has_long_call": true,
+          "has_long_put": true,
+          "has_short_call": true,
+          "has_short_put": true,
+          "has_stock_position": false,
+          "iron_condor": true,
+          "is_credit": true,
+          "is_debit": false,
+          "option_structure": "condor"
+        },
+        "matched_conditions": [
+          {
+            "actual": true,
+            "field": "iron_condor",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": false,
+            "field": "has_stock_position",
+            "op": "==",
+            "value": false
+          }
+        ],
+        "rule_id": "iron_condor_v3",
+        "version": "3.0"
+      },
+      "title": "Bearish Case"
+    },
+    "bullish": {
+      "body": "Above $105.00, losses build toward the upper hedge at $110.00. At expiry above $105.00, losses increase toward the upper hedge at $110.00. Maximum loss is $300.00.",
+      "condition": "If stock rises above $105.00",
+      "rule_trace": {
+        "anchors_used": {
+          "base": [
+            "strike_2",
+            "strike_3",
+            "spot"
+          ],
+          "bear": [
+            "strike_1",
+            "strike_2",
+            "downside",
+            "zero"
+          ],
+          "bull": [
+            "strike_3",
+            "strike_4",
+            "upside",
+            "infinity"
+          ]
+        },
+        "coverage": {
+          "contract_count": 1,
+          "coverage_clause": null,
+          "coverage_ratio": null,
+          "coverage_scope": null,
+          "has_stock_position": false,
+          "is_capped_profit": true,
+          "is_credit": true,
+          "is_debit": false,
+          "is_defined_risk": true,
+          "is_partial": false,
+          "option_structure": "condor",
+          "overlay_type": "none",
+          "shares": 0
+        },
+        "inputs_used": {
+          "classification": "SPR",
+          "defined_risk": true,
+          "has_long_call": true,
+          "has_long_put": true,
+          "has_short_call": true,
+          "has_short_put": true,
+          "has_stock_position": false,
+          "iron_condor": true,
+          "is_credit": true,
+          "is_debit": false,
+          "option_structure": "condor"
+        },
+        "matched_conditions": [
+          {
+            "actual": true,
+            "field": "iron_condor",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": false,
+            "field": "has_stock_position",
+            "op": "==",
+            "value": false
+          }
+        ],
+        "rule_id": "iron_condor_v3",
+        "version": "3.0"
+      },
+      "title": "Bullish Case"
+    },
+    "case_name": "iron_condor_credit",
+    "coverage": {
+      "collared_shares": null,
+      "coverage_phrase": null,
+      "coverage_ratio": null,
+      "covered_shares_call": null,
+      "protected_shares_put": null
+    },
+    "stagnant": {
+      "body": "Between $95.00 and $105.00, the short options stay out of the money. At expiry in this range, the short options expire worthless and the strategy retains the net credit. Net option premium (total): $200.00 on 1 contracts received Breakeven is around $93.00.",
+      "condition": "If stock stays between $95.00 and $105.00",
+      "rule_trace": {
+        "anchors_used": {
+          "base": [
+            "strike_2",
+            "strike_3",
+            "spot"
+          ],
+          "bear": [
+            "strike_1",
+            "strike_2",
+            "downside",
+            "zero"
+          ],
+          "bull": [
+            "strike_3",
+            "strike_4",
+            "upside",
+            "infinity"
+          ]
+        },
+        "coverage": {
+          "contract_count": 1,
+          "coverage_clause": null,
+          "coverage_ratio": null,
+          "coverage_scope": null,
+          "has_stock_position": false,
+          "is_capped_profit": true,
+          "is_credit": true,
+          "is_debit": false,
+          "is_defined_risk": true,
+          "is_partial": false,
+          "option_structure": "condor",
+          "overlay_type": "none",
+          "shares": 0
+        },
+        "inputs_used": {
+          "classification": "SPR",
+          "defined_risk": true,
+          "has_long_call": true,
+          "has_long_put": true,
+          "has_short_call": true,
+          "has_short_put": true,
+          "has_stock_position": false,
+          "iron_condor": true,
+          "is_credit": true,
+          "is_debit": false,
+          "option_structure": "condor"
+        },
+        "matched_conditions": [
+          {
+            "actual": true,
+            "field": "iron_condor",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": false,
+            "field": "has_stock_position",
+            "op": "==",
+            "value": false
+          }
+        ],
+        "rule_id": "iron_condor_v3",
+        "version": "3.0"
+      },
+      "title": "Stagnant Case"
+    }
+  },
+  "protective_put_partial": {
+    "anchors": {
+      "breakeven": [
+        36.2
+      ],
+      "lower_strike": 30.0,
+      "spot": 35.0,
+      "upper_strike": 30.0
+    },
+    "bearish": {
+      "body": "Below $30.00, the put establishes the floor for ~80% of the position (800 of 1,000 shares). At expiry below $30.00, the put settles at intrinsic value and downside is partially protected on the protected shares. At $30.00, combined P&L would be -$6,200.00 (options contribute -$1,200.00; the shares contribute -$5,000.00).",
+      "condition": "If stock falls below $30.00",
+      "rule_trace": {
+        "anchors_used": {
+          "base": [
+            "spot",
+            "strike_1"
+          ],
+          "bear": [
+            "strike_1",
+            "downside",
+            "zero"
+          ],
+          "bull": [
+            "upside",
+            "infinity"
+          ]
+        },
+        "coverage": {
+          "contract_count": 8,
+          "coverage_clause": "~80% of the position (800 of 1,000 shares)",
+          "coverage_ratio": 0.8,
+          "coverage_scope": "the protected shares",
+          "has_stock_position": true,
+          "is_capped_profit": false,
+          "is_credit": false,
+          "is_debit": true,
+          "is_defined_risk": true,
+          "is_partial": true,
+          "option_structure": "mixed",
+          "overlay_type": "protective_put",
+          "shares": 1000
+        },
+        "inputs_used": {
+          "classification": "PPRT",
+          "defined_risk": false,
+          "has_long_call": false,
+          "has_long_put": true,
+          "has_short_call": false,
+          "has_short_put": false,
+          "has_stock_position": true,
+          "iron_condor": false,
+          "is_credit": false,
+          "is_debit": true,
+          "option_structure": "mixed"
+        },
+        "matched_conditions": [
+          {
+            "actual": "PPRT",
+            "field": "classification",
+            "op": "==",
+            "value": "PPRT"
+          },
+          {
+            "actual": true,
+            "field": "has_stock_position",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": true,
+            "field": "has_long_put",
+            "op": "==",
+            "value": true
+          }
+        ],
+        "rule_id": "protective_put_v3",
+        "version": "3.0"
+      },
+      "title": "Bearish Case"
+    },
+    "bullish": {
+      "body": "Above $35.00, upside participation continues for ~80% of the position (800 of 1,000 shares). At expiry above $35.00, the put expires worthless and gains follow the shares on the protected shares. At $30.00, combined P&L would be -$6,200.00 (options contribute -$1,200.00; the shares contribute -$5,000.00).",
+      "condition": "If stock rises above $35.00",
+      "rule_trace": {
+        "anchors_used": {
+          "base": [
+            "spot",
+            "strike_1"
+          ],
+          "bear": [
+            "strike_1",
+            "downside",
+            "zero"
+          ],
+          "bull": [
+            "upside",
+            "infinity"
+          ]
+        },
+        "coverage": {
+          "contract_count": 8,
+          "coverage_clause": "~80% of the position (800 of 1,000 shares)",
+          "coverage_ratio": 0.8,
+          "coverage_scope": "the protected shares",
+          "has_stock_position": true,
+          "is_capped_profit": false,
+          "is_credit": false,
+          "is_debit": true,
+          "is_defined_risk": true,
+          "is_partial": true,
+          "option_structure": "mixed",
+          "overlay_type": "protective_put",
+          "shares": 1000
+        },
+        "inputs_used": {
+          "classification": "PPRT",
+          "defined_risk": false,
+          "has_long_call": false,
+          "has_long_put": true,
+          "has_short_call": false,
+          "has_short_put": false,
+          "has_stock_position": true,
+          "iron_condor": false,
+          "is_credit": false,
+          "is_debit": true,
+          "option_structure": "mixed"
+        },
+        "matched_conditions": [
+          {
+            "actual": "PPRT",
+            "field": "classification",
+            "op": "==",
+            "value": "PPRT"
+          },
+          {
+            "actual": true,
+            "field": "has_stock_position",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": true,
+            "field": "has_long_put",
+            "op": "==",
+            "value": true
+          }
+        ],
+        "rule_id": "protective_put_v3",
+        "version": "3.0"
+      },
+      "title": "Bullish Case"
+    },
+    "case_name": "protective_put_partial",
+    "coverage": {
+      "collared_shares": null,
+      "coverage_phrase": "~80% of the position (800 of 1,000 shares)",
+      "coverage_ratio": 0.8,
+      "covered_shares_call": null,
+      "protected_shares_put": 800
+    },
+    "stagnant": {
+      "body": "Between $30.00 and $35.00, results follow the shares for ~80% of the position (800 of 1,000 shares). At expiry in this range, protection remains in place on the protected shares. Net option premium (total): $9,600.00 on 8 contracts paid.",
+      "condition": "If stock stays between $30.00 and $35.00",
+      "rule_trace": {
+        "anchors_used": {
+          "base": [
+            "spot",
+            "strike_1"
+          ],
+          "bear": [
+            "strike_1",
+            "downside",
+            "zero"
+          ],
+          "bull": [
+            "upside",
+            "infinity"
+          ]
+        },
+        "coverage": {
+          "contract_count": 8,
+          "coverage_clause": "~80% of the position (800 of 1,000 shares)",
+          "coverage_ratio": 0.8,
+          "coverage_scope": "the protected shares",
+          "has_stock_position": true,
+          "is_capped_profit": false,
+          "is_credit": false,
+          "is_debit": true,
+          "is_defined_risk": true,
+          "is_partial": true,
+          "option_structure": "mixed",
+          "overlay_type": "protective_put",
+          "shares": 1000
+        },
+        "inputs_used": {
+          "classification": "PPRT",
+          "defined_risk": false,
+          "has_long_call": false,
+          "has_long_put": true,
+          "has_short_call": false,
+          "has_short_put": false,
+          "has_stock_position": true,
+          "iron_condor": false,
+          "is_credit": false,
+          "is_debit": true,
+          "option_structure": "mixed"
+        },
+        "matched_conditions": [
+          {
+            "actual": "PPRT",
+            "field": "classification",
+            "op": "==",
+            "value": "PPRT"
+          },
+          {
+            "actual": true,
+            "field": "has_stock_position",
+            "op": "==",
+            "value": true
+          },
+          {
+            "actual": true,
+            "field": "has_long_put",
+            "op": "==",
+            "value": true
+          }
+        ],
+        "rule_id": "protective_put_v3",
+        "version": "3.0"
+      },
+      "title": "Stagnant Case"
+    }
+  }
+}

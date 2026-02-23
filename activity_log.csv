@@ -1,0 +1,5 @@
+timestamp,fa_name,acct_number,ticker,strategy,expiry,contracts,net_premium,max_profit,max_loss
+2026-02-09 23:50:11 UTC,,,MSFT US Equity,Iron Condor,2026-03-20,,Credit 7.70,770.00,-230.00
+2026-02-13 17:30:33 UTC,,,MSFT US Equity,Bull Call Spread,2026-03-20,,Debit $510.00,$490.00,-$510.00
+2026-02-14 00:00:00 UTC,,,MSFT US Equity,Bull Call Spread,2026-06-18,,"Debit $1,612.50","$1,887.50","-$1,612.50"
+2026-02-19 01:29:38 UTC,,,MSFT US Equity,Long Call,2026-06-18,,"Debit $2,027.50",Unlimited,"-$2,027.50"
